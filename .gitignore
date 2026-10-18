@@ -1,0 +1,71 @@
+@'
+# ==========================================
+# ScanToPath - Git Ignore
+# ==========================================
+
+# Python environment
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Python build
+dist/
+*.whl
+
+# CMake / C++ build
+build/
+build-*/
+cmake-build-*/
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+
+# Compiled artifacts
+*.obj
+*.o
+*.lib
+*.dll
+*.exe
+*.pyd
+*.pdb
+*.exp
+*.ilk
+*.idb
+*.tlog
+
+# Visual Studio
+.vs/
+*.suo
+*.user
+*.VC.db
+*.VC.opendb
+
+# ScanToPath local data
+scantopath-data/
+
+# Orbbec SDK local files
+_sdk/
+_setup/
+
+# Temporary and backup files
+*.log
+*.tmp
+*.bak
+*.swp
+
+# Local credentials
+.env
+.env.*
+!.env.example
+*.pem
+
+# OS
+.DS_Store
+Thumbs.db
+'@ | Set-Content -Path ".gitignore" -Encoding utf8

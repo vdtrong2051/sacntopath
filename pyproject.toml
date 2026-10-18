@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "scantopath-software"
+version = "0.1.0"
+description = "ScanToPath offline-first acquisition and traceability reference slice"
+requires-python = ">=3.12"
+dependencies = ["numpy>=2.0,<3", "pydantic>=2.7,<3"]
+
+[project.optional-dependencies]
+ui = ["PySide6>=6.7,<7"]
+test = ["pytest>=8"]
+
+[project.scripts]
+scantopath = "scantopath.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
