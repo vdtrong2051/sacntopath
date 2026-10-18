@@ -77,3 +77,20 @@ CMake writes `_scantopath_native*.pyd` into `src/scantopath/` (editable-source l
 4. Python original 5 tests plus added offline tests pass.
 
 **Never claim acceptance before the user's Windows output confirms it.**
+
+## Kết quả người dùng xác nhận và tương thích MSVC (18/10/2026)
+
+Trên Windows 11/MSVC 19.51 (VS 2026), module `.pyd` có thể `ctypes.WinDLL()` thành công nhưng Python `import` gặp Access Violation `0xC0000005`. **Tắt LTO bằng `NO_EXTRAS` đơn độc không khắc phục lỗi.** Sau khi thêm `_DISABLE_CONSTEXPR_MUTEX_CONSTRUCTOR` cho đúng target pybind11, `--self-test` thành công và trả mã `0`.
+
+Cấu hình hiện hành đã nằm trong `cpp/CMakeLists.txt` và được giữ nguyên trong PRE-01:
+
+```cmake
+pybind11_add_module(_scantopath_native MODULE NO_EXTRAS python/orbbec_bindings.cpp)
+if(MSVC)
+    target_compile_definitions(_scantopath_native PRIVATE _DISABLE_CONSTEXPR_MUTEX_CONSTRUCTOR)
+endif()
+```
+
+Người dùng đã chạy `--once` với Gemini 2, nhận Color 1920×1080 MJPG + Depth 1280×800 Y16, `depth.numpy.owns_data=True`, `capture.valid=true`, `buffer.copy_survived_close=true`, `capture.saved=false`; `CaptureExitCode=0`. CTest `2/2`, pytest `7/7` trên máy người dùng. Các kết quả này xác nhận **chỉ** native acquisition/binding và regression ở thời điểm đã thử; chưa có lưu RAW, 3D reconstruction, phân tích sai số hay chức năng quỹ đạo cầm tay.
+
+**PRE-01 thay đổi tài liệu, không sửa mã CMake/pybind11.** Kiểm thử hậu áp dụng phải được chạy lại trên Windows trước khi khóa mốc. Khi cập nhật MSVC/STL/pybind11, cần kiểm thử lại workaround, không gỡ bỏ chỉ dựa trên build thành công.

@@ -1,6 +1,6 @@
 # GĐ1.2.3.1 — Gemini 2 SDK C++ probe (Windows x64)
 
-**Status:** Source prepared; SDK-dependent build and camera execution MUST be validated on user's Windows/Gemini 2. Offline v0.1.0 is not changed.
+**Status update (2026-10-18):** User verified SDK-dependent probe build and `--info` / `--capture` with Gemini 2 on Windows/MSVC. The steps below are preserved as historical/reproduction instructions, not evidence of future metrological accuracy. This is a supplementary Acquisition branch, **not functional GĐ1 — 3D Core**.
 
 ## Baseline recorded from user's OrbbecViewer
 
