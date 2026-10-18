@@ -63,3 +63,4 @@ _setup/
 # OS
 .DS_Store
 Thumbs.db
+/Log/
