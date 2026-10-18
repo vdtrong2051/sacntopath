@@ -5,12 +5,16 @@ flush files, then rename. This does not claim power-loss durability on every FS.
 """
 from pathlib import Path
 import json
+import hashlib
+import re
 import os
 import shutil
 import uuid
 import numpy as np
 from scantopath.acquisition.sources import FrameBundle
+from scantopath.acquisition.raw_rgbd import RawRgbdCapture
 from scantopath.domain.models import CaptureMetadata, Pose
+from scantopath.domain.raw_rgbd import RawRgbdCaptureMetadataV2
 
 
 class SessionStore:
@@ -99,3 +103,164 @@ class SessionStore:
         if rgb.shape != (*depth.shape, 3) or rgb.dtype != np.uint8:
             raise ValueError("Invalid stored RGB")
         return meta, depth, rgb
+
+
+    # PRE-03: v2 RAW persistence. The v1 commit()/read() APIs above are unchanged.
+    _RAW_FILES = frozenset({"color.mjpg", "depth.y16", "metadata.json"})
+    _RAW_DIRECTORY_FILES = _RAW_FILES | {"manifest.json", "COMMITTED"}
+
+    @staticmethod
+    def _write_bytes(path: Path, contents: bytes) -> None:
+        with path.open("xb") as stream:
+            stream.write(contents)
+            stream.flush()
+            os.fsync(stream.fileno())
+
+    @staticmethod
+    def _digest(contents: bytes) -> str:
+        return hashlib.sha256(contents).hexdigest()
+
+    def commit_raw(self, capture: RawRgbdCapture) -> Path:
+        """Commit an immutable RAW v2 capture; never decode, align or transform it.
+
+        Writes all files to a sibling .partial directory and renames it only
+        after writing the manifest and final COMMITTED marker. The rename is
+        atomic on a single filesystem, but is NOT a power-loss durability claim.
+        """
+        if not isinstance(capture, RawRgbdCapture):
+            raise TypeError("capture must be a PRE-02 RawRgbdCapture")
+        meta = capture.metadata
+        session_id = self._safe_name(meta.session_id)
+        capture_id = self._safe_name(meta.capture_id)
+        self._safe_name(meta.specimen_id)
+
+        parent = self.root / "sessions" / session_id / "captures"
+        parent.mkdir(parents=True, exist_ok=True)
+        destination = parent / capture_id
+        if destination.exists() or destination.is_symlink():
+            raise FileExistsError(f"Capture already exists: {capture_id}")
+        partial = parent / f".{capture_id}.{uuid.uuid4().hex}.partial"
+        partial.mkdir()
+        try:
+            data = {
+                "color.mjpg": capture.color_mjpeg,
+                "depth.y16": capture.depth_y16_le,
+                "metadata.json": meta.model_dump_json(indent=2).encode("utf-8"),
+            }
+            manifest = {
+                "manifest_schema_version": 1,
+                "capture_schema_version": 2,
+                "capture_id": capture_id,
+                "files": {
+                    name: {
+                        "size_bytes": len(payload),
+                        "sha256": self._digest(payload),
+                    }
+                    for name, payload in data.items()
+                },
+            }
+            for name, contents in data.items():
+                self._write_bytes(partial / name, contents)
+            self._write_bytes(
+                partial / "manifest.json",
+                (json.dumps(manifest, ensure_ascii=False, sort_keys=True, indent=2) + "\n").encode("utf-8"),
+            )
+            # Incomplete directories lack the public COMMITTED marker.
+            self._write_bytes(partial / "COMMITTED", b"1\n")
+            # On Windows, rename will not overwrite an existing directory.
+            if destination.exists() or destination.is_symlink():
+                raise FileExistsError(f"Capture already exists: {capture_id}")
+            partial.rename(destination)
+        finally:
+            if partial.exists():
+                shutil.rmtree(partial)
+        return destination
+
+    def read_raw(self, path: str | Path) -> RawRgbdCapture:
+        """Verify SHA-256, lengths, metadata and path before returning RAW bytes.
+
+        The hashes detect accidental corruption. They do not authenticate an
+        attacker who can edit both payloads and manifest.
+        """
+        supplied = Path(path)
+        # Prevent a caller from selecting a capture outside the configured store
+        # and prevent symlink redirection within the capture directory.
+        location = supplied.resolve(strict=True)
+        if location != supplied.absolute():
+            raise ValueError("RAW capture path must not use symlinks or traversal")
+        try:
+            relative = location.relative_to(self.root)
+        except ValueError as exc:
+            raise ValueError("RAW capture must be inside this SessionStore") from exc
+        if (len(relative.parts) != 4 or relative.parts[0] != "sessions"
+                or relative.parts[2] != "captures"):
+            raise ValueError("Not a capture directory")
+        session_id = self._safe_name(relative.parts[1])
+        capture_id = self._safe_name(relative.parts[3])
+        if not location.is_dir():
+            raise ValueError("Capture path is not a directory")
+        if {item.name for item in location.iterdir()} != self._RAW_DIRECTORY_FILES:
+            raise ValueError("RAW capture files are incomplete or unexpected")
+        for name in self._RAW_DIRECTORY_FILES:
+            entry = location / name
+            if entry.is_symlink() or not entry.is_file():
+                raise ValueError(f"Invalid RAW file entry: {name}")
+        if (location / "COMMITTED").read_bytes() != b"1\n":
+            raise ValueError("RAW capture is not committed")
+
+        manifest = json.loads((location / "manifest.json").read_text(encoding="utf-8"))
+        if not isinstance(manifest, dict) or set(manifest) != {
+            "manifest_schema_version", "capture_schema_version", "capture_id", "files"
+        }:
+            raise ValueError("Invalid RAW manifest structure")
+        if (type(manifest["manifest_schema_version"]) is not int or
+                manifest["manifest_schema_version"] != 1 or
+                type(manifest["capture_schema_version"]) is not int or
+                manifest["capture_schema_version"] != 2 or
+                manifest["capture_id"] != capture_id or
+                not isinstance(manifest["files"], dict) or
+                set(manifest["files"]) != self._RAW_FILES):
+            raise ValueError("Invalid RAW manifest version, ID or file list")
+
+        verified: dict[str, bytes] = {}
+        for name in self._RAW_FILES:
+            descriptor = manifest["files"][name]
+            if (not isinstance(descriptor, dict) or
+                    set(descriptor) != {"size_bytes", "sha256"} or
+                    type(descriptor["size_bytes"]) is not int or
+                    descriptor["size_bytes"] <= 0 or
+                    not isinstance(descriptor["sha256"], str) or
+                    re.fullmatch(r"[0-9a-f]{64}", descriptor["sha256"]) is None):
+                raise ValueError(f"Invalid RAW manifest entry: {name}")
+            file_path = location / name
+            if file_path.stat().st_size != descriptor["size_bytes"]:
+                raise ValueError(f"RAW file length mismatch: {name}")
+            contents = file_path.read_bytes()
+            if len(contents) != descriptor["size_bytes"] or self._digest(contents) != descriptor["sha256"]:
+                raise ValueError(f"RAW checksum mismatch: {name}")
+            verified[name] = contents
+
+        metadata = RawRgbdCaptureMetadataV2.model_validate_json(verified["metadata.json"])
+        if metadata.session_id != session_id or metadata.capture_id != capture_id:
+            raise ValueError("RAW capture metadata disagrees with directory identity")
+        return RawRgbdCapture(
+            metadata=metadata,
+            color_mjpeg=verified["color.mjpg"],
+            depth_y16_le=verified["depth.y16"],
+        )
+
+    def read_capture(self, path: str | Path) -> tuple[CaptureMetadata, np.ndarray, np.ndarray] | RawRgbdCapture:
+        """Version-aware read; v1 returns its original tuple, v2 returns RAW."""
+        capture_dir = Path(path)
+        if not (capture_dir / "COMMITTED").is_file():
+            raise ValueError("Capture not committed")
+        # Only version discovery here; v2 performs full metadata hash checking.
+        with (capture_dir / "metadata.json").open("r", encoding="utf-8") as stream:
+            version = json.load(stream).get("schema_version")
+        if type(version) is not int:
+            raise ValueError("Invalid capture schema version")
+        if version == 1:
+            return self.read(capture_dir)
+        if version == 2:
+            return self.read_raw(capture_dir)
+        raise ValueError(f"Unsupported capture schema version: {version}")
