@@ -1,32 +1,23 @@
-"""Minimal PySide6 project shell. No heavy 3D viewer in phase 01."""
+"""Điểm vào desktop ScanToPath (GĐ1-06.3); không mở SDK/SQLite khi import."""
+from __future__ import annotations
+
 import sys
-from PySide6.QtWidgets import QApplication, QLabel, QMainWindow, QTabWidget, QWidget, QVBoxLayout
+
+from PySide6.QtWidgets import QApplication
+
+from scantopath.ui.shell import ScanToPathMainWindow
 
 
-def main() -> None:
-    app = QApplication(sys.argv)
-    win = QMainWindow()
-    win.setWindowTitle("ScanToPath | Software foundation (offline)")
-    tabs = QTabWidget()
-    pages = {
-        "Project": "Project / Specimen / Session records",
-        "Acquisition": "Gemini 2 SDK v2 integration follows hardware verification",
-        "Geometry": "Point-cloud pipeline / native C++20 core",
-        "Quality": "Measurement error, coverage, provenance",
-        "Features": "Planes, cylinders, holes, axes, relationships",
-        "Replica": "Engineering digital replica",
-        "Export": "Technical outputs (not CNC/robot commands)",
-    }
-    for title, detail in pages.items():
-        widget = QWidget()
-        layout = QVBoxLayout(widget)
-        layout.addWidget(QLabel(detail))
-        tabs.addTab(widget, title)
-    win.setCentralWidget(tabs)
-    win.resize(980, 640)
-    win.show()
-    sys.exit(app.exec())
+def main(argv: list[str] | None = None) -> int:
+    app = QApplication.instance()
+    if app is None:
+        app = QApplication(sys.argv if argv is None else argv)
+    app.setApplicationName("ScanToPath")
+    app.setOrganizationName("ScanToPath")
+    window = ScanToPathMainWindow()
+    window.show()
+    return app.exec()
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())
