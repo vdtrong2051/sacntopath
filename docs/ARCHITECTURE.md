@@ -1,74 +1,105 @@
-# ScanToPath — Architecture baseline (PRE-01, 2026-10-18)
+# ScanToPath — Kiến trúc sau nghiệm thu GĐ0 (UI-first baseline)
 
-## 1. Stack and module boundaries
+**Cập nhật:** 2026-10-18. **Đây là mô tả kiến trúc hiện có + kiến trúc mục tiêu, không phải chứng nhận tất cả module đã triển khai.** Đọc cùng [`ROADMAP.md`](ROADMAP.md) và [ADR-001](decisions/ADR_001_UI_FIRST.md).
 
-Baseline stack remains: Qt 6/PySide6 desktop; Python 3.12 orchestration; C++20 native geometry and acquisition; CMake + MSVC x64 + pybind11; planned Eigen / Open3D C++ / OpenCV C++ / VTK+Qt; SQLite/SQLAlchemy metadata and Pydantic contracts. **Planned** dependencies are not claimed as implemented. The current repository contains a minimal C++ geometry core, Python storage/domain, C++ Orbbec source, pybind11 bridge and a placeholder PySide6 shell; no working VTK viewer or SQLite application service yet.
+## 1. Hiện trạng đã có / chưa có
 
-```text
-Desktop PySide6 (current: shell only; future: project / acquisition / 3D viewer)
-          |
-Python services and typed contracts
-  |                               |
-  +-- Capture Store (v1 synthetic) +-- pybind11 native bridge (tested)
-          |                               |
-   Local raw files                    C++20 OrbbecCameraSource
-                                          |
-                                   OrbbecSDK v2 / Gemini 2 USB3
+| Thành phần | Hiện trạng cuối GĐ0 |
+|---|---|
+| C++20 + OrbbecSDK v2.10.6 + pybind11 | Đã nghiệm thu một shot Gemini 2 RAW thực, source/buffer lifetime |
+| RAW v2 | MJPEG/Y16 lưới độc lập, calibration metadata/scale/time, SHA-256, `COMMITTED`, readback |
+| RAW v1 synthetic | Còn hỗ trợ đọc, không dùng để giả lập color-depth alignment từ camera thật |
+| SQLite + SQLAlchemy | Metadata Project → Specimen → Session → Capture → ProcessingRun, audit events và CLI |
+| UI PySide6 | Shell tối thiểu; **chưa** có Project Workspace thật, VTK viewer, replay UI |
+| 3D geometry | C++ geometry smoke; **chưa** có application cloud pipeline/metric validation/registration/fusion |
+| AI tracking/guidance | Chưa triển khai; hardware hiện tại là **camera cầm tay**, không có actuator |
 
-Future: Project/Specimen/Session/ProcessingRun metadata in SQLite;
-        VTK+Qt 3D viewer; native multi-view geometry pipeline.
-```
+Bằng chứng: [`PRE_06_GD0_ACCEPTANCE.md`](PRE_06_GD0_ACCEPTANCE.md) là hồ sơ viết trước merge; PR #3 đã merge lên `main` tại `8bf33591389dcdff82f0fbd5bf5932a22547c984`. Python Windows 80 passed/1 skipped (symlink privilege); CTest 2/2; native self-test 0; camera thu/đọc RAW được người dùng kiểm thử. Không gán `validated metric` chỉ vì `measured=True`.
 
-**Ownership:** native SDK frames are copied into application-owned C++ data; pybind11 returns separately owned Python `bytes`/NumPy arrays. Importing the Python loader does not automatically open the device. UI must not run blocking camera acquisition or heavy geometry work on its main thread once integrated.
-
-## 2. Active acquisition mode: handheld RGB-D
-
-The present **hardware setup is one handheld Orbbec Gemini 2**. The operator moves the camera around a specimen. **No motor/turntable/encoder/ESP32/Raspberry Pi or other actuator is part of the current acceptance baseline.** Older fixed-camera/rotating-object architectural notes describe a *possible future rig*, not a current dependency.
-
-Functional requirements for later milestones, **not yet implemented**:
-
-1. Plan a constrained/structured **handheld scan trajectory** and guide the operator visibly. Planning the path is mandatory for the intended handheld workflow.
-2. Show **live object recognition/detection overlays** (e.g. moving 2D boxes or masks) and maintain object tracking where useful. Detection, tracking and segmentation remain separate concepts, and a 2D box is not a metric 3D surface.
-3. Estimate/check the **actual time-varying camera pose** from measurements/registration or suitable visual/depth tracking. A planned trajectory is *not* observed trajectory or known frame transforms.
-4. Acquire multiple RGB-D views and reconstruct geometry only after frame/time/pose/quality gates are designed and verified.
-
-The exact algorithms and interaction design belong to future functional increments; PRE-01 introduces **no** new camera perception, trajectory, UI or reconstruction feature.
-
-## 3. Geometry and frame contract
-
-- Depth optical frame: `p_depth = ((u-cx) z/fx, (v-cy) z/fy, z)` where `z = raw_depth * depth_scale_m_per_unit` in **meters**. Respect invalid depth pixels and calibrated camera model when implementing a real geometry pipeline.
-- Handheld mode: `T_world_depth_camera(t)` varies with time and is currently **unknown**. No fixed `T_world_camera` and no encoder-derived `T_world_object(theta, phi)` can be assumed for present captures.
-- Transform estimates must carry their frame convention, timestamp, source and uncertainty/quality. A plan to move the camera is not measured pose; do not silently substitute nominal poses.
-- Gemini 2 baseline reads **RAW, unaligned** Color MJPG 1920×1080 and Depth Y16 1280×800. Separate camera intrinsics/distortion; Depth→Color SDK extrinsics with translation in **millimeters**. SDK depth scale is stored in **meters/unit**.
-- A requested frame-sync mode or a single observed timestamp delta does not prove exposure synchronization or metrological accuracy.
-
-A future fixed-camera/actuated rig, if separately approved, may add additional poses/transform providers through adapters; do not make it a dependency of handheld data contracts.
-
-## 4. Data model and persistence truth
-
-Target provenance chain:
+## 2. Kiến trúc mục tiêu — modular monolith, UI-first theo lát cắt
 
 ```text
-Project → Specimen → ScanSession → RawCapture → ProcessingRun → DerivedArtifacts
-                                             → Quality/Features/Relations → Replica
+┌────────────────────────────── Qt 6 / PySide6 Widgets (UI main thread) ──────────────────────────┐
+│ Window/Shell → Projects | Capture & Replay | Inspect 3D (VTK) | Processing & Results             │
+│ Navigation / Command Bar / Property Inspector / Event-Run Panel / Status, Progress, Errors       │
+└─────────────────────────┬──────────────────────────────────────────────┬─────────────────────────┘
+                          │ ViewModels/commands & typed DTO              │ Qt-safe UI signals
+                          ▼                                              ▼
+             Python Application Services                          Worker Scheduler
+             - projects/sessions/registry                         - IO/native/acquisition
+             - capture/replay commands                            - 3D processing jobs
+             - processing runs / event journal                    - optional AI sandbox
+             - artifact & provenance (future)                     - cancel/progress/errors
+                          │                                              │
+               ┌──────────┼──────────────────────────────────────────────┼──────────┐
+               ▼          ▼                                              ▼          ▼
+           SQLite       SessionStore                                 VTK adapter   Native adapters
+       MetadataStore    immutable RAW files                         render-only   C++20/pybind11
+                                                                                      │
+                                                                              Orbbec / Geometry
 ```
 
-**Implemented now:** Pydantic v1 `CaptureMetadata`, `ProcessingRun` schema, `SyntheticSource`, `SessionStore` synthetic atomic staging/commit and read-back; native `RgbdCapture` packet and pybind11 loader. **Not implemented now:** persistent Project/Specimen/ProcessingRun services, SQLite metadata store, real RAW `RgbdCapture` → storage adapter, v2 RGB-D schema and manifest/checksums.
+**Adapter là ranh giới**, không mặc định mọi node ở hình trên đã có code. Tầng UI không biết chi tiết SQLAlchemy, OrbbecSDK hoặc Open3D. Service trả trạng thái + payload có thể kiểm thử. Renderer VTK update chỉ ở luồng thích hợp; một background worker không thao tác VTK widget trực tiếp.
 
-The v1 `SessionStore` assumes `rgb: uint8[H,W,3]` **already matching** `depth: uint16[H,W]` and sets `rgb_registered_to_depth=True`; this is valid for its synthetic fixture, **not for Gemini 2 unaligned RAW**. No code should pass native RAW to this contract without an explicit v2 schema and storage migration (PRE-02/03). Preserve existing v1 read compatibility. No invented pose, D2C alignment or measurement confidence.
+### Định hướng source tree (chưa tạo thư mục nếu chưa dùng)
 
-A capture-level `COMMITTED` marker follows staging and an in-filesystem rename. This does not itself guarantee durable metadata transactions or complete power-loss recovery; these claims require separate tests.
+```text
+src/scantopath/
+├─ ui/                 # currently shell; future shell/workspaces/components/viewmodels
+├─ application/        # future commands, task orchestration, DTOs, errors
+├─ metadata/           # existing SQLite + SQLAlchemy / CLI
+├─ storage/            # existing SessionStore v1/v2
+├─ domain/             # existing typed RAW contracts; future geometry contracts
+├─ acquisition/        # existing Orbbec adapter / native loader / replay CLI
+└─ geometry/           # FUTURE algorithms and 3D artifact adapter
+cpp/                    # existing acquisition/geometry/native build
+```
 
-## 5. Roadmap boundaries
+Không tạo thêm subsystem hoặc new dependencies cho tới đúng phiên cần sử dụng. Dùng `ProcessingRun` của GĐ0 làm lưu lịch sử ở mức metadata; các phiên tương lai muốn lưu artifact state phải có migration/contract được duyệt riêng, không tự thêm cột trực tiếp.
 
-- PRE-01: baseline/repository/docs only, no application logic changes.
-- PRE-02: RAW RGB-D v2 contract (separate streams/calibration/time/unknown pose).
-- PRE-03: raw storage + v1 compatibility, integrity and read-back.
-- PRE-04: native-to-storage adapter and one-shot real hardware capture/replay.
-- PRE-05: close GĐ0 Project/Specimen/Session/ProcessingRun/logging metadata lifecycle.
-- PRE-06: full regression, integrated acceptance and updated evidence.
-- **Only then**: formal GĐ1 functional core (sessions 06–08: point cloud import/model, VTK viewer, coordinate frames/basic measurement).
+## 3. Data contract và nguồn sự thật
 
-Later GĐ2+ will address RGB-D to point clouds, actual multi-view pose, filtering, registration/fusion, and handheld trajectory guidance/object perception by separately approved work packages. Do not pull actuator control into GĐ0/GĐ1.
+```text
+Project → Specimen → ScanSession → RAW Capture (v1/v2, immutable)
+                                                │
+                                                └→ ProcessingRun → Derived Artifact (future)
+                                                                         │
+                                                              Quality / Feature / Relation
+                                                                         │
+                                                           Engineering Digital Replica
+```
 
-Engineering trust remains evidence-based: sensor measurement ≠ validated geometry ≠ inferred/reconstructed geometry. Preserve source, calibration, parameters and error/provenance for later verification.
+- **RAW và calibration:** payload không bị edit/crop/filter in place. Derived result lưu source capture IDs, algorithm/version, parameters, checksum, local path, acquisition provenance.
+- **Depth projection:** camera **depth** optical frame, `z = uint16 * depth_scale_m_per_unit` (m), `(x,y,z) = ((u-cx)z/fx, (v-cy)z/fy, z)` chỉ là pinhole formula; distortion/invalid-depth và calibration model phải kiểm tra trước khi phát hành cloud/measurement.
+- **Color/Depth:** RGB MJPEG 1920×1080, depth Y16 1280×800 theo baseline, chưa đăng ký với nhau. D2C extrinsic translation mm trong RAW; unit conversion về m chỉ ở geometry processing có kiểm thử.
+- **Handheld camera:** `T_world_camera(t)` hiện unknown. `PoseEstimate` tương lai phải mang `frame_from`, `frame_to`, `timestamp`, `source`, `quality`, `validity`, `uncertainty`. Nominal scan path không thay thế actual pose estimate.
+- **Trust:** `measured` = dữ liệu có nguồn cảm biến; `validated` = đã chứng minh theo tiêu chí metric và reference; `estimated/inferred` = kết quả thuật toán. `missing` không được tô kín rồi coi là quan sát. UI phải biểu diễn khác nhau.
+- **Provenance:** liên kết SQLite→RAW là tham chiếu filesystem, không phải atomic transaction chung. V1 read compatibility vẫn bắt buộc; dữ liệu giả không được trộn vào dữ liệu measured.
+
+## 4. UI/worker: luồng xử lý phải giữ responsive
+
+1. UI tạo command có ID và input DTO, service kiểm tra precondition và sinh ProcessingRun nếu cần.
+2. Tác vụ dài chạy QThreadPool/worker hoặc subprocess riêng; cập nhật progress/error qua Qt signals, không block UI main loop.
+3. Native camera/geometry trả dữ liệu owned, không trả dangling pointer/lifetime camera phụ thuộc PySide6.
+4. App Services tạo hoặc đọc artifact; UI chỉ hiển thị results, không tự ghi SHA-256/DB bypass.
+5. Hủy/lỗi phải trả trạng thái có nghĩa; không biến RAW hỏng/pose unknown thành default success hoặc geometry filled.
+6. VTK/Qt renderer độc lập processing core; benchmark frame time và memory ngay từ session 08.
+
+## 5. Stack theo mức cam kết
+
+**Đang có:** Python 3.12, Pydantic, SQLite/SQLAlchemy, Qt/PySide6 shell, C++20/MSVC/CMake/pybind11/OrbbecSDK v2 và RAW stores.
+
+**Được chọn để triển khai khi đến phiên:** VTK + Qt (08), OpenCV + NumPy (09), Open3D (10–16), Eigen/C++ hot path (khi profiling cho thấy cần). vcpkg được dùng khi thêm native package mà build hiện tại không cung cấp, không nâng ngay chỉ vì lập kế hoạch.
+
+**Tùy chọn/ngoài core:** PCL thay thế có chứng cứ benchmark, RF-DETR hoặc YOLO/ SAM / DINOv3 / Depth Anything 3 / LocateAnything / LingBot-Map trong sandbox riêng theo `roadmap/TECHNOLOGY_SCOPE.md`. Không buộc GPU hoặc framework AI để chạy Projects/RAW/Viewer.
+
+## 6. Ranh giới các giai đoạn (đã thay đổi có chủ đích)
+
+- **GĐ0**: khóa qua PR #3 và PRE-06; không mở lại chức năng foundation trong PR roadmap.
+- **GĐ1 (06–08)**: UI Foundation → Project Workspace → VTK Viewer.
+- **GĐ2 (09–13)**: RAW Replay → Single-view Geometry → ROI/Filter → Export.
+- **GĐ3 (14–16)**: metric calibration/validation → relative pose & registration → fusion & trust.
+- **GĐ4 (17–18)**: features/relations → engineering replica.
+- **GĐ5 (19–20+)**: object perception, scan guidance và uncertainty/task-specific rescan.
+
+Thứ tự phiên cũ và các mục còn cần được giữ để truy vết ở [`roadmap/SESSION_CROSSWALK.md`](roadmap/SESSION_CROSSWALK.md). Không có motor/turntable/encoder/Raspberry Pi/ESP32 trong current acceptance. Nếu sau này có rig, viết ADR riêng cho pose provider và phần cứng.
