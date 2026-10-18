@@ -2,7 +2,7 @@
 
 ## Trạng thái
 
-Đây là mã nguồn + bản vá. Việc biên dịch liên kết OrbbecSDK v2.10.6 trên **Windows MSVC** và chạy camera thật phải được nghiệm thu tại máy ScanToPath. Kiểm thử hợp đồng dữ liệu C++ chạy không cần SDK không thay thế nghiệm thu phần cứng.
+**Cập nhật 18/10/2026:** Người dùng đã biên dịch và chạy `scantopath_orbbec_source_smoke.exe --once` trên Windows với Gemini 2 thật; xác nhận `diagnostic.raw_packet_valid=true` và `buffer.copy_survived_close=true`. Các lệnh bên dưới là hướng dẫn tái kiểm thử. Mốc lịch sử này thuộc nhánh Acquisition bổ sung, **không đồng nghĩa GĐ1 — 3D Core đã hoàn thành**. Thành công thu nhận không chứng minh sai số đo 3D.
 
 ## Phạm vi (không vượt sang GĐ1.2.3.2.2)
 

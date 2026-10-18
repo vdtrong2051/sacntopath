@@ -1,58 +1,74 @@
-# Architecture: desktop product first, acquisition integrated later
+# ScanToPath — Architecture baseline (PRE-01, 2026-10-18)
 
-## Agreed tech baseline (not a new architecture proposal)
+## 1. Stack and module boundaries
 
-- Desktop Qt6/PySide6. Python 3.12 for application/orchestration.
-- C++20 native geometry/processing, CMake + MSVC x64 + vcpkg, Eigen / Open3D C++ / OpenCV C++, pybind11 bindings.
-- 3D viewer VTK+Qt; SQLite / SQLAlchemy metadata; Pydantic I/O contracts.
-- Modular monolith; one owner for each data contract; no microservice or web UI requirement.
+Baseline stack remains: Qt 6/PySide6 desktop; Python 3.12 orchestration; C++20 native geometry and acquisition; CMake + MSVC x64 + pybind11; planned Eigen / Open3D C++ / OpenCV C++ / VTK+Qt; SQLite/SQLAlchemy metadata and Pydantic contracts. **Planned** dependencies are not claimed as implemented. The current repository contains a minimal C++ geometry core, Python storage/domain, C++ Orbbec source, pybind11 bridge and a placeholder PySide6 shell; no working VTK viewer or SQLite application service yet.
 
-```
-Qt/PySide6: project | scan | geometry | quality | features | replica | export
-       |                         |                  |
-Python app services: project/service | processing jobs | traceability
-       |                         |                  |
-       +------------ port/adapters and typed contracts ----------+
-                 |                                   |
-       Python data/model layer                pybind11 bridge
-       SQLite/project/raw files               C++20 geometry core
-                 |                         Eigen/Open3D/OpenCV/PCL optional
-                 +--------+--------------------------+
-                          |
-                Orbbec capture provider
-          [offline fixture / hardware Gemini 2]
-                          |
-          future RasPi capture-coordinator + ESP32
+```text
+Desktop PySide6 (current: shell only; future: project / acquisition / 3D viewer)
+          |
+Python services and typed contracts
+  |                               |
+  +-- Capture Store (v1 synthetic) +-- pybind11 native bridge (tested)
+          |                               |
+   Local raw files                    C++20 OrbbecCameraSource
+                                          |
+                                   OrbbecSDK v2 / Gemini 2 USB3
+
+Future: Project/Specimen/Session/ProcessingRun metadata in SQLite;
+        VTK+Qt 3D viewer; native multi-view geometry pipeline.
 ```
 
-## Physical deployment — two explicit modes
+**Ownership:** native SDK frames are copied into application-owned C++ data; pybind11 returns separately owned Python `bytes`/NumPy arrays. Importing the Python loader does not automatically open the device. UI must not run blocking camera acquisition or heavy geometry work on its main thread once integrated.
 
-A. Desktop **direct-connect** proof: Gemini 2 via USB 3.0 to Windows PC; collect raw RGB-D, timestamp, intrinsics, scale; perform geometry on desktop. This is a software MVP/testing mode, not the final rig.
+## 2. Active acquisition mode: handheld RGB-D
 
-B. Integrated rig per agreed team interface: *fixed* Gemini 2 USB3 to Raspberry Pi 4 4GB; ESP32 handles real-time motion, encoders, safety; Pi handles SDK/capture/synchronization/durable local storage; desktop handles heavy processing, viewer, metrology, features. Pi ↔ desktop over network. Do not deploy bulky model checkpoints to Pi 4GB.
+The present **hardware setup is one handheld Orbbec Gemini 2**. The operator moves the camera around a specimen. **No motor/turntable/encoder/ESP32/Raspberry Pi or other actuator is part of the current acceptance baseline.** Older fixed-camera/rotating-object architectural notes describe a *possible future rig*, not a current dependency.
 
-## Pose / metric contract
+Functional requirements for later milestones, **not yet implemented**:
 
-Intrinsic camera model (depth optical frame, meters): X=(u-cx)*z/fx; Y=(v-cy)*z/fy; Z=z. Raw depth uint16 multiplied by calibrated meters-per-unit.
+1. Plan a constrained/structured **handheld scan trajectory** and guide the operator visibly. Planning the path is mandatory for the intended handheld workflow.
+2. Show **live object recognition/detection overlays** (e.g. moving 2D boxes or masks) and maintain object tracking where useful. Detection, tracking and segmentation remain separate concepts, and a 2D box is not a metric 3D surface.
+3. Estimate/check the **actual time-varying camera pose** from measurements/registration or suitable visual/depth tracking. A planned trajectory is *not* observed trajectory or known frame transforms.
+4. Acquire multiple RGB-D views and reconstruct geometry only after frame/time/pose/quality gates are designed and verified.
 
-Transform ownership convention, to be calibrated before multi-view fusion:
+The exact algorithms and interaction design belong to future functional increments; PRE-01 introduces **no** new camera perception, trajectory, UI or reconstruction feature.
 
-`p_object = inv(T_world_object(theta,phi)) * T_world_camera * p_depth_camera`.
+## 3. Geometry and frame contract
 
-The camera is fixed; **the object moves**. `T_world_camera` is constant after calibration; encoder angles and stage geometry determine `T_world_object`. Axis intersection, signs, homing offsets, angle definitions and transform order require measured calibration. ICP is a constrained refinement, not a substitute for known stage pose.
+- Depth optical frame: `p_depth = ((u-cx) z/fx, (v-cy) z/fy, z)` where `z = raw_depth * depth_scale_m_per_unit` in **meters**. Respect invalid depth pixels and calibrated camera model when implementing a real geometry pipeline.
+- Handheld mode: `T_world_depth_camera(t)` varies with time and is currently **unknown**. No fixed `T_world_camera` and no encoder-derived `T_world_object(theta, phi)` can be assumed for present captures.
+- Transform estimates must carry their frame convention, timestamp, source and uncertainty/quality. A plan to move the camera is not measured pose; do not silently substitute nominal poses.
+- Gemini 2 baseline reads **RAW, unaligned** Color MJPG 1920×1080 and Depth Y16 1280×800. Separate camera intrinsics/distortion; Depth→Color SDK extrinsics with translation in **millimeters**. SDK depth scale is stored in **meters/unit**.
+- A requested frame-sync mode or a single observed timestamp delta does not prove exposure synchronization or metrological accuracy.
 
-## Dataset/provenance
+A future fixed-camera/actuated rig, if separately approved, may add additional poses/transform providers through adapters; do not make it a dependency of handheld data contracts.
 
-`project -> specimen -> scan_session -> capture -> processing_run -> derived_artifacts -> feature -> relation -> replica`. A capture records intrinsic/distortion, RGB/depth registration, depth scale, device/firmware/SDK IDs, timestamp, stage pose source/quality, measured vs inferred. Track raw immutable files separately from derived point clouds and meshes. Don't automatically mark inferred geometry as measured.
+## 4. Data model and persistence truth
 
-`COMMITTED` per capture in this reference means data files and schema were validated and renamed as a set. A future Pi implementation must also verify controller `REACHED/STABLE`, file integrity, durable manifest and recovery across power loss before acknowledging CAPTURE_COMMIT to desktop.
+Target provenance chain:
 
-## Processing pipeline
+```text
+Project → Specimen → ScanSession → RawCapture → ProcessingRun → DerivedArtifacts
+                                             → Quality/Features/Relations → Replica
+```
 
-Frame acquisition -> RGB/Depth alignment -> invalid-depth filtering -> segmentation ROI -> metric unprojection -> frame transforms -> encoder-initialized registration -> geometric ICP refinement + quality gates -> fusion (point cloud / optional TSDF) -> normals/curvature -> feature fitting (RANSAC/least squares) -> per-feature confidence/provenance -> engineering replica -> technical export.
+**Implemented now:** Pydantic v1 `CaptureMetadata`, `ProcessingRun` schema, `SyntheticSource`, `SessionStore` synthetic atomic staging/commit and read-back; native `RgbdCapture` packet and pybind11 loader. **Not implemented now:** persistent Project/Specimen/ProcessingRun services, SQLite metadata store, real RAW `RgbdCapture` → storage adapter, v2 RGB-D schema and manifest/checksums.
 
-Confidence is not raw model softmax; it is a calibrated, task-dependent score and must be supported by error/coverage/provenance. Never silently fill missing surfaces and call them observed.
+The v1 `SessionStore` assumes `rgb: uint8[H,W,3]` **already matching** `depth: uint16[H,W]` and sets `rgb_registered_to_depth=True`; this is valid for its synthetic fixture, **not for Gemini 2 unaligned RAW**. No code should pass native RAW to this contract without an explicit v2 schema and storage migration (PRE-02/03). Preserve existing v1 read compatibility. No invented pose, D2C alignment or measurement confidence.
 
-## Implementation boundary
+A capture-level `COMMITTED` marker follows staging and an in-filesystem rename. This does not itself guarantee durable metadata transactions or complete power-loss recovery; these claims require separate tests.
 
-This package implements the *offline reference slice* only: capture contract, synthetic source, atomic write and read, minimal Qt shell, C++ metric backprojection/rigid transform and tests. Native SDK integration is not implemented or tested. Production stage/frame synchronization, calibration, D2C alignment, GPU rendering, registration and meshing are future tasks.
+## 5. Roadmap boundaries
+
+- PRE-01: baseline/repository/docs only, no application logic changes.
+- PRE-02: RAW RGB-D v2 contract (separate streams/calibration/time/unknown pose).
+- PRE-03: raw storage + v1 compatibility, integrity and read-back.
+- PRE-04: native-to-storage adapter and one-shot real hardware capture/replay.
+- PRE-05: close GĐ0 Project/Specimen/Session/ProcessingRun/logging metadata lifecycle.
+- PRE-06: full regression, integrated acceptance and updated evidence.
+- **Only then**: formal GĐ1 functional core (sessions 06–08: point cloud import/model, VTK viewer, coordinate frames/basic measurement).
+
+Later GĐ2+ will address RGB-D to point clouds, actual multi-view pose, filtering, registration/fusion, and handheld trajectory guidance/object perception by separately approved work packages. Do not pull actuator control into GĐ0/GĐ1.
+
+Engineering trust remains evidence-based: sensor measurement ≠ validated geometry ≠ inferred/reconstructed geometry. Preserve source, calibration, parameters and error/provenance for later verification.
