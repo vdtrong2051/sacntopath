@@ -1,18 +1,18 @@
-"""GĐ1-06.3: desktop shell tiếng Việt và điều hướng qua NavigationViewModel.
+"""GĐ1-06.4: desktop shell tiếng Việt, điều hướng và bảng điều khiển dùng chung.
 
-Không dùng SQLite, camera, SDK, VTK hay thread. Explorer/Inspector/TaskDock
-thuộc 06.4; đây là khung điều hướng sẵn sàng gắn các thành phần đó.
+Không dùng SQLite, camera, SDK, VTK hay worker. Các panel không tự nạp dữ liệu.
 """
 from __future__ import annotations
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtWidgets import (
-    QFrame, QHBoxLayout, QLabel, QMainWindow, QMenu,
+    QDockWidget, QFrame, QHBoxLayout, QLabel, QMainWindow, QMenu,
     QPushButton, QStackedWidget, QStatusBar, QVBoxLayout, QWidget,
 )
 
 from scantopath.application.contracts import CommandStatus, WorkspaceId
+from scantopath.ui.components import ProjectExplorer, PropertyInspector, TaskAndEventPanel
 from scantopath.ui.viewmodels.navigation import NavigationViewModel
 from scantopath.ui.workspaces import WORKSPACE_PRESENTATION, create_workspace_page
 
@@ -34,6 +34,7 @@ class ScanToPathMainWindow(QMainWindow):
         self.nav_buttons: dict[WorkspaceId, QPushButton] = {}
         self.workspace_actions: dict[WorkspaceId, QAction] = {}
         self._create_shell()
+        self._create_docks()
         self._create_menus()
         self._apply_style()
         self._show_workspace(self.navigation.workspace)
@@ -87,10 +88,10 @@ class ScanToPathMainWindow(QMainWindow):
             nav_layout.addWidget(button)
 
         nav_layout.addStretch(1)
-        stage = QLabel("GĐ1 · BƯỚC 06.3")
+        stage = QLabel("GĐ1 · BƯỚC 06.4")
         stage.setObjectName("stageLabel")
         nav_layout.addWidget(stage)
-        sidebar_note = QLabel("Khung giao diện · Chưa kết nối dữ liệu")
+        sidebar_note = QLabel("Bảng điều khiển · Chưa kết nối dữ liệu")
         sidebar_note.setObjectName("sidebarNote")
         sidebar_note.setWordWrap(True)
         nav_layout.addWidget(sidebar_note)
@@ -138,6 +139,39 @@ class ScanToPathMainWindow(QMainWindow):
         status.addPermanentWidget(self.data_status)
         self.setStatusBar(status)
 
+    def _create_docks(self) -> None:
+        """06.4: các bảng chung không tự khởi tạo SQLite hay thiết bị."""
+        self.setDockNestingEnabled(True)
+        self.project_explorer = ProjectExplorer(self)
+        self.property_inspector = PropertyInspector(self)
+        self.task_event_panel = TaskAndEventPanel(self)
+        self.project_explorer.selection_changed.connect(self._on_explorer_selection)
+
+        self.explorer_dock = QDockWidget("Cây dự án", self)
+        self.explorer_dock.setObjectName("explorerDock")
+        self.explorer_dock.setAllowedAreas(Qt.LeftDockWidgetArea | Qt.RightDockWidgetArea)
+        self.explorer_dock.setWidget(self.project_explorer)
+        self.addDockWidget(Qt.LeftDockWidgetArea, self.explorer_dock)
+
+        self.inspector_dock = QDockWidget("Thuộc tính", self)
+        self.inspector_dock.setObjectName("inspectorDock")
+        self.inspector_dock.setAllowedAreas(Qt.LeftDockWidgetArea | Qt.RightDockWidgetArea)
+        self.inspector_dock.setWidget(self.property_inspector)
+        self.addDockWidget(Qt.RightDockWidgetArea, self.inspector_dock)
+
+        self.task_dock = QDockWidget("Tác vụ và thông báo", self)
+        self.task_dock.setObjectName("taskDock")
+        self.task_dock.setAllowedAreas(Qt.BottomDockWidgetArea | Qt.TopDockWidgetArea)
+        self.task_dock.setWidget(self.task_event_panel)
+        self.addDockWidget(Qt.BottomDockWidgetArea, self.task_dock)
+
+    def _on_explorer_selection(self, selection: object) -> None:
+        """SelectionRef là tham chiếu, không phải phép đo hoặc metadata đã nạp."""
+        self.navigation.select_entity(selection)
+        self.property_inspector.set_selection(selection)
+        if selection is not None:
+            self._set_status(f"Đã chọn đối tượng: {selection.entity_id}")
+
     def _create_menus(self) -> None:
         file_menu = self.menuBar().addMenu("&Tệp")
         exit_action = QAction("&Thoát", self)
@@ -156,13 +190,24 @@ class ScanToPathMainWindow(QMainWindow):
             workspace_menu.addAction(action)
             self.workspace_actions[workspace] = action
 
+        view_menu = self.menuBar().addMenu("&Hiển thị")
+        for dock, title in (
+            (self.explorer_dock, "Cây dự án"),
+            (self.inspector_dock, "Thuộc tính"),
+            (self.task_dock, "Tác vụ và thông báo"),
+        ):
+            toggle = dock.toggleViewAction()
+            toggle.setText(title)
+            view_menu.addAction(toggle)
+
         help_menu = self.menuBar().addMenu("T&rợ giúp")
-        stage = QAction("Trạng thái phát triển: GĐ1 — 06.3", self)
+        stage = QAction("Trạng thái phát triển: GĐ1 — 06.4", self)
         stage.setEnabled(False)
         help_menu.addAction(stage)
 
     def _navigate(self, workspace: WorkspaceId) -> None:
         """Không cập nhật UI nếu CommandOutcome báo thất bại."""
+        previous = self.navigation.workspace
         try:
             result = self.navigation.select_workspace(workspace)
         except (TypeError, ValueError) as exc:
@@ -176,6 +221,12 @@ class ScanToPathMainWindow(QMainWindow):
                        else (result.message or "Không thể chuyển không gian làm việc"))
             self._set_status(message)
             return
+        if previous != self.navigation.workspace:
+            self.project_explorer.clear_selection()
+            self.property_inspector.set_selection(None)
+            self.task_event_panel.add_ui_event(
+                f"Đã chuyển đến: {WORKSPACE_PRESENTATION[self.navigation.workspace].title}"
+            )
         self._show_workspace(self.navigation.workspace)
 
     def _show_workspace(self, workspace: WorkspaceId) -> None:
