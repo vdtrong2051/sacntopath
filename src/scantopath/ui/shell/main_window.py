@@ -1,11 +1,11 @@
-"""GĐ1-06.4: desktop shell tiếng Việt, điều hướng và bảng điều khiển dùng chung.
+"""GĐ1-06.5: giao diện tiếng Việt, task queue và shutdown an toàn.
 
-Không dùng SQLite, camera, SDK, VTK hay worker. Các panel không tự nạp dữ liệu.
+Không dùng SQLite, camera, SDK hay VTK. Worker thử nghiệm không thao tác QWidget.
 """
 from __future__ import annotations
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QAction, QKeySequence
+from PySide6.QtGui import QAction, QKeySequence, QCloseEvent
 from PySide6.QtWidgets import (
     QDockWidget, QFrame, QHBoxLayout, QLabel, QMainWindow, QMenu,
     QPushButton, QStackedWidget, QStatusBar, QVBoxLayout, QWidget,
@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
 from scantopath.application.contracts import CommandStatus, WorkspaceId
 from scantopath.ui.components import ProjectExplorer, PropertyInspector, TaskAndEventPanel
 from scantopath.ui.viewmodels.navigation import NavigationViewModel
+from scantopath.ui.tasks import QtTaskController
 from scantopath.ui.workspaces import WORKSPACE_PRESENTATION, create_workspace_page
 
 
@@ -36,6 +37,7 @@ class ScanToPathMainWindow(QMainWindow):
         self._create_shell()
         self._create_docks()
         self._create_menus()
+        self._install_task_controller()
         self._apply_style()
         self._show_workspace(self.navigation.workspace)
 
@@ -88,7 +90,7 @@ class ScanToPathMainWindow(QMainWindow):
             nav_layout.addWidget(button)
 
         nav_layout.addStretch(1)
-        stage = QLabel("GĐ1 · BƯỚC 06.4")
+        stage = QLabel("GĐ1 · BƯỚC 06.5")
         stage.setObjectName("stageLabel")
         nav_layout.addWidget(stage)
         sidebar_note = QLabel("Bảng điều khiển · Chưa kết nối dữ liệu")
@@ -165,6 +167,30 @@ class ScanToPathMainWindow(QMainWindow):
         self.task_dock.setWidget(self.task_event_panel)
         self.addDockWidget(Qt.BottomDockWidgetArea, self.task_dock)
 
+    def _install_task_controller(self) -> None:
+        """Only the GUI timer updates Qt widgets; jobs run off the GUI thread."""
+        self.task_controller = QtTaskController(self)
+        self.task_controller.snapshots_changed.connect(self.task_event_panel.set_tasks)
+        self.task_controller.notice.connect(self._task_notice)
+        self.task_controller.stopped.connect(self.close)
+        self.task_event_panel.demo_requested.connect(self.task_controller.start_fixture)
+        self.task_event_panel.cancel_requested.connect(self.task_controller.request_cancel)
+
+    def _task_notice(self, message: str) -> None:
+        self.task_event_panel.add_ui_event(message)
+        self._set_status(message)
+
+    def closeEvent(self, event: QCloseEvent) -> None:
+        """Never exit while a non-daemon task is executing.
+
+        Cancellation is cooperative; if the task cannot stop promptly, keep
+        the window alive rather than freezing Qt or terminating the thread.
+        """
+        if self.task_controller.begin_shutdown(grace_seconds=3.0):
+            super().closeEvent(event)
+        else:
+            event.ignore()
+
     def _on_explorer_selection(self, selection: object) -> None:
         """SelectionRef là tham chiếu, không phải phép đo hoặc metadata đã nạp."""
         self.navigation.select_entity(selection)
@@ -201,7 +227,7 @@ class ScanToPathMainWindow(QMainWindow):
             view_menu.addAction(toggle)
 
         help_menu = self.menuBar().addMenu("T&rợ giúp")
-        stage = QAction("Trạng thái phát triển: GĐ1 — 06.4", self)
+        stage = QAction("Trạng thái phát triển: GĐ1 — 06.5", self)
         stage.setEnabled(False)
         help_menu.addAction(stage)
 
