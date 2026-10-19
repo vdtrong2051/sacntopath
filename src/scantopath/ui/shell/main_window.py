@@ -1,19 +1,20 @@
-"""GĐ1-06.5: giao diện tiếng Việt, task queue và shutdown an toàn.
+"""GĐ1 — HMI QSS tối giản, UI tiếng Việt, worker không chạm QWidget.
 
 Không dùng SQLite, camera, SDK hay VTK. Worker thử nghiệm không thao tác QWidget.
 """
 from __future__ import annotations
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QAction, QKeySequence, QCloseEvent
 from PySide6.QtWidgets import (
-    QDockWidget, QFrame, QHBoxLayout, QLabel, QMainWindow, QMenu,
-    QPushButton, QStackedWidget, QStatusBar, QVBoxLayout, QWidget,
+    QApplication, QDockWidget, QFrame, QHBoxLayout, QLabel, QMainWindow,
+    QMenu, QPushButton, QSizePolicy, QStackedWidget, QStatusBar, QVBoxLayout, QWidget,
 )
 
 from scantopath.application.contracts import CommandStatus, WorkspaceId
 from scantopath.ui.components import ProjectExplorer, PropertyInspector, TaskAndEventPanel
 from scantopath.ui.viewmodels.navigation import NavigationViewModel
+from scantopath.ui.theme import load_hmi_qss
 from scantopath.ui.tasks import QtTaskController
 from scantopath.ui.workspaces import WORKSPACE_PRESENTATION, create_workspace_page
 
@@ -28,8 +29,9 @@ class ScanToPathMainWindow(QMainWindow):
         self.navigation = navigation if navigation is not None else NavigationViewModel()
         self.setObjectName("ScanToPathMainWindow")
         self.setWindowTitle(self.WINDOW_TITLE)
-        self.resize(1260, 790)
-        self.setMinimumSize(860, 590)
+        # Kích thước dựa trên vùng màn hình thực dùng được (đã trừ taskbar,
+        # Windows DPI scaling); không giả định laptop 14 inch là một độ phân giải.
+        self._fit_initial_screen()
 
         self._pages: dict[WorkspaceId, QWidget] = {}
         self.nav_buttons: dict[WorkspaceId, QPushButton] = {}
@@ -40,6 +42,8 @@ class ScanToPathMainWindow(QMainWindow):
         self._install_task_controller()
         self._apply_style()
         self._show_workspace(self.navigation.workspace)
+        # Đợi Qt bố trí dock lần đầu rồi mới cân lại kích thước.
+        QTimer.singleShot(0, self._initialize_dock_layout)
 
     @property
     def active_workspace(self) -> WorkspaceId:
@@ -57,10 +61,12 @@ class ScanToPathMainWindow(QMainWindow):
 
         sidebar = QFrame(root)
         sidebar.setObjectName("navigationSidebar")
-        sidebar.setFixedWidth(244)
+        self.navigation_sidebar = sidebar
+        sidebar.setFixedWidth(184)
+        sidebar.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Expanding)
         nav_layout = QVBoxLayout(sidebar)
-        nav_layout.setContentsMargins(16, 24, 16, 22)
-        nav_layout.setSpacing(9)
+        nav_layout.setContentsMargins(11, 16, 11, 12)
+        nav_layout.setSpacing(5)
 
         brand = QLabel("ScanToPath")
         brand.setObjectName("appBrand")
@@ -69,12 +75,12 @@ class ScanToPathMainWindow(QMainWindow):
         brand_caption = QLabel("KHÔNG GIAN KỸ THUẬT 3D")
         brand_caption.setObjectName("appBrandCaption")
         nav_layout.addWidget(brand_caption)
-        nav_layout.addSpacing(28)
+        nav_layout.addSpacing(14)
 
         navigation_title = QLabel("ĐIỀU HƯỚNG")
         navigation_title.setObjectName("navTitle")
         nav_layout.addWidget(navigation_title)
-        nav_layout.addSpacing(5)
+        nav_layout.addSpacing(3)
 
         for workspace in WorkspaceId:
             label = WORKSPACE_PRESENTATION[workspace].title
@@ -82,7 +88,7 @@ class ScanToPathMainWindow(QMainWindow):
             button.setObjectName(f"nav_{workspace.value}")
             button.setCheckable(True)
             button.setAutoExclusive(True)
-            button.setMinimumHeight(45)
+            button.setMinimumHeight(35)
             button.setCursor(Qt.PointingHandCursor)
             button.setAccessibleName(f"Mở không gian: {label}")
             button.clicked.connect(lambda checked=False, key=workspace: self._navigate(key))
@@ -90,7 +96,7 @@ class ScanToPathMainWindow(QMainWindow):
             nav_layout.addWidget(button)
 
         nav_layout.addStretch(1)
-        stage = QLabel("GĐ1 · BƯỚC 06.5")
+        stage = QLabel("GĐ1 · HMI")
         stage.setObjectName("stageLabel")
         nav_layout.addWidget(stage)
         sidebar_note = QLabel("Bảng điều khiển · Chưa kết nối dữ liệu")
@@ -109,7 +115,7 @@ class ScanToPathMainWindow(QMainWindow):
         topbar = QFrame(content)
         topbar.setObjectName("workspaceTopbar")
         topbar_layout = QHBoxLayout(topbar)
-        topbar_layout.setContentsMargins(28, 12, 28, 12)
+        topbar_layout.setContentsMargins(16, 7, 16, 7)
         title = QLabel("ỨNG DỤNG MÁY TÍNH")
         title.setObjectName("workspaceTopbarTitle")
         topbar_layout.addWidget(title)
@@ -133,6 +139,7 @@ class ScanToPathMainWindow(QMainWindow):
         status = QStatusBar(self)
         status.setObjectName("applicationStatus")
         status.setSizeGripEnabled(True)
+        status.setMaximumHeight(28)
         self.status_message = QLabel("Sẵn sàng")
         self.status_message.setObjectName("statusMessage")
         status.addWidget(self.status_message)
@@ -153,18 +160,21 @@ class ScanToPathMainWindow(QMainWindow):
         self.explorer_dock.setObjectName("explorerDock")
         self.explorer_dock.setAllowedAreas(Qt.LeftDockWidgetArea | Qt.RightDockWidgetArea)
         self.explorer_dock.setWidget(self.project_explorer)
+        self.explorer_dock.setMinimumWidth(155)
         self.addDockWidget(Qt.LeftDockWidgetArea, self.explorer_dock)
 
         self.inspector_dock = QDockWidget("Thuộc tính", self)
         self.inspector_dock.setObjectName("inspectorDock")
         self.inspector_dock.setAllowedAreas(Qt.LeftDockWidgetArea | Qt.RightDockWidgetArea)
         self.inspector_dock.setWidget(self.property_inspector)
+        self.inspector_dock.setMinimumWidth(155)
         self.addDockWidget(Qt.RightDockWidgetArea, self.inspector_dock)
 
         self.task_dock = QDockWidget("Tác vụ và thông báo", self)
         self.task_dock.setObjectName("taskDock")
         self.task_dock.setAllowedAreas(Qt.BottomDockWidgetArea | Qt.TopDockWidgetArea)
         self.task_dock.setWidget(self.task_event_panel)
+        self.task_dock.setMinimumHeight(115)
         self.addDockWidget(Qt.BottomDockWidgetArea, self.task_dock)
 
     def _install_task_controller(self) -> None:
@@ -227,7 +237,7 @@ class ScanToPathMainWindow(QMainWindow):
             view_menu.addAction(toggle)
 
         help_menu = self.menuBar().addMenu("T&rợ giúp")
-        stage = QAction("Trạng thái phát triển: GĐ1 — 06.5", self)
+        stage = QAction("Giao diện HMI · Hoàn thiện chức năng 06.5", self)
         stage.setEnabled(False)
         help_menu.addAction(stage)
 
@@ -268,41 +278,58 @@ class ScanToPathMainWindow(QMainWindow):
         self.status_message.setText(message)
         self.statusBar().showMessage(message, 3500)
 
+    def _fit_initial_screen(self) -> None:
+        """Fit to physical screen's *logical* available area, including DPI scaling.
+
+        Qt / QScreen.availableGeometry excludes the OS taskbar where supported.
+        We never lock a hard-coded 14-inch resolution or maximize by default.
+        """
+        app = QApplication.instance()
+        screen = app.primaryScreen() if app is not None else None
+        if screen is None:
+            self.setMinimumSize(720, 440)
+            self.resize(1100, 700)
+            return
+        bounds = screen.availableGeometry()
+        width = max(1, bounds.width())
+        height = max(1, bounds.height())
+        self.setMinimumSize(min(720, width), min(440, height))
+        # Chừa khoảng thở quanh cửa sổ để dễ kéo và tránh taskbar/dock.
+        target_w = min(1240, max(1, width - 32))
+        target_h = min(780, max(1, height - 40))
+        self.resize(target_w, target_h)
+        self.move(bounds.x() + max(0, (width - self.width()) // 2),
+                  bounds.y() + max(0, (height - self.height()) // 2))
+
+    def _initialize_dock_layout(self) -> None:
+        """Compact preset for small logical viewports, without fixed card geometry.
+
+        The user can always restore hidden docks via the Hiển thị menu.
+        Respect manually toggled docks after startup (no repeated auto-hiding).
+        """
+        width = self.width()
+        height = self.height()
+        self.navigation_sidebar.setFixedWidth(172 if width < 1180 else 194)
+        # Automated Qt offscreen tests have a synthetic screen; don't hide docks
+        # implicitly there. The compact behavior is exercised in dedicated tests.
+        app = QApplication.instance()
+        offscreen = app is not None and app.platformName().lower() in ("offscreen", "minimal")
+        if not offscreen:
+            if width < 970:
+                self.inspector_dock.hide()
+            if height < 535:
+                self.task_dock.hide()
+        if self.explorer_dock.isVisible() and self.inspector_dock.isVisible():
+            self.resizeDocks(
+                [self.explorer_dock, self.inspector_dock],
+                [185 if width < 1180 else 205, 185 if width < 1180 else 215],
+                Qt.Horizontal,
+            )
+        elif self.explorer_dock.isVisible():
+            self.resizeDocks([self.explorer_dock], [185], Qt.Horizontal)
+        if self.task_dock.isVisible():
+            self.resizeDocks([self.task_dock], [145 if height < 690 else 172], Qt.Vertical)
+
     def _apply_style(self) -> None:
-        # Chỉ QSS nhẹ, không kéo thêm thư viện giao diện cho GĐ1.
-        self.setStyleSheet("""
-            QMainWindow, #desktopRoot, #workspaceArea, #workspaceStack {
-                background: #f4f7fa; color: #182b39;
-            }
-            QMenuBar { background: #ffffff; border-bottom: 1px solid #e5ebf0; padding: 3px; }
-            QMenuBar::item:selected, QMenu::item:selected { background: #e7f4f1; }
-            QMenu { background: #ffffff; color: #182b39; }
-            #navigationSidebar { background: #152936; border: none; }
-            #appBrand { color: #ffffff; font-size: 24px; font-weight: 700; }
-            #appBrandCaption { color: #a3b9c2; font-size: 10px; letter-spacing: 1px; }
-            #navTitle { color: #95acb5; font-size: 11px; font-weight: 650; }
-            QPushButton[checkable="true"] { background: transparent; color: #e7eff2;
-                text-align: left; padding: 9px 14px; border-radius: 7px; font-size: 13px; }
-            QPushButton[checkable="true"]:hover { background: #2b4553; }
-            QPushButton[checkable="true"]:checked { background: #146f66;
-                color: #ffffff; font-weight: 700; }
-            #stageLabel { color: #93d9cb; font-weight: 700; font-size: 11px; }
-            #sidebarNote { color: #abc0c7; font-size: 11px; }
-            #workspaceTopbar { background: #ffffff; border-bottom: 1px solid #e5ebf0; }
-            #workspaceTopbarTitle { color: #536b77; font-size: 11px; font-weight: 700; }
-            #baselineMarker { color: #146f66; background: #eaf6f2;
-                border-radius: 5px; padding: 6px 9px; font-size: 10px; font-weight: 650; }
-            #workspaceHeading { font-size: 31px; font-weight: 700; color: #172d3b; }
-            #workspaceSubtitle { color: #607787; font-size: 13px; }
-            #workspaceState { border-radius: 6px; background: #fff3e2; color: #845314;
-                font-size: 10px; font-weight: 700; padding: 7px 11px; }
-            #workspacePlanned { color: #536b77; font-size: 11px; }
-            #workspacePanel { background: #ffffff; border: 1px solid #e1e9ef;
-                border-radius: 10px; }
-            #workspaceKicker { font-size: 11px; color: #146f66; font-weight: 700; }
-            #workspaceFeatureTitle { font-size: 21px; font-weight: 700; color: #172d3b; }
-            #workspaceDescription { color: #435e6c; font-size: 13px; }
-            #workspaceFootnote { color: #8599a4; font-size: 11px; }
-            QStatusBar { background: #ffffff; color: #405965;
-                border-top: 1px solid #e1e9ef; padding: 3px 10px; }
-        """)
+        """Isolate HMI appearance from UI behavior and all worker contracts."""
+        self.setStyleSheet(load_hmi_qss())

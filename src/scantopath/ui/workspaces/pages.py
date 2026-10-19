@@ -9,7 +9,7 @@ from dataclasses import dataclass
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
-    QFrame, QHBoxLayout, QLabel, QSizePolicy, QVBoxLayout, QWidget,
+    QFrame, QHBoxLayout, QLabel, QScrollArea, QSizePolicy, QVBoxLayout, QWidget,
 )
 
 from scantopath.application.contracts import UiDataState, WorkspaceId
@@ -61,10 +61,10 @@ WORKSPACE_PRESENTATION: dict[WorkspaceId, WorkspacePresentation] = {
         subtitle="Theo dõi tác vụ, lịch sử xử lý và kết quả phân tích.",
         next_title="Theo dõi tiến trình",
         next_description=(
-            "Bảng tác vụ và thông báo lỗi sẽ được bổ sung ở các bước 06.4–06.5. "
-            "Lịch sử các lần xử lý trong SQLite sẽ được trình bày ở phiên 07."
+            "Bảng tác vụ kiểm thử và thông báo UI đã hoạt động. "
+            "Lịch sử ProcessingRun từ SQLite sẽ được kết nối ở phiên 07."
         ),
-        planned_session="Bước 06.4–06.5 / Phiên 07",
+        planned_session="Phiên 07",
     ),
 }
 
@@ -80,9 +80,23 @@ def create_workspace_page(workspace: WorkspaceId) -> QWidget:
     page.setObjectName(f"workspace_{key.value}")
     page.setAccessibleName(info.title)
 
-    outer = QVBoxLayout(page)
-    outer.setContentsMargins(42, 40, 42, 36)
-    outer.setSpacing(18)
+    # Nội dung phải cuộn được khi desktop 14 inch dùng DPI scaling 125–150%.
+    # ScrollArea giữ chữ/card truy cập được thay vì tăng minimumSize của cửa sổ.
+    frame = QVBoxLayout(page)
+    frame.setContentsMargins(0, 0, 0, 0)
+    scroll = QScrollArea(page)
+    scroll.setObjectName(f"workspaceScroll_{key.value}")
+    scroll.setWidgetResizable(True)
+    scroll.setFrameShape(QFrame.NoFrame)
+    scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+    scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+    content = QWidget()
+    content.setObjectName("workspaceScrollContent")
+    outer = QVBoxLayout(content)
+    outer.setContentsMargins(16, 17, 16, 16)
+    outer.setSpacing(10)
+    frame.addWidget(scroll)
+    scroll.setWidget(content)
 
     heading = QLabel(info.title)
     heading.setObjectName("workspaceHeading")
@@ -96,7 +110,7 @@ def create_workspace_page(workspace: WorkspaceId) -> QWidget:
     outer.addWidget(description)
 
     state_row = QHBoxLayout()
-    state_row.setSpacing(12)
+    state_row.setSpacing(8)
     state = QLabel("CHƯA TRIỂN KHAI")
     state.setObjectName("workspaceState")
     state.setAccessibleName("Trạng thái: Chưa triển khai")
@@ -111,8 +125,8 @@ def create_workspace_page(workspace: WorkspaceId) -> QWidget:
     panel.setObjectName("workspacePanel")
     panel.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
     panel_layout = QVBoxLayout(panel)
-    panel_layout.setContentsMargins(26, 26, 26, 28)
-    panel_layout.setSpacing(12)
+    panel_layout.setContentsMargins(15, 16, 15, 17)
+    panel_layout.setSpacing(8)
 
     label = QLabel("KHÔNG GIAN LÀM VIỆC")
     label.setObjectName("workspaceKicker")
@@ -132,7 +146,7 @@ def create_workspace_page(workspace: WorkspaceId) -> QWidget:
     note = QLabel("Chưa tải dữ liệu • Chưa chạy phép đo • Chưa khởi động thiết bị")
     note.setObjectName("workspaceFootnote")
     note.setWordWrap(True)
-    panel_layout.addSpacing(8)
+    panel_layout.addSpacing(4)
     panel_layout.addWidget(note)
 
     outer.addWidget(panel)

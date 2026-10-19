@@ -18,3 +18,6 @@ scantopath = "scantopath.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+"scantopath.ui.theme" = ["*.qss"]
