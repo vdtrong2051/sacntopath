@@ -165,7 +165,8 @@ class MetadataStore:
     camera or migrate unknown future SQLite schemas. Dispose with close().
     """
 
-    SCHEMA_VERSION = 1
+    SCHEMA_VERSION = 1  # New GĐ0 roots stay v1; numbered migration is EXPLICIT.
+    SUPPORTED_SCHEMA_VERSIONS = (1, 2)
 
     def __init__(self, root: str | Path):
         self.root = Path(root).resolve()
@@ -184,7 +185,7 @@ class MetadataStore:
         try:
             with self.engine.begin() as conn:
                 version = int(conn.execute(text("PRAGMA user_version")).scalar_one())
-                if version not in (0, self.SCHEMA_VERSION):
+                if version not in (0, *self.SUPPORTED_SCHEMA_VERSIONS):
                     raise RuntimeError(f"Unsupported metadata schema version {version}")
                 if version == 0:
                     # Refuse to take over a pre-existing, unknown database.
@@ -201,6 +202,9 @@ class MetadataStore:
                     existing = set(conn.exec_driver_sql(
                         "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
                     ).scalars())
+                    if version == 2:
+                        from scantopath.storage.numbered_schema import TABLES
+                        expected.update(TABLES)
                     if not expected.issubset(existing):
                         raise RuntimeError("Metadata database is incomplete; manual recovery required")
         except BaseException:
@@ -354,7 +358,15 @@ class MetadataStore:
         if verify_raw:
             # Protect against corrupt/removed files after metadata registration.
             location = self.root.joinpath(*Path(record["relative_path"]).parts)
-            SessionStore(self.root).read_capture(location)
+            if record["relative_path"].startswith("01_PROJECTS/"):
+                # The registry contains the authoritative capture ID and mapping.
+                from scantopath.storage.numbered import NumberedStorageRegistry
+                resolved = NumberedStorageRegistry(self.root).resolve_id(
+                    "capture", capture_id, verify=True)
+                if resolved.relative_path != record["relative_path"] or resolved.layout_version != 2:
+                    raise ValueError("Numbered registry/capture path mismatch")
+            else:
+                SessionStore(self.root).read_capture(location)
         return record
 
     def create_processing_run(self, *, run_id: str | None = None, session_id: str,

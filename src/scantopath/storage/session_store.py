@@ -134,9 +134,36 @@ class SessionStore:
         capture_id = self._safe_name(meta.capture_id)
         self._safe_name(meta.specimen_id)
 
-        parent = self.root / "sessions" / session_id / "captures"
+        destination = self.root / "sessions" / session_id / "captures" / capture_id
+        return self._commit_raw_to_destination(capture, destination)
+
+    def commit_raw_numbered(self, capture: RawRgbdCapture, relative_path: str) -> Path:
+        """Explicit v2 layout writer. Caller MUST own a persisted SQLite reservation.
+
+        Unlike commit_raw(), this method never infers capture identity from C-code.
+        It does not register or mutate the capture's immutable RAW metadata.
+        """
+        if not isinstance(capture, RawRgbdCapture):
+            raise TypeError("Expected RawRgbdCapture")
+        from scantopath.storage.numbered import _safe_path
+        import re as _re
+        components = relative_path.split("/")
+        if (len(components) != 8 or components[0] != "01_PROJECTS"
+                or components[2] != "01_SPECIMENS" or components[4] != "01_SESSIONS"
+                or components[6] != "01_CAPTURES" or
+                not all(_re.fullmatch(p, components[i]) for i, p in
+                        ((1, r"P[0-9]{4,}"), (3, r"S[0-9]{4,}"),
+                         (5, r"T[0-9]{4,}"), (7, r"C[0-9]{4,}")))):
+            raise ValueError("Invalid numbered capture path shape")
+        destination = _safe_path(self.root, relative_path, require_exists=False)
+        return self._commit_raw_to_destination(capture, destination)
+
+    def _commit_raw_to_destination(self, capture: RawRgbdCapture, destination: Path) -> Path:
+        """The exact PRE-03 bytes, manifest and sibling-rename discipline."""
+        meta = capture.metadata
+        capture_id = self._safe_name(meta.capture_id)
+        parent = destination.parent
         parent.mkdir(parents=True, exist_ok=True)
-        destination = parent / capture_id
         if destination.exists() or destination.is_symlink():
             raise FileExistsError(f"Capture already exists: {capture_id}")
         partial = parent / f".{capture_id}.{uuid.uuid4().hex}.partial"
@@ -197,6 +224,28 @@ class SessionStore:
             raise ValueError("Not a capture directory")
         session_id = self._safe_name(relative.parts[1])
         capture_id = self._safe_name(relative.parts[3])
+        return self._read_v2_contents(location, capture_id, session_id)
+
+    def read_raw_numbered(self, path: str | Path, *, expected_capture_id: str,
+                          expected_session_id: str) -> RawRgbdCapture:
+        """Read numbered v2 RAW by verified registry identity, not C-code basename."""
+        from scantopath.storage.numbered import _safe_path
+        relative = Path(path).absolute().relative_to(self.root).as_posix()
+        components = relative.split("/")
+        if (len(components) != 8 or components[0] != "01_PROJECTS"
+                or components[2] != "01_SPECIMENS" or components[4] != "01_SESSIONS"
+                or components[6] != "01_CAPTURES" or
+                not all(re.fullmatch(pattern, components[index]) for index, pattern in
+                        ((1, r"P[0-9]{4,}"), (3, r"S[0-9]{4,}"),
+                         (5, r"T[0-9]{4,}"), (7, r"C[0-9]{4,}")))):
+            raise ValueError("Not a numbered capture directory")
+        location = _safe_path(self.root, relative, require_exists=True)
+        return self._read_v2_contents(location, self._safe_name(expected_capture_id),
+                                      self._safe_name(expected_session_id))
+
+    def _read_v2_contents(self, location: Path, capture_id: str,
+                          session_id: str) -> RawRgbdCapture:
+        """Shared RAW-v2 payload verification (same hashing for legacy and numbered)."""
         if not location.is_dir():
             raise ValueError("Capture path is not a directory")
         if {item.name for item in location.iterdir()} != self._RAW_DIRECTORY_FILES:
