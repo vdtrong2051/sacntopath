@@ -52,6 +52,7 @@ class PropertyInspector(QWidget):
         if selection is not None and not isinstance(selection, SelectionRef):
             raise TypeError("selection phải là SelectionRef hoặc None")
         self._selection = selection
+        self.note.setText("Thông tin này chỉ là tham chiếu ID; chưa tải metadata hoặc số đo.")
         self.details.clear()
         show = selection is not None
         self.empty_label.setVisible(not show)
@@ -67,3 +68,17 @@ class PropertyInspector(QWidget):
             rows.append(("Mã nguồn", selection.source_id))
         for name, value in rows:
             QTreeWidgetItem(self.details, [name, value])
+
+    def set_store_fields(self, fields: tuple[tuple[str, str], ...]) -> None:
+        """Append verified DTO metadata, not guessed geometry/pose/accuracy."""
+        if self._selection is None:
+            raise RuntimeError("Cần chọn đối tượng trước khi hiển thị thông tin")
+        if not isinstance(fields, tuple) or any(
+            not isinstance(field, tuple) or len(field) != 2 or
+            any(not isinstance(value, str) for value in field)
+            for field in fields
+        ):
+            raise TypeError("fields phải là tuple[(str, str), ...]")
+        for name, value in fields:
+            QTreeWidgetItem(self.details, [name, value])
+        self.note.setText("Metadata từ SQLite. Trạng thái RAW không phải độ chính xác hình học.")

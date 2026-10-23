@@ -7,12 +7,13 @@ from __future__ import annotations
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QAction, QKeySequence, QCloseEvent
 from PySide6.QtWidgets import (
-    QApplication, QDockWidget, QFrame, QHBoxLayout, QLabel, QMainWindow,
+    QApplication, QDockWidget, QFileDialog, QFrame, QHBoxLayout, QLabel, QMainWindow,
     QMenu, QPushButton, QSizePolicy, QStackedWidget, QStatusBar, QVBoxLayout, QWidget,
 )
 
 from scantopath.application.contracts import CommandStatus, WorkspaceId
-from scantopath.ui.components import ProjectExplorer, PropertyInspector, TaskAndEventPanel
+from scantopath.ui.components import ExplorerNode, ProjectExplorer, PropertyInspector, TaskAndEventPanel
+from scantopath.ui.projects.controller import ProjectLoadController
 from scantopath.ui.viewmodels.navigation import NavigationViewModel
 from scantopath.ui.theme import load_hmi_qss
 from scantopath.ui.tasks import QtTaskController
@@ -39,6 +40,7 @@ class ScanToPathMainWindow(QMainWindow):
         self._create_shell()
         self._create_docks()
         self._create_menus()
+        self._install_project_loader()
         self._install_task_controller()
         self._apply_style()
         self._show_workspace(self.navigation.workspace)
@@ -99,7 +101,7 @@ class ScanToPathMainWindow(QMainWindow):
         stage = QLabel("GĐ1 · HMI")
         stage.setObjectName("stageLabel")
         nav_layout.addWidget(stage)
-        sidebar_note = QLabel("Bảng điều khiển · Chưa kết nối dữ liệu")
+        sidebar_note = QLabel("Dữ liệu dự án · Mở kho từ Cây dự án")
         sidebar_note.setObjectName("sidebarNote")
         sidebar_note.setWordWrap(True)
         nav_layout.addWidget(sidebar_note)
@@ -177,6 +179,77 @@ class ScanToPathMainWindow(QMainWindow):
         self.task_dock.setMinimumHeight(115)
         self.addDockWidget(Qt.BottomDockWidgetArea, self.task_dock)
 
+    def _install_project_loader(self) -> None:
+        """Qt-main-thread bridge for explicitly chosen, existing SQLite stores."""
+        self.project_loader = ProjectLoadController(self)
+        self._project_root: str | None = None
+        self._project_fields: dict[object, tuple[tuple[str, str], ...]] = {}
+        self.project_explorer.open_requested.connect(self._choose_project_store)
+        self.project_explorer.refresh_requested.connect(self._reload_project_store)
+        self.project_loader.loaded.connect(self._on_project_loaded)
+        self.project_loader.failed.connect(self._on_project_failed)
+        self.project_loader.busy_changed.connect(self._on_project_busy)
+        self.project_loader.stopped.connect(self.close)
+
+    def _choose_project_store(self) -> None:
+        if self.project_loader.busy:
+            return
+        root = QFileDialog.getExistingDirectory(self, "Chọn thư mục kho ScanToPath", self._project_root or "")
+        if root:
+            self._begin_project_load(root)
+
+    def _reload_project_store(self) -> None:
+        if self._project_root is not None:
+            self._begin_project_load(self._project_root)
+
+    def _begin_project_load(self, root: str) -> None:
+        if self.project_loader.busy:
+            return
+        # Do not display stale objects from a previously selected data root.
+        self.project_explorer.set_nodes(())
+        self._project_fields.clear()
+        self.property_inspector.set_selection(None)
+        self._project_root = None
+        self.project_explorer.show_store(None)
+        self.data_status.setText("Dữ liệu: Đang tải")
+        if not self.project_loader.load(root):
+            self._on_project_failed("Đang có thao tác tải kho dữ liệu khác.")
+
+    def _on_project_busy(self, busy: bool) -> None:
+        self.project_explorer.set_busy(busy)
+
+    def _on_project_loaded(self, bundle: object) -> None:
+        """Called in GUI thread; the worker only passes immutable DTO records."""
+        # Lazy import: startup/import UI must not load metadata/SQLite modules.
+        from scantopath.ui.projects.presentation import project_rows
+        self._project_root = bundle.info.root
+        rows = project_rows(bundle.trees)
+        self._project_fields.clear()
+
+        def convert(row) -> ExplorerNode:
+            self._project_fields[row.selection] = row.fields
+            return ExplorerNode(row.title, row.selection, tuple(convert(c) for c in row.children))
+
+        self.project_explorer.set_nodes(tuple(convert(r) for r in rows))
+        for index in range(self.project_explorer.tree.topLevelItemCount()):
+            self.project_explorer.tree.topLevelItem(index).setExpanded(True)
+        self.project_explorer.show_store(bundle.info.root, schema_version=bundle.info.schema_version)
+        if not rows:
+            self.project_explorer.show_message("Kho SQLite hợp lệ nhưng chưa có dự án.")
+        self.data_status.setText(f"Dữ liệu: {len(rows)} dự án · SQLite v{bundle.info.schema_version}")
+        self._set_status(f"Đã tải {len(rows)} dự án từ kho SQLite đã chọn.")
+        self.task_event_panel.add_ui_event("Đã tải cây dự án từ kho SQLite được chọn.")
+
+    def _on_project_failed(self, message: str) -> None:
+        self._project_root = None
+        self._project_fields.clear()
+        self.project_explorer.set_nodes(())
+        self.project_explorer.show_store(None)
+        self.project_explorer.show_message(message)
+        self.property_inspector.set_selection(None)
+        self.data_status.setText("Dữ liệu: Chưa tải")
+        self._set_status(message)
+
     def _install_task_controller(self) -> None:
         """Only the GUI timer updates Qt widgets; jobs run off the GUI thread."""
         self.task_controller = QtTaskController(self)
@@ -196,7 +269,11 @@ class ScanToPathMainWindow(QMainWindow):
         Cancellation is cooperative; if the task cannot stop promptly, keep
         the window alive rather than freezing Qt or terminating the thread.
         """
-        if self.task_controller.begin_shutdown(grace_seconds=3.0):
+        # Evaluate both independently so a running loader cannot be orphaned
+        # when the pre-existing task worker has already stopped.
+        tasks_stopped = self.task_controller.begin_shutdown(grace_seconds=3.0)
+        project_stopped = self.project_loader.begin_shutdown()
+        if tasks_stopped and project_stopped:
             super().closeEvent(event)
         else:
             event.ignore()
@@ -205,6 +282,8 @@ class ScanToPathMainWindow(QMainWindow):
         """SelectionRef là tham chiếu, không phải phép đo hoặc metadata đã nạp."""
         self.navigation.select_entity(selection)
         self.property_inspector.set_selection(selection)
+        if selection is not None and selection in self._project_fields:
+            self.property_inspector.set_store_fields(self._project_fields[selection])
         if selection is not None:
             self._set_status(f"Đã chọn đối tượng: {selection.entity_id}")
 
@@ -237,7 +316,7 @@ class ScanToPathMainWindow(QMainWindow):
             view_menu.addAction(toggle)
 
         help_menu = self.menuBar().addMenu("T&rợ giúp")
-        stage = QAction("Giao diện HMI · Hoàn thiện chức năng 06.5", self)
+        stage = QAction("GĐ1 · Project Explorer 07.4 (chỉ đọc)", self)
         stage.setEnabled(False)
         help_menu.addAction(stage)
 

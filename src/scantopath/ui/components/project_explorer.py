@@ -4,7 +4,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtWidgets import QLabel, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget
 
 from scantopath.application.contracts import SelectionRef
 
@@ -32,14 +32,33 @@ class ProjectExplorer(QWidget):
     """Explorer chỉ nhận cây dữ liệu được truyền vào, không tự mở DB."""
 
     selection_changed = Signal(object)
+    open_requested = Signal()
+    refresh_requested = Signal()
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setObjectName("projectExplorer")
         self.setAccessibleName("Cây dự án")
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(9, 10, 9, 10)
-        self.empty_label = QLabel("Chưa tải dữ liệu dự án. Kết nối SQLite ở phiên 07.")
+        layout.setContentsMargins(7, 8, 7, 8)
+        controls = QHBoxLayout()
+        controls.setSpacing(4)
+        self.open_button = QPushButton("Mở kho…", self)
+        self.open_button.setObjectName("openProjectStore")
+        self.open_button.setToolTip("Chọn thư mục đã có metadata.sqlite3")
+        self.open_button.clicked.connect(self.open_requested.emit)
+        controls.addWidget(self.open_button)
+        self.refresh_button = QPushButton("Tải lại", self)
+        self.refresh_button.setObjectName("refreshProjectStore")
+        self.refresh_button.setEnabled(False)
+        self.refresh_button.clicked.connect(self.refresh_requested.emit)
+        controls.addWidget(self.refresh_button)
+        layout.addLayout(controls)
+        self.store_label = QLabel("Kho: Chưa chọn", self)
+        self.store_label.setObjectName("projectStoreLabel")
+        self.store_label.setWordWrap(True)
+        layout.addWidget(self.store_label)
+        self.empty_label = QLabel("Chưa tải dữ liệu dự án. Hãy chọn kho SQLite.")
         self.empty_label.setObjectName("explorerEmptyLabel")
         self.empty_label.setWordWrap(True)
         layout.addWidget(self.empty_label)
@@ -53,10 +72,37 @@ class ProjectExplorer(QWidget):
         self.tree.currentItemChanged.connect(self._current_item_changed)
         layout.addWidget(self.tree, stretch=1)
         self._selection: SelectionRef | None = None
+        self._store_root: str | None = None
 
     @property
     def selection(self) -> SelectionRef | None:
         return self._selection
+
+    @property
+    def store_root(self) -> str | None:
+        return self._store_root
+
+    def show_store(self, root: str | None, *, schema_version: int | None = None) -> None:
+        self._store_root = root
+        if root is None:
+            self.store_label.setText("Kho: Chưa chọn")
+            self.store_label.setToolTip("")
+        else:
+            from pathlib import Path
+            self.store_label.setText(f"Kho: {Path(root).name} · SQLite v{schema_version}" if schema_version else f"Kho: {Path(root).name}")
+            self.store_label.setToolTip(root)
+        self.refresh_button.setEnabled(root is not None)
+
+    def set_busy(self, busy: bool) -> None:
+        self.open_button.setEnabled(not busy)
+        self.refresh_button.setEnabled(not busy and self._store_root is not None)
+        if busy:
+            self.empty_label.setText("Đang tải dữ liệu dự án…")
+            self.empty_label.setVisible(True)
+
+    def show_message(self, message: str) -> None:
+        self.empty_label.setText(message)
+        self.empty_label.setVisible(True)
 
     def set_nodes(self, nodes: tuple[ExplorerNode, ...]) -> None:
         """Cập nhật cây sau khi đã có nguồn dữ liệu thực; không thêm fixture."""
