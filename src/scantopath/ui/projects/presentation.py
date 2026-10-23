@@ -7,13 +7,14 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from scantopath.application.contracts import SelectionRef
-from scantopath.application.projects.models import ProjectTree, StoreInfo
+from scantopath.application.projects.models import AuditEventSummary, ProjectTree, StoreInfo
 
 
 @dataclass(frozen=True, slots=True)
 class ProjectLoadBundle:
     info: StoreInfo
     trees: tuple[ProjectTree, ...]
+    audit_events: tuple[AuditEventSummary, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -59,13 +60,26 @@ def project_rows(trees: tuple[ProjectTree, ...]) -> tuple[ProjectRow, ...]:
                             ("RAW", _state(cap.storage.state)),
                             ("Đường dẫn", cap.storage.relative_path or "Chưa có")),
                 ) for index, cap in enumerate(session.captures, start=1))
+                runs = tuple(ProjectRow(
+                    title=f"{_code(run.storage.public_code)} · Xử lý {run.stage}",
+                    selection=SelectionRef("processing_run", run.run_id),
+                    fields=(("Mã", _code(run.storage.public_code)),
+                            ("Công đoạn", run.stage),
+                            ("Thuật toán", run.algorithm),
+                            ("Phiên bản", run.version),
+                            ("Trạng thái", run.state),
+                            ("Đầu vào", ", ".join(run.input_capture_ids)),
+                            ("Đầu ra (tham chiếu)", ", ".join(run.output_files) or "Chưa có"),
+                            ("Tham số JSON", run.parameters_json),
+                            ("Lỗi", run.error_message or "Không có")),
+                ) for run in session.processing_runs)
                 sessions.append(ProjectRow(
                     title=f"{_code(session.storage.public_code)} · {session.label}",
                     selection=SelectionRef("scan_session", session.session_id),
                     fields=(("Mã", _code(session.storage.public_code)),
                             ("Tên phiên quét", session.label),
                             ("Trạng thái", "Đang mở" if session.state == "open" else "Đã đóng")),
-                    children=captures,
+                    children=captures + runs,
                 ))
             specimens.append(ProjectRow(
                 title=f"{_code(specimen.storage.public_code)} · {specimen.label}",

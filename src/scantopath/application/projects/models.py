@@ -122,3 +122,12 @@ class AuditEventSummary:
 class CodeAssignmentSummary:
     """Explicit mapping operation; an empty result means no new codes assigned."""
     assigned: tuple[tuple[str, int], ...]
+
+
+@dataclass(frozen=True, slots=True)
+class CaptureInspection:
+    """Read-only integrity outcome; NEVER implies geometric accuracy."""
+    capture_id: str
+    status: Literal["verified", "missing", "corrupt", "inaccessible"]
+    raw_schema_version: int
+    message: str

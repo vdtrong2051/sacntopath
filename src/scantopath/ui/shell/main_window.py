@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
 from scantopath.application.contracts import CommandStatus, WorkspaceId
 from scantopath.ui.components import ExplorerNode, ProjectExplorer, PropertyInspector, TaskAndEventPanel
 from scantopath.ui.projects.controller import ProjectLoadController
+from scantopath.ui.projects.inspection_controller import CaptureInspectionController
 from scantopath.ui.projects.forms_contract import ProjectEditCommand
 from scantopath.ui.projects.write_controller import ProjectWriteController
 from scantopath.ui.projects.edit_dialog import ProjectEditDialog
@@ -46,6 +47,7 @@ class ScanToPathMainWindow(QMainWindow):
         self._create_menus()
         self._install_project_loader()
         self._install_project_writer()
+        self._install_capture_checker()
         self._install_task_controller()
         self._apply_style()
         self._show_workspace(self.navigation.workspace)
@@ -214,10 +216,48 @@ class ScanToPathMainWindow(QMainWindow):
         self.property_inspector.edit_requested.connect(self._edit_selected_metadata)
         self.property_inspector.close_session_requested.connect(self._close_selected_session)
 
+    def _install_capture_checker(self) -> None:
+        self.capture_checker = CaptureInspectionController(self)
+        self.capture_checker.checked.connect(self._on_capture_checked)
+        self.capture_checker.failed.connect(self._on_capture_check_failed)
+        self.capture_checker.busy_changed.connect(self._on_capture_busy)
+        self.capture_checker.stopped.connect(self.close)
+        self.property_inspector.verify_capture_requested.connect(self._verify_selected_capture)
+
+    def _verify_selected_capture(self) -> None:
+        selection = self.project_explorer.selection
+        if (selection is None or selection.entity_type != "capture" or
+                selection not in self._project_fields or self._project_root is None or
+                self.project_loader.busy or self.project_writer.busy or
+                self.capture_checker.busy or self._project_closing):
+            return
+        if self.capture_checker.inspect(self._project_root, selection.entity_id):
+            self._set_status("Đang kiểm tra RAW trong luồng nền…")
+
+    def _on_capture_checked(self, result: object) -> None:
+        selection = self.project_explorer.selection
+        if selection is None or selection.entity_type != "capture" or selection.entity_id != result.capture_id:
+            return
+        self.property_inspector.set_capture_inspection(result.status, result.message)
+        self._set_status(result.message)
+        self.task_event_panel.add_ui_event("Kiểm tra RAW theo yêu cầu: " + result.status)
+
+    def _on_capture_check_failed(self, message: str) -> None:
+        self._set_status(message)
+        self.task_event_panel.add_ui_event(message)
+
+    def _on_capture_busy(self, busy: bool) -> None:
+        self._update_project_actions()
+        self.project_explorer.open_button.setEnabled(
+            not busy and not self.project_loader.busy and not self.project_writer.busy)
+        self.project_explorer.refresh_button.setEnabled(
+            not busy and not self.project_loader.busy and not self.project_writer.busy
+            and self._project_root is not None)
+
     def _can_write_project(self) -> bool:
         return (self._project_root is not None and self._project_schema == 2
                 and not self.project_loader.busy and not self.project_writer.busy
-                and not self._project_closing)
+                and not self._project_closing and not self.capture_checker.busy)
 
     def _update_project_actions(self) -> None:
         chosen = self.project_explorer.selection
@@ -229,6 +269,12 @@ class ScanToPathMainWindow(QMainWindow):
             can_edit=can and kind in ("project", "specimen", "scan_session"),
             can_close_session=can and kind == "scan_session" and entity is not None
                 and entity.state == "open",
+        )
+        self.property_inspector.set_verify_capability(
+            chosen is not None and chosen.entity_type == "capture"
+            and chosen in self._project_fields and self._project_root is not None
+            and not self.project_loader.busy and not self.project_writer.busy
+            and not self.capture_checker.busy and not self._project_closing
         )
 
     def _dialog_command(self, kind: str, *, create: bool, initial: object | None = None,
@@ -330,31 +376,36 @@ class ScanToPathMainWindow(QMainWindow):
     def _on_project_write_busy(self, busy: bool) -> None:
         self._update_project_actions()
         # A reader and writer must never run against the same store concurrently.
-        self.project_explorer.open_button.setEnabled(not busy and not self.project_loader.busy)
+        self.project_explorer.open_button.setEnabled(
+            not busy and not self.project_loader.busy and not self.capture_checker.busy)
         self.project_explorer.refresh_button.setEnabled(
-            not busy and not self.project_loader.busy and self._project_root is not None
+            not busy and not self.project_loader.busy and not self.capture_checker.busy
+            and self._project_root is not None
         )
         if not busy and self._write_refresh_pending and not self._project_closing:
             self._write_refresh_pending = False
             self._reload_project_store()
 
     def _choose_project_store(self) -> None:
-        if self.project_loader.busy or self.project_writer.busy:
+        if self.project_loader.busy or self.project_writer.busy or self.capture_checker.busy:
             return
         root = QFileDialog.getExistingDirectory(self, "Chọn thư mục kho ScanToPath", self._project_root or "")
         if root:
             self._begin_project_load(root)
 
     def _reload_project_store(self) -> None:
-        if self._project_root is not None and not self.project_writer.busy:
+        if (self._project_root is not None and not self.project_writer.busy
+                and not self.capture_checker.busy):
             self._begin_project_load(self._project_root)
 
     def _begin_project_load(self, root: str) -> None:
-        if self.project_loader.busy or self.project_writer.busy or self._project_closing:
+        if (self.project_loader.busy or self.project_writer.busy or
+                self.capture_checker.busy or self._project_closing):
             return
         # Do not display stale objects from a previously selected data root.
         self.project_explorer.set_nodes(())
         self._project_fields.clear()
+        self.task_event_panel.set_audit_events(())
         self._project_entities.clear()
         self._project_owners.clear()
         self._project_schema = None
@@ -378,6 +429,7 @@ class ScanToPathMainWindow(QMainWindow):
         self._project_root = bundle.info.root
         self._project_schema = bundle.info.schema_version
         rows = project_rows(bundle.trees)
+        self.task_event_panel.set_audit_events(bundle.audit_events)
         self._project_fields.clear()
         self._project_entities.clear()
         self._project_owners.clear()
@@ -428,6 +480,7 @@ class ScanToPathMainWindow(QMainWindow):
         self._project_root = None
         self._project_schema = None
         self._project_fields.clear()
+        self.task_event_panel.set_audit_events(())
         self._project_entities.clear()
         self._project_owners.clear()
         self._pending_selection = None
@@ -464,7 +517,8 @@ class ScanToPathMainWindow(QMainWindow):
         tasks_stopped = self.task_controller.begin_shutdown(grace_seconds=3.0)
         project_stopped = self.project_loader.begin_shutdown()
         write_stopped = self.project_writer.begin_shutdown()
-        if tasks_stopped and project_stopped and write_stopped:
+        check_stopped = self.capture_checker.begin_shutdown()
+        if tasks_stopped and project_stopped and write_stopped and check_stopped:
             super().closeEvent(event)
         else:
             event.ignore()

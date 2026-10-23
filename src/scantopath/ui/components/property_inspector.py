@@ -24,6 +24,7 @@ class PropertyInspector(QWidget):
 
     edit_requested = Signal()
     close_session_requested = Signal()
+    verify_capture_requested = Signal()
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -48,6 +49,11 @@ class PropertyInspector(QWidget):
         self.close_button.clicked.connect(self.close_session_requested.emit)
         actions.addWidget(self.close_button)
         layout.addLayout(actions)
+        self.verify_button = QPushButton("Kiểm tra RAW", self)
+        self.verify_button.setObjectName("verifySelectedCaptureRaw")
+        self.verify_button.setEnabled(False)
+        self.verify_button.clicked.connect(self.verify_capture_requested.emit)
+        layout.addWidget(self.verify_button)
         self.details = QTreeWidget(self)
         self.details.setObjectName("inspectorProperties")
         self.details.setHeaderLabels(["Thuộc tính", "Giá trị"])
@@ -90,6 +96,24 @@ class PropertyInspector(QWidget):
     def set_actions(self, *, can_edit: bool, can_close_session: bool) -> None:
         self.edit_button.setEnabled(can_edit)
         self.close_button.setEnabled(can_close_session)
+
+    def set_verify_capability(self, enabled: bool) -> None:
+        self.verify_button.setEnabled(enabled)
+
+    def set_capture_inspection(self, state: str, message: str) -> None:
+        """Replace the displayed RAW status only; never update SQLite."""
+        if self._selection is None or self._selection.entity_type != "capture":
+            return
+        label = {"verified": "Đã kiểm tra", "missing": "Thiếu RAW",
+                 "corrupt": "RAW không hợp lệ", "inaccessible": "Không thể truy cập"}.get(state, "Chưa xác định")
+        for i in range(self.details.topLevelItemCount()):
+            item = self.details.topLevelItem(i)
+            if item.text(0) == "RAW":
+                item.setText(1, label)
+                break
+        else:
+            QTreeWidgetItem(self.details, ["RAW", label])
+        self.note.setText(message + " Đây không phải xác nhận độ chính xác hình học.")
 
     def set_store_fields(self, fields: tuple[tuple[str, str], ...]) -> None:
         """Append verified DTO metadata, not guessed geometry/pose/accuracy."""

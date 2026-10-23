@@ -28,7 +28,7 @@ class _LoadThread(QThread):
             service = _make_project_service(self._root)
             projects = service.list_projects()
             trees = tuple(service.get_project_tree(p.project_id) for p in projects)
-            self.loaded.emit(ProjectLoadBundle(service.info, trees))
+            self.loaded.emit(ProjectLoadBundle(service.info, trees, service.list_events(limit=100)))
         except Exception as exc:
             # Sanitize: never expose raw exception text (path, DB contents, etc.).
             name = type(exc).__name__

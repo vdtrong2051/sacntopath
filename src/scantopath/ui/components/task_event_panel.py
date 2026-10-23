@@ -79,6 +79,19 @@ class TaskAndEventPanel(QWidget):
         events_layout.addWidget(self.events, stretch=1)
         self.tabs.addTab(events_page, "Thông báo UI")
 
+        audit_page = QWidget(self.tabs)
+        audit_layout = QVBoxLayout(audit_page)
+        audit_layout.setContentsMargins(5, 5, 5, 4)
+        self.audit_hint = QLabel("Chỉ đọc 100 sự kiện SQLite gần nhất của kho đã mở; không phải tác vụ UI.")
+        self.audit_hint.setWordWrap(True)
+        audit_layout.addWidget(self.audit_hint)
+        self.audit_table = QTreeWidget(audit_page)
+        self.audit_table.setObjectName("sqliteAuditTimeline")
+        self.audit_table.setHeaderLabels(["Thời gian (UTC)", "Mức", "Sự kiện", "Đối tượng"])
+        self.audit_table.setRootIsDecorated(False)
+        audit_layout.addWidget(self.audit_table, stretch=1)
+        self.tabs.addTab(audit_page, "Nhật ký SQLite")
+
     def set_tasks(self, snapshots: tuple[TaskSnapshot, ...]) -> None:
         """Cập nhật trạng thái đã cấp; không tự tạo job, tiến độ hoặc kết quả."""
         if not isinstance(snapshots, tuple) or not all(
@@ -124,3 +137,20 @@ class TaskAndEventPanel(QWidget):
         while self.events.count() > self.MAX_UI_EVENTS:
             self.events.takeItem(0)
         self.events.scrollToBottom()
+
+    def set_audit_events(self, events: tuple) -> None:
+        """Read-only immutable AuditEventSummary records from application service."""
+        from scantopath.application.projects.models import AuditEventSummary
+        if not isinstance(events, tuple) or any(not isinstance(e, AuditEventSummary) for e in events):
+            raise TypeError("Expected tuple[AuditEventSummary, ...]")
+        self.audit_table.clear()
+        for item in events:
+            row = QTreeWidgetItem(self.audit_table, [
+                item.occurred_at, item.level, item.action,
+                f"{item.entity_type}: {item.entity_id}",
+            ])
+            row.setToolTip(2, item.details_json[:1000])
+        self.audit_hint.setText(
+            f"{len(events)} sự kiện SQLite gần nhất trong kho đã mở (tối đa 100). "
+            "Nhấn Tải lại ở Cây dự án để cập nhật. Không bao gồm log UI."
+        )
