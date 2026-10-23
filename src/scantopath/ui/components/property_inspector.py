@@ -1,8 +1,10 @@
 """Bảng thuộc tính chỉ hiển thị thông tin đối tượng được chọn, chưa truy vấn backend."""
 from __future__ import annotations
 
+from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
-    QAbstractItemView, QLabel, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget,
+    QAbstractItemView, QHBoxLayout, QLabel, QPushButton, QTreeWidget,
+    QTreeWidgetItem, QVBoxLayout, QWidget,
 )
 
 from scantopath.application.contracts import SelectionRef
@@ -20,6 +22,9 @@ _ENTITY_TITLES = {
 class PropertyInspector(QWidget):
     """Không hiển thị thông số đo/pose khi chỉ có SelectionRef."""
 
+    edit_requested = Signal()
+    close_session_requested = Signal()
+
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setObjectName("propertyInspector")
@@ -30,6 +35,19 @@ class PropertyInspector(QWidget):
         self.empty_label.setObjectName("inspectorEmptyLabel")
         self.empty_label.setWordWrap(True)
         layout.addWidget(self.empty_label)
+        actions = QHBoxLayout()
+        actions.setSpacing(4)
+        self.edit_button = QPushButton("Sửa…", self)
+        self.edit_button.setObjectName("editProjectMetadata")
+        self.edit_button.setEnabled(False)
+        self.edit_button.clicked.connect(self.edit_requested.emit)
+        actions.addWidget(self.edit_button)
+        self.close_button = QPushButton("Đóng phiên", self)
+        self.close_button.setObjectName("closeScanSession")
+        self.close_button.setEnabled(False)
+        self.close_button.clicked.connect(self.close_session_requested.emit)
+        actions.addWidget(self.close_button)
+        layout.addLayout(actions)
         self.details = QTreeWidget(self)
         self.details.setObjectName("inspectorProperties")
         self.details.setHeaderLabels(["Thuộc tính", "Giá trị"])
@@ -68,6 +86,10 @@ class PropertyInspector(QWidget):
             rows.append(("Mã nguồn", selection.source_id))
         for name, value in rows:
             QTreeWidgetItem(self.details, [name, value])
+
+    def set_actions(self, *, can_edit: bool, can_close_session: bool) -> None:
+        self.edit_button.setEnabled(can_edit)
+        self.close_button.setEnabled(can_close_session)
 
     def set_store_fields(self, fields: tuple[tuple[str, str], ...]) -> None:
         """Append verified DTO metadata, not guessed geometry/pose/accuracy."""

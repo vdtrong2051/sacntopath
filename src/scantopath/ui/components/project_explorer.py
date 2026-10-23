@@ -4,7 +4,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QHBoxLayout, QLabel, QMenu, QPushButton, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget
 
 from scantopath.application.contracts import SelectionRef
 
@@ -34,6 +34,9 @@ class ProjectExplorer(QWidget):
     selection_changed = Signal(object)
     open_requested = Signal()
     refresh_requested = Signal()
+    create_project_requested = Signal()
+    create_specimen_requested = Signal()
+    create_session_requested = Signal()
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -54,6 +57,19 @@ class ProjectExplorer(QWidget):
         self.refresh_button.clicked.connect(self.refresh_requested.emit)
         controls.addWidget(self.refresh_button)
         layout.addLayout(controls)
+        self.add_menu = QMenu(self)
+        self.create_project_action = self.add_menu.addAction("Tạo dự án")
+        self.create_specimen_action = self.add_menu.addAction("Thêm vật mẫu")
+        self.create_session_action = self.add_menu.addAction("Tạo phiên quét")
+        self.create_project_action.triggered.connect(self.create_project_requested.emit)
+        self.create_specimen_action.triggered.connect(self.create_specimen_requested.emit)
+        self.create_session_action.triggered.connect(self.create_session_requested.emit)
+        self.add_button = QPushButton("＋ Thêm…", self)
+        self.add_button.setObjectName("addProjectEntity")
+        self.add_button.setMenu(self.add_menu)
+        self.add_button.setEnabled(False)
+        self.add_button.setMaximumHeight(32)
+        layout.addWidget(self.add_button)
         self.store_label = QLabel("Kho: Chưa chọn", self)
         self.store_label.setObjectName("projectStoreLabel")
         self.store_label.setWordWrap(True)
@@ -99,6 +115,17 @@ class ProjectExplorer(QWidget):
         if busy:
             self.empty_label.setText("Đang tải dữ liệu dự án…")
             self.empty_label.setVisible(True)
+
+    def set_write_capabilities(self, can_write: bool, kind: str | None) -> None:
+        """Caller uses selected SQLite schema and selected node identity."""
+        self.add_button.setEnabled(can_write)
+        self.create_project_action.setEnabled(can_write)
+        self.create_specimen_action.setEnabled(can_write and kind == "project")
+        self.create_session_action.setEnabled(can_write and kind == "specimen")
+        self.add_button.setToolTip(
+            "Tạo metadata mới trong SQLite v2" if can_write
+            else "Chỉ ghi khi đã chọn kho SQLite v2 và không có tác vụ đang chạy"
+        )
 
     def show_message(self, message: str) -> None:
         self.empty_label.setText(message)

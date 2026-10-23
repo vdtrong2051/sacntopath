@@ -301,6 +301,16 @@ class MetadataStore:
             _log(db, "session.created", "session", session_id, {"specimen_id": specimen_id})
             return _plain(obj)
 
+    def update_scan_session(self, session_id: str, *, label: str) -> dict:
+        """Edit the visible name only; identity, parent and open/closed state are immutable."""
+        _safe_id(session_id, "session_id")
+        clean = _label(label, "label")
+        with Session(self.engine) as db, db.begin():
+            item = _must(db, _ScanSession, session_id, "ScanSession")
+            item.label = clean
+            _log(db, "session.updated", "session", session_id)
+            return _plain(item)
+
     def close_scan_session(self, session_id: str) -> dict:
         with Session(self.engine) as db, db.begin():
             obj = _must(db, _ScanSession, _safe_id(session_id), "Session")

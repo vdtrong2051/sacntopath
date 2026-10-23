@@ -250,6 +250,22 @@ class ProjectWorkspaceService:
         self._assign_after_create("session", identity)
         return self._session_from_store(specimen_id, identity)
 
+    def update_session(self, specimen_id: str, session_id: str, *, label: str) -> SessionSummary:
+        """Rename a session without changing its parent, state, RAW or immutable ID."""
+        self._require_numbered()
+        with MetadataStore(self._root) as store:
+            project_id = self._project_for_specimen(store, specimen_id)
+            tree = store.get_project_tree(project_id)
+            owned = any(
+                session["session_id"] == session_id
+                for specimen in tree["specimens"] if specimen["specimen_id"] == specimen_id
+                for session in specimen["sessions"]
+            )
+            if not owned:
+                raise LookupError("Session does not belong to selected specimen")
+            store.update_scan_session(session_id, label=label)
+        return self._session_from_store(specimen_id, session_id)
+
     def close_session(self, specimen_id: str, session_id: str) -> SessionSummary:
         self._require_numbered()
         # Read parent ownership before performing a durable state transition.
