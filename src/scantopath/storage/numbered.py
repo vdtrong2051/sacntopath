@@ -333,8 +333,25 @@ class NumberedStorageRegistry:
             if layout == 1:
                 packet = store.read_capture(path)
             elif layout == 2:
-                packet = store.read_raw_numbered(path, expected_capture_id=internal_id,
-                                                 expected_session_id=self._get_capture_session(internal_id))
+                # 07.7 preserves both RAW generations byte-for-byte. A numbered
+                # v1 capture contains historical .npy arrays (no SHA manifest).
+                with self._connect() as db:
+                    record = db.execute("SELECT session_id,specimen_id,schema_version FROM captures WHERE capture_id=?",
+                                        (internal_id,)).fetchone()
+                if record is None:
+                    raise LookupError("Capture not registered")
+                if record["schema_version"] == 1:
+                    packet = store.read(path)
+                    metadata = packet[0]
+                    if (metadata.capture_id != internal_id or
+                            metadata.session_id != record["session_id"] or
+                            metadata.specimen_id != record["specimen_id"]):
+                        raise ValueError("Numbered v1 RAW identity mismatch")
+                elif record["schema_version"] == 2:
+                    packet = store.read_raw_numbered(path, expected_capture_id=internal_id,
+                                                     expected_session_id=record["session_id"])
+                else:
+                    raise ValueError("Unknown RAW schema version")
             else:
                 raise ValueError("Unknown storage layout")
             if packet is None:  # unreachable; defensive
