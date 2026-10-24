@@ -38,7 +38,8 @@ def window(app):
 
 def test_qss_is_external_and_loaded(window):
     assert window.styleSheet() == load_hmi_qss()
-    assert window.navigation_sidebar.width() in (172, 184, 194)
+    assert window.workspace_toolbar.isVisible()
+    assert window.workspace_toolbar.width() > 0
 
 
 def test_initial_window_bounded_by_available_logical_area(app):
@@ -61,14 +62,15 @@ def test_each_workspace_supports_vertical_scrolling(window, workspace):
     assert scroll.widgetResizable()
     assert scroll.horizontalScrollBarPolicy() == Qt.ScrollBarAlwaysOff
     assert scroll.verticalScrollBarPolicy() == Qt.ScrollBarAsNeeded
-    assert page.findChild(QLabel, "workspaceState").text() == "CHƯA TRIỂN KHAI"
+    assert page.findChild(QLabel, "workspaceState").text() == ("CÓ THỂ SỬ DỤNG QUA PANEL" if workspace in (WorkspaceId.PROJECTS, WorkspaceId.PROCESSING) else "CHƯA TRIỂN KHAI")
 
 
 def test_panels_still_accessible_after_compact_resize(window, app):
     window.resize(900, 535)
     app.processEvents()
     window._initialize_dock_layout()
-    assert window.navigation_sidebar.width() == 172
+    assert window.workspace_toolbar.isVisible()
+    assert window.workspace_toolbar.width() > 0
     assert all(isinstance(d, QDockWidget) for d in
                (window.explorer_dock, window.inspector_dock, window.task_dock))
     assert all(d.toggleViewAction() for d in

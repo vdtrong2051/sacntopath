@@ -67,7 +67,7 @@ def test_four_workspaces_are_only_navigable_pages(window):
         window.nav_buttons[workspace].click()
         assert window.active_workspace is workspace
         assert window.workspace_stack.currentWidget() is window.page_for(workspace)
-        assert window.nav_buttons[workspace].text() == WORKSPACE_PRESENTATION[workspace].title
+        assert window.nav_buttons[workspace].toolTip() == WORKSPACE_PRESENTATION[workspace].title
 
 
 def test_no_fake_geometry_or_results(window):
@@ -75,7 +75,7 @@ def test_no_fake_geometry_or_results(window):
         page = window.page_for(w)
         state = page.findChild(type(window.status_message), "workspaceState")
         assert state is not None
-        assert state.text() == "CHƯA TRIỂN KHAI"
+        assert state.text() == ("CÓ THỂ SỬ DỤNG QUA PANEL" if w in (WorkspaceId.PROJECTS, WorkspaceId.PROCESSING) else "CHƯA TRIỂN KHAI")
     assert window.project_explorer.tree.topLevelItemCount() == 0
     assert window.property_inspector.selection is None
     assert window.task_event_panel.tasks.topLevelItemCount() == 0

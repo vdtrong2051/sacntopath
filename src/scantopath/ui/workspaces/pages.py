@@ -9,7 +9,7 @@ from dataclasses import dataclass
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
-    QFrame, QHBoxLayout, QLabel, QScrollArea, QSizePolicy, QVBoxLayout, QWidget,
+    QFrame, QHBoxLayout, QLabel, QPushButton, QScrollArea, QSizePolicy, QVBoxLayout, QWidget,
 )
 
 from scantopath.application.contracts import UiDataState, WorkspaceId
@@ -31,8 +31,9 @@ WORKSPACE_PRESENTATION: dict[WorkspaceId, WorkspacePresentation] = {
         subtitle="Tổ chức dự án, vật mẫu, phiên quét và dữ liệu đã thu nhận.",
         next_title="Quản lý dữ liệu dự án",
         next_description=(
-            "Thông tin dự án, vật mẫu, phiên quét và bản thu đã có trong GĐ0. "
-            "Giao diện quản lý và truy vấn SQLite sẽ được kết nối ở phiên 07."
+            "Đã có thể mở kho SQLite từ Cây dự án, tạo/sửa metadata ở bảng Thuộc tính "
+            "và xem lịch sử bản thu trong Nhật ký SQLite. Khu vực này là tổng quan; "
+            "dữ liệu chi tiết nằm trong các panel."
         ),
         planned_session="Phiên 07",
     ),
@@ -61,8 +62,8 @@ WORKSPACE_PRESENTATION: dict[WorkspaceId, WorkspacePresentation] = {
         subtitle="Theo dõi tác vụ, lịch sử xử lý và kết quả phân tích.",
         next_title="Theo dõi tiến trình",
         next_description=(
-            "Bảng tác vụ kiểm thử và thông báo UI đã hoạt động. "
-            "Lịch sử ProcessingRun từ SQLite sẽ được kết nối ở phiên 07."
+            "Xem ProcessingRun trong Cây dự án và xem sự kiện đã lưu tại tab Nhật ký SQLite "
+            "trong Tác vụ và thông báo. Thuật toán xử lý 3D chưa chạy trong workspace này."
         ),
         planned_session="Phiên 07",
     ),
@@ -80,8 +81,7 @@ def create_workspace_page(workspace: WorkspaceId) -> QWidget:
     page.setObjectName(f"workspace_{key.value}")
     page.setAccessibleName(info.title)
 
-    # Nội dung phải cuộn được khi desktop 14 inch dùng DPI scaling 125–150%.
-    # ScrollArea giữ chữ/card truy cập được thay vì tăng minimumSize của cửa sổ.
+    # Native Qt ScrollArea scales correctly at 125/150% display settings.
     frame = QVBoxLayout(page)
     frame.setContentsMargins(0, 0, 0, 0)
     scroll = QScrollArea(page)
@@ -93,10 +93,14 @@ def create_workspace_page(workspace: WorkspaceId) -> QWidget:
     content = QWidget()
     content.setObjectName("workspaceScrollContent")
     outer = QVBoxLayout(content)
-    outer.setContentsMargins(16, 17, 16, 16)
-    outer.setSpacing(10)
+    outer.setContentsMargins(24, 25, 24, 24)
+    outer.setSpacing(13)
     frame.addWidget(scroll)
     scroll.setWidget(content)
+
+    eyebrow = QLabel("KHÔNG GIAN LÀM VIỆC")
+    eyebrow.setObjectName("workspaceEyebrow")
+    outer.addWidget(eyebrow)
 
     heading = QLabel(info.title)
     heading.setObjectName("workspaceHeading")
@@ -108,47 +112,71 @@ def create_workspace_page(workspace: WorkspaceId) -> QWidget:
     description.setObjectName("workspaceSubtitle")
     description.setWordWrap(True)
     outer.addWidget(description)
+    outer.addSpacing(14)
 
-    state_row = QHBoxLayout()
-    state_row.setSpacing(8)
-    state = QLabel("CHƯA TRIỂN KHAI")
-    state.setObjectName("workspaceState")
-    state.setAccessibleName("Trạng thái: Chưa triển khai")
-    state_row.addWidget(state, alignment=Qt.AlignLeft)
-    planned = QLabel(f"Dự kiến: {info.planned_session}")
-    planned.setObjectName("workspacePlanned")
-    planned.setWordWrap(True)
-    state_row.addWidget(planned, stretch=1)
-    outer.addLayout(state_row)
-
-    panel = QFrame()
+    panel = QFrame(content)
     panel.setObjectName("workspacePanel")
     panel.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
-    panel_layout = QVBoxLayout(panel)
-    panel_layout.setContentsMargins(15, 16, 15, 17)
-    panel_layout.setSpacing(8)
+    body = QVBoxLayout(panel)
+    body.setContentsMargins(25, 24, 25, 25)
+    body.setSpacing(12)
 
-    label = QLabel("KHÔNG GIAN LÀM VIỆC")
-    label.setObjectName("workspaceKicker")
-    panel_layout.addWidget(label)
+    state_row = QHBoxLayout()
+    state_row.setSpacing(10)
+    state = QLabel("CÓ THỂ SỬ DỤNG QUA PANEL" if key in (WorkspaceId.PROJECTS, WorkspaceId.PROCESSING)
+                   else "CHƯA TRIỂN KHAI")
+    state.setObjectName("workspaceState")
+    state.setWordWrap(True)
+    state.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Preferred)
+    state.setAccessibleName("Trạng thái: " + state.text())
+    state_row.addWidget(state, alignment=Qt.AlignLeft)
+    planned = QLabel("Đã kết nối ở phiên 07" if key in (WorkspaceId.PROJECTS, WorkspaceId.PROCESSING)
+                     else f"Dự kiến: {info.planned_session}")
+    planned.setObjectName("workspacePlanned")
+    planned.setWordWrap(True)
+    planned.setSizePolicy(QSizePolicy.MinimumExpanding, QSizePolicy.Preferred)
+    state_row.addWidget(planned, alignment=Qt.AlignVCenter)
+    state_row.addStretch(1)
+    body.addLayout(state_row)
+    body.addSpacing(7)
 
     feature_title = QLabel(info.next_title)
     feature_title.setObjectName("workspaceFeatureTitle")
     feature_title.setWordWrap(True)
-    panel_layout.addWidget(feature_title)
+    body.addWidget(feature_title)
 
     details = QLabel(info.next_description)
     details.setObjectName("workspaceDescription")
     details.setWordWrap(True)
     details.setTextInteractionFlags(Qt.TextSelectableByMouse)
-    panel_layout.addWidget(details)
+    body.addWidget(details)
 
-    note = QLabel("Chưa tải dữ liệu • Chưa chạy phép đo • Chưa khởi động thiết bị")
+    actions = QHBoxLayout()
+    actions.setSpacing(12)
+    if key in (WorkspaceId.PROJECTS, WorkspaceId.PROCESSING):
+        primary = QPushButton("Mở kho dữ liệu" if key is WorkspaceId.PROJECTS
+                              else "Xem nhật ký SQLite")
+        primary.setObjectName("workspacePrimaryAction")
+        primary.setMinimumHeight(37)
+        primary.setCursor(Qt.PointingHandCursor)
+        actions.addWidget(primary, alignment=Qt.AlignLeft)
+    else:
+        message = QLabel("Tính năng này sẽ được tích hợp theo lộ trình.")
+        message.setObjectName("workspaceActionHint")
+        message.setWordWrap(True)
+        actions.addWidget(message, alignment=Qt.AlignLeft)
+    actions.addStretch(1)
+    body.addLayout(actions)
+
+    note = QLabel("Mở kho theo yêu cầu · Chưa chạy phép đo · Không khởi động thiết bị"
+                  if key in (WorkspaceId.PROJECTS, WorkspaceId.PROCESSING)
+                  else "Chưa tải dữ liệu · Chưa chạy phép đo · Chưa khởi động thiết bị")
     note.setObjectName("workspaceFootnote")
     note.setWordWrap(True)
-    panel_layout.addSpacing(4)
-    panel_layout.addWidget(note)
+    body.addWidget(note)
 
+    # Cap the welcome content: it is a focused empty state, not the actual
+    # storage/capture/processing workspace. All data remains in real docks.
     outer.addWidget(panel)
     outer.addStretch(1)
     return page

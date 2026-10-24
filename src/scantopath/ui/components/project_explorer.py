@@ -43,9 +43,10 @@ class ProjectExplorer(QWidget):
         self.setObjectName("projectExplorer")
         self.setAccessibleName("Cây dự án")
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(7, 8, 7, 8)
+        layout.setContentsMargins(10, 11, 10, 11)
+        layout.setSpacing(7)
         controls = QHBoxLayout()
-        controls.setSpacing(4)
+        controls.setSpacing(6)
         self.open_button = QPushButton("Mở kho…", self)
         self.open_button.setObjectName("openProjectStore")
         self.open_button.setToolTip("Chọn thư mục đã có metadata.sqlite3")
@@ -83,6 +84,8 @@ class ProjectExplorer(QWidget):
         self.tree.setObjectName("projectExplorerTree")
         self.tree.setHeaderLabels(["Đối tượng"])
         self.tree.setUniformRowHeights(True)
+        self.tree.setTextElideMode(Qt.ElideMiddle)
+        self.tree.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         self.tree.setVisible(False)
         self.tree.setEnabled(False)
         self.tree.currentItemChanged.connect(self._current_item_changed)
@@ -155,6 +158,7 @@ class ProjectExplorer(QWidget):
     def _add_node(self, parent: QTreeWidgetItem | None, node: ExplorerNode) -> None:
         item = QTreeWidgetItem([node.label])
         item.setData(0, Qt.UserRole, node.selection)
+        item.setToolTip(0, node.label)  # Always expose full, unelided name.
         if parent is None:
             self.tree.addTopLevelItem(item)
         else:

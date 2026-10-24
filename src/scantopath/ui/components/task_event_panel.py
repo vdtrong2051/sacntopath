@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from PySide6.QtWidgets import (
-    QHBoxLayout, QLabel, QListWidget, QPushButton, QTabWidget, QTreeWidget,
+    QBoxLayout, QHBoxLayout, QLabel, QListWidget, QPushButton, QTabWidget, QTreeWidget,
     QTreeWidgetItem, QVBoxLayout, QWidget,
 )
 
@@ -32,20 +32,27 @@ class TaskAndEventPanel(QWidget):
         self.setObjectName("taskAndEventPanel")
         self.setAccessibleName("Tác vụ và thông báo")
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(5, 4, 5, 4)
+        layout.setContentsMargins(8, 7, 8, 9)
+        layout.setSpacing(5)
         self.tabs = QTabWidget(self)
         self.tabs.setObjectName("taskEventTabs")
         layout.addWidget(self.tabs)
 
         tasks_page = QWidget(self.tabs)
         task_layout = QVBoxLayout(tasks_page)
-        task_layout.setContentsMargins(5, 5, 5, 4)
+        task_layout.setContentsMargins(8, 8, 8, 8)
+        task_layout.setSpacing(8)
         self.task_hint = QLabel("Bước 06.5: Chưa có tác vụ đang hiển thị. Chỉ chạy tác vụ KIỂM THỬ, không ghi vào SQLite.")
         self.task_hint.setObjectName("taskEmptyLabel")
         self.task_hint.setWordWrap(True)
         task_layout.addWidget(self.task_hint)
-        buttons = QHBoxLayout()
-        buttons.setSpacing(6)
+        # Start with the compact layout BEFORE Qt computes minimumSizeHint().
+        # Starting horizontal can force a wide minimum width (the two buttons
+        # combined) and clamp an attempted resize(390, ...) above the 460 px
+        # breakpoint. resizeEvent still switches to horizontal on wider docks.
+        buttons = QBoxLayout(QBoxLayout.TopToBottom)
+        buttons.setSpacing(9)
+        self.action_buttons_layout = buttons
         self.demo_button = QPushButton("Chạy tác vụ KIỂM THỬ")
         self.demo_button.setObjectName("startFixtureTask")
         self.demo_button.clicked.connect(self.demo_requested.emit)
@@ -68,7 +75,7 @@ class TaskAndEventPanel(QWidget):
 
         events_page = QWidget(self.tabs)
         events_layout = QVBoxLayout(events_page)
-        events_layout.setContentsMargins(5, 5, 5, 4)
+        events_layout.setContentsMargins(8, 8, 8, 8)
         self.event_hint = QLabel("Thông báo ở đây chỉ là thao tác giao diện, không phải nhật ký kiểm toán SQLite.")
         self.event_hint.setObjectName("eventSourceNote")
         self.event_hint.setWordWrap(True)
@@ -81,7 +88,7 @@ class TaskAndEventPanel(QWidget):
 
         audit_page = QWidget(self.tabs)
         audit_layout = QVBoxLayout(audit_page)
-        audit_layout.setContentsMargins(5, 5, 5, 4)
+        audit_layout.setContentsMargins(8, 8, 8, 8)
         self.audit_hint = QLabel("Chỉ đọc 100 sự kiện SQLite gần nhất của kho đã mở; không phải tác vụ UI.")
         self.audit_hint.setWordWrap(True)
         audit_layout.addWidget(self.audit_hint)
@@ -91,6 +98,18 @@ class TaskAndEventPanel(QWidget):
         self.audit_table.setRootIsDecorated(False)
         audit_layout.addWidget(self.audit_table, stretch=1)
         self.tabs.addTab(audit_page, "Nhật ký SQLite")
+
+    def resizeEvent(self, event) -> None:
+        """Stack task buttons when the dock is floated or narrowed.
+
+        This preserves their complete Vietnamese labels without introducing
+        a minimum window width or a horizontal scrollbar for the entire dock.
+        """
+        direction = (QBoxLayout.TopToBottom if self.width() < 460
+                     else QBoxLayout.LeftToRight)
+        if self.action_buttons_layout.direction() != direction:
+            self.action_buttons_layout.setDirection(direction)
+        super().resizeEvent(event)
 
     def set_tasks(self, snapshots: tuple[TaskSnapshot, ...]) -> None:
         """Cập nhật trạng thái đã cấp; không tự tạo job, tiến độ hoặc kết quả."""

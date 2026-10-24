@@ -9,7 +9,7 @@ from PySide6.QtGui import QAction, QKeySequence, QCloseEvent
 from PySide6.QtWidgets import (
     QApplication, QDialog, QDockWidget, QFileDialog, QFrame, QHBoxLayout, QLabel,
     QMainWindow, QMenu, QMessageBox, QPushButton, QSizePolicy, QStackedWidget,
-    QStatusBar, QVBoxLayout, QWidget,
+    QStatusBar, QToolBar, QVBoxLayout, QWidget,
 )
 
 from scantopath.application.contracts import CommandStatus, WorkspaceId
@@ -49,6 +49,7 @@ class ScanToPathMainWindow(QMainWindow):
         self._install_project_writer()
         self._install_capture_checker()
         self._install_task_controller()
+        self._connect_workspace_actions()
         self._apply_style()
         self._show_workspace(self.navigation.workspace)
         # Đợi Qt bố trí dock lần đầu rồi mới cân lại kích thước.
@@ -62,87 +63,70 @@ class ScanToPathMainWindow(QMainWindow):
         return self._pages[WorkspaceId(workspace)]
 
     def _create_shell(self) -> None:
-        root = QWidget(self)
-        root.setObjectName("desktopRoot")
-        layout = QHBoxLayout(root)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(0)
+        """One global navigation strip above docks; no redundant side rail.
 
-        sidebar = QFrame(root)
-        sidebar.setObjectName("navigationSidebar")
-        self.navigation_sidebar = sidebar
-        sidebar.setFixedWidth(184)
-        sidebar.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Expanding)
-        nav_layout = QVBoxLayout(sidebar)
-        nav_layout.setContentsMargins(11, 16, 11, 12)
-        nav_layout.setSpacing(5)
+        This is deliberately native QMainWindow/QToolBar. Existing dock state,
+        screen sizing, shortcuts and UI controller contracts remain unchanged.
+        """
+        from PySide6.QtWidgets import QSizePolicy
 
-        brand = QLabel("ScanToPath")
-        brand.setObjectName("appBrand")
-        nav_layout.addWidget(brand)
+        self.workspace_toolbar = QToolBar("Điều hướng workspace", self)
+        self.workspace_toolbar.setObjectName("workspaceToolbar")
+        self.workspace_toolbar.setMovable(False)
+        self.workspace_toolbar.setFloatable(False)
+        self.workspace_toolbar.setContextMenuPolicy(Qt.PreventContextMenu)
+        self.workspace_toolbar.setToolButtonStyle(Qt.ToolButtonTextOnly)
 
-        brand_caption = QLabel("KHÔNG GIAN KỸ THUẬT 3D")
-        brand_caption.setObjectName("appBrandCaption")
-        nav_layout.addWidget(brand_caption)
-        nav_layout.addSpacing(14)
+        brand = QLabel("ScanToPath", self.workspace_toolbar)
+        brand.setObjectName("toolbarBrand")
+        brand.setMinimumWidth(126)
+        self.workspace_toolbar.addWidget(brand)
 
-        navigation_title = QLabel("ĐIỀU HƯỚNG")
-        navigation_title.setObjectName("navTitle")
-        nav_layout.addWidget(navigation_title)
-        nav_layout.addSpacing(3)
+        divider = QFrame(self.workspace_toolbar)
+        divider.setObjectName("toolbarDivider")
+        divider.setFixedSize(1, 25)
+        self.workspace_toolbar.addWidget(divider)
 
+        short_labels = {
+            WorkspaceId.PROJECTS: "Dự án",
+            WorkspaceId.CAPTURE: "Thu nhận RGB-D",
+            WorkspaceId.INSPECT3D: "Kiểm tra 3D",
+            WorkspaceId.PROCESSING: "Xử lý",
+        }
         for workspace in WorkspaceId:
             label = WORKSPACE_PRESENTATION[workspace].title
-            button = QPushButton(label)
+            button = QPushButton(short_labels[workspace], self.workspace_toolbar)
             button.setObjectName(f"nav_{workspace.value}")
             button.setCheckable(True)
             button.setAutoExclusive(True)
-            button.setMinimumHeight(35)
-            button.setCursor(Qt.PointingHandCursor)
+            button.setMinimumHeight(36)
+            button.setToolTip(label)
             button.setAccessibleName(f"Mở không gian: {label}")
+            button.setCursor(Qt.PointingHandCursor)
             button.clicked.connect(lambda checked=False, key=workspace: self._navigate(key))
             self.nav_buttons[workspace] = button
-            nav_layout.addWidget(button)
+            self.workspace_toolbar.addWidget(button)
 
-        nav_layout.addStretch(1)
-        stage = QLabel("GĐ1 · HMI")
-        stage.setObjectName("stageLabel")
-        nav_layout.addWidget(stage)
-        sidebar_note = QLabel("Dữ liệu dự án · Mở kho từ Cây dự án")
-        sidebar_note.setObjectName("sidebarNote")
-        sidebar_note.setWordWrap(True)
-        nav_layout.addWidget(sidebar_note)
+        spacer = QWidget(self.workspace_toolbar)
+        spacer.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+        self.workspace_toolbar.addWidget(spacer)
+        self.toolbar_context = QLabel("GĐ1 · Desktop", self.workspace_toolbar)
+        self.toolbar_context.setObjectName("toolbarContext")
+        self.workspace_toolbar.addWidget(self.toolbar_context)
+        self.addToolBar(Qt.TopToolBarArea, self.workspace_toolbar)
 
-        layout.addWidget(sidebar)
-
-        content = QFrame(root)
-        content.setObjectName("workspaceArea")
-        content_layout = QVBoxLayout(content)
-        content_layout.setContentsMargins(0, 0, 0, 0)
-        content_layout.setSpacing(0)
-
-        topbar = QFrame(content)
-        topbar.setObjectName("workspaceTopbar")
-        topbar_layout = QHBoxLayout(topbar)
-        topbar_layout.setContentsMargins(16, 7, 16, 7)
-        title = QLabel("ỨNG DỤNG MÁY TÍNH")
-        title.setObjectName("workspaceTopbarTitle")
-        topbar_layout.addWidget(title)
-        topbar_layout.addStretch(1)
-        marker = QLabel("NỀN TẢNG GĐ0 ĐÃ NGHIỆM THU")
-        marker.setObjectName("baselineMarker")
-        marker.setToolTip("Các chức năng giao diện được triển khai tuần tự từ GĐ1.")
-        topbar_layout.addWidget(marker)
-        content_layout.addWidget(topbar)
-
-        self.workspace_stack = QStackedWidget(content)
+        root = QWidget(self)
+        root.setObjectName("desktopRoot")
+        layout = QVBoxLayout(root)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+        self.workspace_stack = QStackedWidget(root)
         self.workspace_stack.setObjectName("workspaceStack")
         for key in WorkspaceId:
             page = create_workspace_page(key)
             self._pages[key] = page
             self.workspace_stack.addWidget(page)
-        content_layout.addWidget(self.workspace_stack, stretch=1)
-        layout.addWidget(content, stretch=1)
+        layout.addWidget(self.workspace_stack, stretch=1)
         self.setCentralWidget(root)
 
         status = QStatusBar(self)
@@ -150,12 +134,30 @@ class ScanToPathMainWindow(QMainWindow):
         status.setSizeGripEnabled(True)
         status.setMaximumHeight(28)
         self.status_message = QLabel("Sẵn sàng")
+        self.status_message.setMinimumWidth(0)
+        self.status_message.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
         self.status_message.setObjectName("statusMessage")
-        status.addWidget(self.status_message)
+        status.addWidget(self.status_message, 1)
         self.data_status = QLabel("Dữ liệu: Chưa tải")
         self.data_status.setObjectName("dataStatus")
         status.addPermanentWidget(self.data_status)
         self.setStatusBar(status)
+
+    def _connect_workspace_actions(self) -> None:
+        """Thin UI wiring: actionable central empty states reuse 07 controllers."""
+        projects = self._pages[WorkspaceId.PROJECTS].findChild(
+            QPushButton, "workspacePrimaryAction")
+        if projects is not None:
+            projects.clicked.connect(self._choose_project_store)
+        processing = self._pages[WorkspaceId.PROCESSING].findChild(
+            QPushButton, "workspacePrimaryAction")
+        if processing is not None:
+            processing.clicked.connect(self._open_audit_panel)
+
+    def _open_audit_panel(self) -> None:
+        self.task_dock.show()
+        self.task_dock.raise_()
+        self.task_event_panel.tabs.setCurrentIndex(2)
 
     def _create_docks(self) -> None:
         """06.4: các bảng chung không tự khởi tạo SQLite hay thiết bị."""
@@ -169,21 +171,21 @@ class ScanToPathMainWindow(QMainWindow):
         self.explorer_dock.setObjectName("explorerDock")
         self.explorer_dock.setAllowedAreas(Qt.LeftDockWidgetArea | Qt.RightDockWidgetArea)
         self.explorer_dock.setWidget(self.project_explorer)
-        self.explorer_dock.setMinimumWidth(155)
+        self.explorer_dock.setMinimumWidth(205)
         self.addDockWidget(Qt.LeftDockWidgetArea, self.explorer_dock)
 
         self.inspector_dock = QDockWidget("Thuộc tính", self)
         self.inspector_dock.setObjectName("inspectorDock")
         self.inspector_dock.setAllowedAreas(Qt.LeftDockWidgetArea | Qt.RightDockWidgetArea)
         self.inspector_dock.setWidget(self.property_inspector)
-        self.inspector_dock.setMinimumWidth(155)
+        self.inspector_dock.setMinimumWidth(215)
         self.addDockWidget(Qt.RightDockWidgetArea, self.inspector_dock)
 
         self.task_dock = QDockWidget("Tác vụ và thông báo", self)
         self.task_dock.setObjectName("taskDock")
         self.task_dock.setAllowedAreas(Qt.BottomDockWidgetArea | Qt.TopDockWidgetArea)
         self.task_dock.setWidget(self.task_event_panel)
-        self.task_dock.setMinimumHeight(115)
+        self.task_dock.setMinimumHeight(120)
         self.addDockWidget(Qt.BottomDockWidgetArea, self.task_dock)
 
     def _install_project_loader(self) -> None:
@@ -562,7 +564,7 @@ class ScanToPathMainWindow(QMainWindow):
             view_menu.addAction(toggle)
 
         help_menu = self.menuBar().addMenu("T&rợ giúp")
-        stage = QAction("GĐ1 · Project Forms 07.5", self)
+        stage = QAction("GĐ1 · Workspace & SQLite 07.8 · HMI 07.9", self)
         stage.setEnabled(False)
         help_menu.addAction(stage)
 
@@ -601,6 +603,7 @@ class ScanToPathMainWindow(QMainWindow):
 
     def _set_status(self, message: str) -> None:
         self.status_message.setText(message)
+        self.status_message.setToolTip(message)  # Full string when narrow status bar clips.
         self.statusBar().showMessage(message, 3500)
 
     def _fit_initial_screen(self) -> None:
@@ -634,26 +637,25 @@ class ScanToPathMainWindow(QMainWindow):
         """
         width = self.width()
         height = self.height()
-        self.navigation_sidebar.setFixedWidth(172 if width < 1180 else 194)
         # Automated Qt offscreen tests have a synthetic screen; don't hide docks
         # implicitly there. The compact behavior is exercised in dedicated tests.
         app = QApplication.instance()
         offscreen = app is not None and app.platformName().lower() in ("offscreen", "minimal")
         if not offscreen:
-            if width < 970:
+            if width < 900:
                 self.inspector_dock.hide()
             if height < 535:
                 self.task_dock.hide()
         if self.explorer_dock.isVisible() and self.inspector_dock.isVisible():
             self.resizeDocks(
                 [self.explorer_dock, self.inspector_dock],
-                [185 if width < 1180 else 205, 185 if width < 1180 else 215],
+                [215 if width < 1180 else 240, 225 if width < 1180 else 255],
                 Qt.Horizontal,
             )
         elif self.explorer_dock.isVisible():
-            self.resizeDocks([self.explorer_dock], [185], Qt.Horizontal)
+            self.resizeDocks([self.explorer_dock], [215 if width < 1180 else 240], Qt.Horizontal)
         if self.task_dock.isVisible():
-            self.resizeDocks([self.task_dock], [145 if height < 690 else 172], Qt.Vertical)
+            self.resizeDocks([self.task_dock], [142 if height < 690 else 164], Qt.Vertical)
 
     def _apply_style(self) -> None:
         """Isolate HMI appearance from UI behavior and all worker contracts."""

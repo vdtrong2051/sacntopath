@@ -55,7 +55,7 @@ def test_vietnamese_workspace_titles_are_visible(window):
     expected = ("Dự án", "Thu nhận và phát lại", "Kiểm tra 3D", "Xử lý và kết quả")
     assert tuple(WORKSPACE_PRESENTATION[key].title for key in WorkspaceId) == expected
     for item in WorkspaceId:
-        assert window.nav_buttons[item].text() == WORKSPACE_PRESENTATION[item].title
+        assert window.nav_buttons[item].toolTip() == WORKSPACE_PRESENTATION[item].title
         assert window.page_for(item).accessibleName() == WORKSPACE_PRESENTATION[item].title
 
 
@@ -97,9 +97,10 @@ def test_no_real_data_or_fake_measurement_visible(window):
         page = window.page_for(key)
         state = page.findChild(type(window.status_message), "workspaceState")
         note = page.findChild(type(window.status_message), "workspaceFootnote")
-        assert state.text() == "CHƯA TRIỂN KHAI"
+        assert state.text() == ("CÓ THỂ SỬ DỤNG QUA PANEL" if key in (WorkspaceId.PROJECTS, WorkspaceId.PROCESSING) else "CHƯA TRIỂN KHAI")
         assert "Chưa chạy phép đo" in note.text()
-        assert "Chưa tải dữ liệu" in note.text()
+        assert ("Mở kho theo yêu cầu" if key in (WorkspaceId.PROJECTS, WorkspaceId.PROCESSING)
+                else "Chưa tải dữ liệu") in note.text()
 
 
 def test_invalid_workspace_does_not_switch_or_crash(window):

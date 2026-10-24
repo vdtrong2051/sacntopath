@@ -1,7 +1,7 @@
 """Bảng thuộc tính chỉ hiển thị thông tin đối tượng được chọn, chưa truy vấn backend."""
 from __future__ import annotations
 
-from PySide6.QtCore import Signal
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QAbstractItemView, QHBoxLayout, QLabel, QPushButton, QTreeWidget,
     QTreeWidgetItem, QVBoxLayout, QWidget,
@@ -31,13 +31,14 @@ class PropertyInspector(QWidget):
         self.setObjectName("propertyInspector")
         self.setAccessibleName("Thuộc tính đối tượng")
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(9, 10, 9, 10)
+        layout.setContentsMargins(11, 11, 11, 12)
+        layout.setSpacing(8)
         self.empty_label = QLabel("Chưa chọn đối tượng.")
         self.empty_label.setObjectName("inspectorEmptyLabel")
         self.empty_label.setWordWrap(True)
         layout.addWidget(self.empty_label)
         actions = QHBoxLayout()
-        actions.setSpacing(4)
+        actions.setSpacing(7)
         self.edit_button = QPushButton("Sửa…", self)
         self.edit_button.setObjectName("editProjectMetadata")
         self.edit_button.setEnabled(False)
@@ -58,8 +59,12 @@ class PropertyInspector(QWidget):
         self.details.setObjectName("inspectorProperties")
         self.details.setHeaderLabels(["Thuộc tính", "Giá trị"])
         self.details.setRootIsDecorated(False)
+        self.details.setTextElideMode(Qt.ElideMiddle)
+        self.details.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self.details.setAlternatingRowColors(True)
         self.details.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.details.setVisible(False)
+        self.details.setColumnWidth(0, 105)
         layout.addWidget(self.details, stretch=1)
         self.note = QLabel("Thông tin này chỉ là tham chiếu ID; chưa tải metadata hoặc số đo.")
         self.note.setObjectName("inspectorSourceNote")
@@ -91,7 +96,8 @@ class PropertyInspector(QWidget):
         if selection.source_id is not None:
             rows.append(("Mã nguồn", selection.source_id))
         for name, value in rows:
-            QTreeWidgetItem(self.details, [name, value])
+            item = QTreeWidgetItem(self.details, [name, value])
+            item.setToolTip(1, value)
 
     def set_actions(self, *, can_edit: bool, can_close_session: bool) -> None:
         self.edit_button.setEnabled(can_edit)
@@ -126,5 +132,6 @@ class PropertyInspector(QWidget):
         ):
             raise TypeError("fields phải là tuple[(str, str), ...]")
         for name, value in fields:
-            QTreeWidgetItem(self.details, [name, value])
+            item = QTreeWidgetItem(self.details, [name, value])
+            item.setToolTip(1, value)
         self.note.setText("Metadata từ SQLite. Trạng thái RAW không phải độ chính xác hình học.")
