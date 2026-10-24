@@ -2,10 +2,13 @@
 from __future__ import annotations
 
 from PySide6.QtCore import QObject, QThread, Signal, Slot
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from scantopath.modules.project_workspace.application.ports import ProjectWritePort
 from .forms_contract import ProjectEditCommand, ProjectEditResult
 
 
-def _make_write_service(root: str):
+def _make_write_service(root: str) -> "ProjectWritePort":
     # Preserve 06.3 import isolation: persistence imported only after user action.
     from scantopath.application.projects import ProjectWorkspaceService
     return ProjectWorkspaceService(root)

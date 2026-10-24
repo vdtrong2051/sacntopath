@@ -6,8 +6,11 @@ Worker threads only create short-lived application services and plain DTOs.
 from __future__ import annotations
 
 from PySide6.QtCore import QObject, QThread, Signal, Slot
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from scantopath.modules.project_workspace.application.ports import ProjectReadPort
 
-def _make_project_service(root: str):
+def _make_project_service(root: str) -> "ProjectReadPort":
     # Import the persistence layer only inside the explicitly started worker.
     # UI module imports must preserve GĐ1-06.3 import isolation.
     from scantopath.application.projects import ProjectWorkspaceService
