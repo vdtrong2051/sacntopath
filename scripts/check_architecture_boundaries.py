@@ -1,16 +1,41 @@
-"""07.10: fail fast on architectural import regressions, without loading app/hardware.
+"""07.11: AST import policy for an offline-first modular MVC monolith.
 
-AST inspects even imports inside functions. This is a boundary gate, not a SOLID score.
+No imports or runtime resource loading. Checks absolute AND relative imports,
+including imports nested in functions. The one compatibility bootstrap seam
+is reviewed and must not expand to other application modules.
 """
 from __future__ import annotations
-
 import argparse
 import ast
 from pathlib import Path
 import sys
 
+CORE = {'application', 'domain', 'metadata', 'storage', 'acquisition'}
+FEATURE = 'scantopath.modules.'
+ALLOWED_BOOTSTRAP = ('modules/project_workspace/application/service.py',
+                     'scantopath.modules.project_workspace.infrastructure.sqlite_backend')
 
-LAYERS = {'application', 'domain', 'metadata', 'storage', 'acquisition'}
+
+def _resolved_imports(node: ast.AST, module_parts: tuple[str, ...], is_package: bool):
+    if isinstance(node, ast.Import):
+        return [alias.name for alias in node.names]
+    if not isinstance(node, ast.ImportFrom):
+        return []
+    if node.level == 0:
+        return [node.module] if node.module else []
+    package = module_parts if is_package else module_parts[:-1]
+    trim = node.level - 1
+    if trim > len(package):
+        return []
+    prefix = package[:len(package) - trim]
+    target = '.'.join((*prefix, *(node.module.split('.') if node.module else ())))
+    if node.module is None:
+        return [target + '.' + alias.name for alias in node.names]
+    return [target]
+
+
+def _starts(target: str, prefix: str) -> bool:
+    return target == prefix or target.startswith(prefix + '.')
 
 
 def scan(project_root: Path) -> list[tuple[str, int, str]]:
@@ -20,42 +45,51 @@ def scan(project_root: Path) -> list[tuple[str, int, str]]:
     violations = []
     for path in sorted(root.rglob('*.py')):
         rel = path.relative_to(root)
-        module = 'scantopath.'+'.'.join(rel.with_suffix('').parts)
-        parts = rel.parts
-        if not parts:
-            continue
-        layer = parts[0]
-        core = layer in LAYERS or (len(parts) >= 3 and parts[:2] == ('modules','project_workspace') and parts[2] in ('application','domain'))
-        presentation = (len(parts) >= 3 and parts[:2] == ('modules','project_workspace') and parts[2] == 'presentation')
-        shell = parts[:2] == ('ui','shell')
-        tree = ast.parse(path.read_text(encoding='utf-8'), filename=str(path))
+        relative = rel.as_posix()
+        module_parts = ('scantopath', *rel.with_suffix('').parts)
+        kind = rel.parts[0]
+        is_feature = len(rel.parts) >= 4 and rel.parts[:1] == ('modules',)
+        area = rel.parts[2] if is_feature else None
+        core = kind in CORE or area in ('application', 'domain', 'infrastructure')
+        presentation = area == 'presentation'
+        shell = rel.parts[:2] == ('ui','shell')
+        tree = ast.parse(path.read_text(encoding='utf8'), filename=str(path))
         for node in ast.walk(tree):
-            names = []
-            if isinstance(node,ast.Import):
-                names = [n.name for n in node.names]
-            elif isinstance(node,ast.ImportFrom):
-                # Absolute imported modules are enough for guard; relative in-module imports okay.
-                if not node.level and node.module:
-                    names=[node.module]
-            for target in names:
-                if core and (target == 'PySide6' or target.startswith('PySide6.') or target == 'scantopath.ui' or target.startswith('scantopath.ui.') or '.presentation' in target and target.startswith('scantopath.modules.')):
-                    violations.append((rel.as_posix(),node.lineno,target))
-                if presentation and (target == 'scantopath.metadata' or target.startswith('scantopath.metadata.') or target == 'scantopath.storage' or target.startswith('scantopath.storage.')):
-                    violations.append((rel.as_posix(),node.lineno,target))
-                if shell and (target == 'scantopath.metadata' or target.startswith('scantopath.metadata.') or target == 'scantopath.storage' or target.startswith('scantopath.storage.')):
-                    violations.append((rel.as_posix(),node.lineno,target))
+            if not isinstance(node, (ast.Import, ast.ImportFrom)):
+                continue
+            for target in _resolved_imports(node, module_parts, path.name == '__init__.py'):
+                forbidden = False
+                if core:
+                    forbidden |= _starts(target, 'PySide6') or _starts(target, 'scantopath.ui')
+                    forbidden |= (target.startswith(FEATURE) and '.presentation' in target)
+                if presentation or shell:
+                    forbidden |= (_starts(target, 'scantopath.metadata') or
+                                  _starts(target, 'scantopath.storage'))
+                if area in ('application','domain'):
+                    # The feature core must not depend on concrete providers. Only
+                    # the legacy facade may import the specific feature bootstrap.
+                    forbidden |= (_starts(target,'scantopath.metadata') or
+                                  _starts(target,'scantopath.storage') or
+                                  _starts(target,'sqlite3'))
+                    if '.infrastructure' in target:
+                        forbidden |= (relative,target) != ALLOWED_BOOTSTRAP
+                if area == 'infrastructure' and (_starts(target,'scantopath.ui') or
+                                                 target.startswith(FEATURE) and '.presentation' in target):
+                    forbidden = True
+                if forbidden:
+                    violations.append((relative, node.lineno, target))
     return violations
 
 
 def main() -> int:
     p=argparse.ArgumentParser()
     p.add_argument('--project-root',type=Path,default=Path(__file__).resolve().parents[1])
-    args=p.parse_args()
-    bad=scan(args.project_root)
-    for filename,line,target in bad:
-        print(f'ARCH VIOLATION {filename}:{line}: forbidden import {target}')
-    print(f'07.10 architecture import boundary: {"FAILED" if bad else "PASS"} ({len(bad)} violations)')
+    a=p.parse_args()
+    bad=scan(a.project_root)
+    for file,line,target in bad:
+        print(f'ARCH VIOLATION {file}:{line}: forbidden import {target}')
+    print(f'07.11 architecture import boundary: {"FAILED" if bad else "PASS"} ({len(bad)} violations)')
     return 1 if bad else 0
 
-if __name__=='__main__':
+if __name__ == '__main__':
     sys.exit(main())

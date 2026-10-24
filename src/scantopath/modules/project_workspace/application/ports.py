@@ -5,7 +5,7 @@ New use cases depend on their smallest required protocol, not a fat service.
 """
 from __future__ import annotations
 from typing import Protocol
-from .models import AuditEventSummary, CaptureInspection, ProjectSummary, ProjectTree, ProjectSummary, SpecimenSummary, SessionSummary, CaptureSummary, ProcessingRunSummary, StoreInfo
+from .models import AuditEventSummary, CaptureInspection, ProjectSummary, ProjectTree, SpecimenSummary, SessionSummary, CaptureSummary, ProcessingRunSummary, StoreInfo
 
 
 class ProjectReadPort(Protocol):
