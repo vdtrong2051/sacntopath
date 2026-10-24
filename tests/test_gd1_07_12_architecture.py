@@ -115,5 +115,29 @@ def test_qt_reader_presenter_relative_import_resolves():
     import importlib.util
     module='scantopath.modules.project_workspace.presentation.workflows.reading'
     assert importlib.util.resolve_name('..presenter',module.rsplit('.',1)[0]) == 'scantopath.modules.project_workspace.presentation.presenter'
-    text=(ROOT/'src/scantopath/modules/project_workspace/presentation/workflows/reading.py').read_text()
+    text=(ROOT/'src/scantopath/modules/project_workspace/presentation/workflows/reading.py').read_text(encoding='utf-8')
     assert 'from ..presenter import project_rows' in text
+
+
+def test_0712_qt_reader_explicitly_imports_qt_enum():
+    import ast
+    path=ROOT/'src/scantopath/modules/project_workspace/presentation/workflows/reading.py'
+    tree=ast.parse(path.read_text(encoding='utf-8'))
+    assert any(
+        isinstance(node,ast.ImportFrom) and node.module=='PySide6.QtCore'
+        and any(alias.name=='Qt' for alias in node.names)
+        for node in ast.walk(tree)
+    ), 'Qt.UserRole in restored selection needs a local Qt import'
+
+def test_0712_legacy_metadata_run_dict_select_is_callable(tmp_path):
+    from sqlalchemy.orm import Session
+    from scantopath.metadata.schema import _ProcessingRun
+    with MetadataStore(tmp_path) as store:
+        transient=_ProcessingRun(
+            run_id='run-0712',session_id='unpersisted',stage='test',algorithm='fixture',
+            version='1',parameters={},state='pending',output_files=[],
+            created_at='2026-10-24T00:00:00Z')
+        with Session(store.engine) as db:
+            mapped=MetadataStore._run_dict(db,transient)
+        assert mapped['run_id']=='run-0712'
+        assert mapped['input_capture_ids']==[]

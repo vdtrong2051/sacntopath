@@ -1,5 +1,6 @@
 """Single Project Workspace view workflow; QObject lifecycle owned by feature controller."""
 from __future__ import annotations
+from PySide6.QtCore import Qt
 from scantopath.ui.components import ExplorerNode
 from scantopath.ui.projects.controller import ProjectLoadController
 from .base import _Coordinator

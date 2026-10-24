@@ -5,7 +5,7 @@ v1/v2 schema, session transaction boundaries and public API remain unchanged.
 from __future__ import annotations
 from pathlib import Path
 from typing import Any
-from sqlalchemy import create_engine, event, text
+from sqlalchemy import create_engine, event, select, text
 from sqlalchemy.engine import URL
 from sqlalchemy.orm import Session
 from .schema import (_Base,_Project,_Specimen,_ScanSession,_Capture,_ProcessingRun,
