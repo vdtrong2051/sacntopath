@@ -391,14 +391,11 @@ class ScanToPathMainWindow(QMainWindow):
         self._show_workspace(self.navigation.workspace)
 
     def _ensure_viewer3d(self) -> None:
-        """Composition only: inject the VTK scene factory on first visit."""
+        """Composition only: create a process-isolated VTK preview on first visit."""
         if self.viewer3d is not None:
             return
         from scantopath.modules.viewer3d.presentation.controller import Viewer3DController
-        def make_scene():
-            from scantopath.modules.viewer3d.infrastructure.fixture_scene import VtkFixtureScene
-            return VtkFixtureScene()
-        controller = Viewer3DController(self, scene_factory=make_scene)
+        controller = Viewer3DController(self)
         old = self._pages[WorkspaceId.INSPECT3D]
         index = self.workspace_stack.indexOf(old)
         if index < 0:

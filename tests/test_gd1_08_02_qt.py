@@ -65,17 +65,35 @@ def test_import_and_mainwindow_startup_do_not_import_vtk_or_open_hardware(tmp_pa
     assert not list(tmp_path.iterdir())
 
 
-def test_viewer_controller_does_not_allocate_scene_in_offscreen(app):
-    calls = []
+def test_viewer_controller_never_starts_child_in_offscreen(app):
     window = ScanToPathMainWindow()
     try:
         from scantopath.modules.viewer3d.presentation.controller import Viewer3DController
-        c = Viewer3DController(window, scene_factory=lambda: calls.append(1))
+        c = Viewer3DController(window)
         c.activate()
         app.processEvents()
-        assert calls == []
+        assert c._process is None
         assert not c.render_initialized
         c.dispose()
+        c.dispose()
+    finally:
+        window.close()
+
+
+def test_native_child_crash_is_reported_without_exiting_qt(app):
+    from PySide6.QtCore import QProcess
+    from scantopath.modules.viewer3d.presentation.controller import Viewer3DController
+    window = ScanToPathMainWindow()
+    try:
+        c = Viewer3DController(window)
+        c._process = QProcess(c)  # no native renderer in this test process
+        c._log = b'Windows OpenGL fault in isolated process'
+        c._finished(-1073741819, QProcess.CrashExit)
+        assert not c.render_initialized
+        assert 'native crash' in c.page.state.text()
+        assert '0xC0000005' in c.page.state.text()
+        assert c._process is None
+        assert not c._disposed  # still safe to interact or close the Qt shell
         c.dispose()
     finally:
         window.close()

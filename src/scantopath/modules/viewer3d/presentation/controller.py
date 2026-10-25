@@ -1,77 +1,143 @@
-"""Viewer MVC controller: owns GUI-thread VTK host lifetime, not geometry/data I/O."""
+"""Viewer MVC controller: supervise isolated VTK fixture-render process.
+
+Never instantiate QVTKRenderWindowInteractor inside the desktop process:
+a native OpenGL/Qt fault is not a catchable Python exception.
+"""
 from __future__ import annotations
 
 import os
-from collections.abc import Callable
+from pathlib import Path
+import sys
+import tempfile
 
-from PySide6.QtCore import QObject, QTimer, QThread
+from PySide6.QtCore import QObject, QProcess, QThread, QTimer
 from PySide6.QtWidgets import QWidget
 
 from .view import Viewer3DPage
-from ..application.ports import FixtureScenePort
 
 
 class Viewer3DController(QObject):
-    """Lazy VTK fixture; missing VTK is visible, not a fake successful render."""
+    """One-shot VTK fixture preview, safely isolated from the application GUI."""
 
-    def __init__(self, parent: QWidget, *, scene_factory: Callable[[], FixtureScenePort]) -> None:
+    TIMEOUT_MS = 30000
+    MAX_LOG_BYTES = 8192
+    MAX_PNG_BYTES = 8 * 1024 * 1024
+
+    def __init__(self, parent: QWidget) -> None:
         super().__init__(parent)
         self.page = Viewer3DPage(parent)
-        self._scene_factory = scene_factory
-        self._scene: FixtureScenePort | None = None
-        self._host: QWidget | None = None
+        self._process: QProcess | None = None
+        self._timeout: QTimer | None = None
+        self._temp: tempfile.TemporaryDirectory | None = None
+        self._image_path: Path | None = None
+        self._log = b''
         self._started = False
         self._disposed = False
         self._render_pending = False
+        self._attempted = False
+        self._timed_out = False
 
     def activate(self) -> None:
-        if self._disposed or self._started or self._render_pending:
+        if self._disposed or self._started or self._render_pending or self._attempted:
             return
-        # Qt's offscreen platform cannot prove OpenGL/physical GPU behavior.
-        # Avoid creating a native VTK render window in offscreen regression runs.
         if os.environ.get('QT_QPA_PLATFORM', '').lower() == 'offscreen':
-            self.page.set_status('FIXTURE 08.02 · GPU render hoãn trong Qt offscreen; kiểm tra HMI Windows bắt buộc.')
+            self.page.set_status('FIXTURE 08.02 · Qt offscreen chỉ kiểm tra UI; cần Windows HMI để render VTK.')
             return
         self._render_pending = True
-        QTimer.singleShot(0, self._initialize)
+        QTimer.singleShot(0, self._start_preview)
 
-    def _initialize(self) -> None:
+    def _start_preview(self) -> None:
+        if self._disposed or not self._render_pending:
+            return
         self._render_pending = False
-        if self._disposed or self._started:
-            return
+        self._attempted = True
         if QThread.currentThread() != self.thread():
-            raise RuntimeError('VTK renderer must be initialized on the GUI thread')
+            raise RuntimeError('Viewer controller requires Qt GUI thread')
         try:
-            import vtkmodules.qt
-            # Matches the 08.01 Windows probe; never select a second Qt binding.
-            vtkmodules.qt.PyQtImpl = 'PySide6'
-            from vtkmodules.qt.QVTKRenderWindowInteractor import QVTKRenderWindowInteractor
-            host = QVTKRenderWindowInteractor(self.page)
-            self._host = host
-            scene = self._scene_factory()
-            self._scene = scene
-            render_window = host.GetRenderWindow()
-            render_window.AddRenderer(scene.renderer)
-            self.page.mount(host)
-            host.Initialize()
-            self._started = True
-            QTimer.singleShot(0, self._render)
-        except (ImportError, RuntimeError, OSError) as exc:
-            self.page.set_status(f'Không khởi tạo được VTK: {type(exc).__name__}. Cần cài viewer extra và kiểm tra môi trường.')
-            self.dispose()
+            self._temp = tempfile.TemporaryDirectory(prefix='scantopath-vtk-')
+            self._image_path = Path(self._temp.name) / 'fixture.png'
+            self._log = b''
+            process = QProcess(self)
+            process.setProcessChannelMode(QProcess.MergedChannels)
+            process.readyReadStandardOutput.connect(self._read_output)
+            process.finished.connect(self._finished)
+            process.errorOccurred.connect(self._process_error)
+            self._process = process
+            timer = QTimer(self)
+            timer.setSingleShot(True)
+            timer.timeout.connect(self._timed_out_render)
+            self._timeout = timer
+            self._timed_out = False
+            self.page.set_status('FIXTURE 08.02 · Đang tạo hình VTK trong tiến trình cách ly…')
+            process.start(sys.executable, [
+                '-X', 'faulthandler', '-m',
+                'scantopath.modules.viewer3d.infrastructure.render_preview',
+                '--output', str(self._image_path),
+            ])
+            timer.start(self.TIMEOUT_MS)
+        except (OSError, RuntimeError) as exc:
+            self.page.set_status(f'VTK chưa thể khởi động: {type(exc).__name__}: {exc}')
+            self._cleanup()
 
-    def _render(self) -> None:
-        if not self._started or self._disposed or self._host is None or self._scene is None:
+    def _read_output(self) -> None:
+        if self._process is None:
             return
-        if QThread.currentThread() != self.thread():
-            raise RuntimeError('VTK Render() called outside GUI thread')
-        try:
-            self._host.GetRenderWindow().Render()
-        except (RuntimeError, OSError) as exc:
-            self.page.set_status(f'Lỗi VTK Render: {type(exc).__name__}')
-            self.dispose()
+        chunk = bytes(self._process.readAllStandardOutput())
+        self._log = (self._log + chunk)[-self.MAX_LOG_BYTES:]
+
+    def _timed_out_render(self) -> None:
+        self._timed_out = True
+        if self._process is not None and self._process.state() != QProcess.NotRunning:
+            self._process.kill()
+
+    def _process_error(self, error: QProcess.ProcessError) -> None:
+        if self._disposed:
             return
-        self.page.set_status(f'FIXTURE 08.02 · {self._scene.point_count} điểm tổng hợp · Chưa nhập PLY · Chưa đo.')
+        if error == QProcess.FailedToStart:
+            self.page.set_status('Không thể khởi chạy VTK subprocess: kiểm tra Python/venv.')
+            self._cleanup()
+
+    def _finished(self, code: int, status: QProcess.ExitStatus) -> None:
+        self._read_output()
+        if self._disposed:
+            self._cleanup()
+            return
+        ok = (not self._timed_out and status == QProcess.NormalExit and code == 0
+              and b'SCANTOPATH_VTK_PREVIEW_OK' in self._log)
+        if ok and self._image_path is not None:
+            try:
+                if self._image_path.stat().st_size > self.MAX_PNG_BYTES:
+                    raise ValueError('VTK preview exceeds size limit')
+                png = self._image_path.read_bytes()
+                ok = self.page.show_png(png)
+            except (OSError, ValueError):
+                ok = False
+        if ok:
+            self._started = True
+            self.page.set_status('FIXTURE 08.02 · 5 điểm render bằng VTK (tiến trình riêng) · Chưa hỗ trợ tương tác/PLY.')
+        else:
+            code_hex = f'0x{(int(code) & 0xFFFFFFFF):08X}'
+            reason = 'timeout' if self._timed_out else ('native crash' if status == QProcess.CrashExit else 'failed')
+            tail = self._log.decode('utf-8', 'replace')[-500:].replace('\n', ' ')
+            self.page.set_status(f'VTK isolated render {reason}, exit={code_hex}. Qt vẫn an toàn. {tail}')
+            print('ScanToPath 08.02 VTK child failure:',reason,code_hex,tail,file=sys.stderr,flush=True)
+        self._cleanup()
+
+    def _cleanup(self) -> None:
+        if self._timeout is not None:
+            self._timeout.stop()
+            self._timeout.deleteLater()
+            self._timeout = None
+        if self._process is not None:
+            if self._process.state() != QProcess.NotRunning:
+                self._process.kill()
+                self._process.waitForFinished(200)
+            self._process.deleteLater()
+            self._process = None
+        if self._temp is not None:
+            self._temp.cleanup()
+            self._temp = None
+        self._image_path = None
 
     @property
     def render_initialized(self) -> bool:
@@ -81,14 +147,5 @@ class Viewer3DController(QObject):
         if self._disposed:
             return
         self._disposed = True
-        if self._host is not None:
-            try:
-                self._host.Finalize()
-            finally:
-                self.page.unmount()
-                self._host.close()
-                self._host.deleteLater()
-                self._host = None
-        if self._scene is not None:
-            self._scene.dispose()
-            self._scene = None
+        self._render_pending = False
+        self._cleanup()
