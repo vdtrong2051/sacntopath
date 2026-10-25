@@ -37,6 +37,7 @@ class ScanToPathMainWindow(QMainWindow):
         self._fit_initial_screen()
 
         self._pages: dict[WorkspaceId, QWidget] = {}
+        self.viewer3d = None  # Lazy feature controller; no VTK import at startup.
         self.nav_buttons: dict[WorkspaceId, QPushButton] = {}
         self.workspace_actions: dict[WorkspaceId, QAction] = {}
         self._create_shell()
@@ -326,6 +327,8 @@ class ScanToPathMainWindow(QMainWindow):
         write_stopped = self.project_writer.begin_shutdown()
         check_stopped = self.capture_checker.begin_shutdown()
         if tasks_stopped and project_stopped and write_stopped and check_stopped:
+            if self.viewer3d is not None:
+                self.viewer3d.dispose()
             super().closeEvent(event)
         else:
             event.ignore()
@@ -387,9 +390,33 @@ class ScanToPathMainWindow(QMainWindow):
             )
         self._show_workspace(self.navigation.workspace)
 
+    def _ensure_viewer3d(self) -> None:
+        """Composition only: inject the VTK scene factory on first visit."""
+        if self.viewer3d is not None:
+            return
+        from scantopath.modules.viewer3d.presentation.controller import Viewer3DController
+        def make_scene():
+            from scantopath.modules.viewer3d.infrastructure.fixture_scene import VtkFixtureScene
+            return VtkFixtureScene()
+        controller = Viewer3DController(self, scene_factory=make_scene)
+        old = self._pages[WorkspaceId.INSPECT3D]
+        index = self.workspace_stack.indexOf(old)
+        if index < 0:
+            raise RuntimeError("Missing Inspect 3D workspace")
+        self.workspace_stack.removeWidget(old)
+        self.workspace_stack.insertWidget(index, controller.page)
+        self._pages[WorkspaceId.INSPECT3D] = controller.page
+        self.viewer3d = controller
+        old.setParent(None)
+        old.deleteLater()
+
     def _show_workspace(self, workspace: WorkspaceId) -> None:
         key = WorkspaceId(workspace)
+        if key is WorkspaceId.INSPECT3D:
+            self._ensure_viewer3d()
         self.workspace_stack.setCurrentWidget(self._pages[key])
+        if key is WorkspaceId.INSPECT3D:
+            self.viewer3d.activate()
         for item, button in self.nav_buttons.items():
             button.setChecked(item == key)
         for item, action in self.workspace_actions.items():
