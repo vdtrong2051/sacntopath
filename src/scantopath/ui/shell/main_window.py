@@ -52,7 +52,6 @@ class ScanToPathMainWindow(QMainWindow):
         self._connect_workspace_actions()
         self._apply_style()
         self._show_workspace(self.navigation.workspace)
-        # Đợi Qt bố trí dock lần đầu rồi mới cân lại kích thước.
         QTimer.singleShot(0, self._initialize_dock_layout)
 
     @property
@@ -158,9 +157,7 @@ class ScanToPathMainWindow(QMainWindow):
             processing.clicked.connect(self._open_audit_panel)
 
     def _open_audit_panel(self) -> None:
-        self.task_dock.show()
-        self.task_dock.raise_()
-        self.task_event_panel.tabs.setCurrentIndex(2)
+        self.task_dock_chrome.open_audit()
 
     def _create_docks(self) -> None:
         """06.4: các bảng chung không tự khởi tạo SQLite hay thiết bị."""
@@ -188,8 +185,13 @@ class ScanToPathMainWindow(QMainWindow):
         self.task_dock.setObjectName("taskDock")
         self.task_dock.setAllowedAreas(Qt.BottomDockWidgetArea | Qt.TopDockWidgetArea)
         self.task_dock.setWidget(self.task_event_panel)
-        self.task_dock.setMinimumHeight(120)
+        self.task_dock.setMinimumHeight(0)
         self.addDockWidget(Qt.BottomDockWidgetArea, self.task_dock)
+        from .task_dock_chrome import TaskDockChrome
+        self.task_dock_chrome = TaskDockChrome(self.task_dock, self.task_event_panel)
+        self.task_event_panel.expanded_changed.connect(self._resize_task_panel)
+        self.task_event_panel.set_demo_tools_visible(False)
+        self.task_event_panel.set_expanded(False)
 
     # 07.10 compatibility delegates for pre-existing test/UI calls.
     # All project state and workflow logic live in ProjectWorkspaceController.
@@ -368,6 +370,10 @@ class ScanToPathMainWindow(QMainWindow):
         stage = QAction("GĐ1 · Workspace & SQLite 07.8 · HMI 07.9", self)
         stage.setEnabled(False)
         help_menu.addAction(stage)
+        self.task_dock_chrome.install_developer_tools(help_menu)
+
+    def _resize_task_panel(self, *_args) -> None:
+        self.task_dock_chrome.resize_to(self.height())
 
     def _navigate(self, workspace: WorkspaceId) -> None:
         """Không cập nhật UI nếu CommandOutcome báo thất bại."""
@@ -477,7 +483,7 @@ class ScanToPathMainWindow(QMainWindow):
         elif self.explorer_dock.isVisible():
             self.resizeDocks([self.explorer_dock], [215 if width < 1180 else 240], Qt.Horizontal)
         if self.task_dock.isVisible():
-            self.resizeDocks([self.task_dock], [142 if height < 690 else 164], Qt.Vertical)
+            self._resize_task_panel()
 
     def _apply_style(self) -> None:
         """Isolate HMI appearance from UI behavior and all worker contracts."""
