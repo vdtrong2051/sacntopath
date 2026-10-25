@@ -79,12 +79,13 @@ class ScanToPathMainWindow(QMainWindow):
 
         brand = QLabel("ScanToPath", self.workspace_toolbar)
         brand.setObjectName("toolbarBrand")
-        brand.setMinimumWidth(126)
+        # Native QLabel uses its compact natural text width; never reserves 126 px.
+        brand.setMinimumWidth(0)
         self.workspace_toolbar.addWidget(brand)
 
         divider = QFrame(self.workspace_toolbar)
         divider.setObjectName("toolbarDivider")
-        divider.setFixedSize(1, 25)
+        divider.setFixedSize(1, 20)
         self.workspace_toolbar.addWidget(divider)
 
         short_labels = {
@@ -99,7 +100,7 @@ class ScanToPathMainWindow(QMainWindow):
             button.setObjectName(f"nav_{workspace.value}")
             button.setCheckable(True)
             button.setAutoExclusive(True)
-            button.setMinimumHeight(36)
+            button.setMinimumHeight(28)
             button.setToolTip(label)
             button.setAccessibleName(f"Mở không gian: {label}")
             button.setCursor(Qt.PointingHandCursor)
@@ -112,7 +113,9 @@ class ScanToPathMainWindow(QMainWindow):
         self.workspace_toolbar.addWidget(spacer)
         self.toolbar_context = QLabel("GĐ1 · Desktop", self.workspace_toolbar)
         self.toolbar_context.setObjectName("toolbarContext")
-        self.workspace_toolbar.addWidget(self.toolbar_context)
+        # Reserve all horizontal space for actual workspace commands.
+        # Keep the compatibility attribute, but do not install it as toolbar action.
+        self.toolbar_context.hide()
         self.addToolBar(Qt.TopToolBarArea, self.workspace_toolbar)
 
         root = QWidget(self)
@@ -479,3 +482,10 @@ class ScanToPathMainWindow(QMainWindow):
     def _apply_style(self) -> None:
         """Isolate HMI appearance from UI behavior and all worker contracts."""
         self.setStyleSheet(load_hmi_qss())
+        # After QSS/font resolution, prevent Qt from squeezing a visible
+        # QPushButton below its complete Vietnamese text width. Qt still
+        # owns the QToolBar layout; no custom overflow/click handling.
+        for button in self.nav_buttons.values():
+            button.ensurePolished()
+            text_width = button.fontMetrics().horizontalAdvance(button.text())
+            button.setMinimumWidth(max(button.sizeHint().width(), text_width + 22))

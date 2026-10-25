@@ -31,20 +31,20 @@ QToolBar#workspaceToolbar {
     background-color: #FFFFFF;
     border: 0px;
     border-bottom: 1px solid #D6E3F2;
-    spacing: 4px;
-    padding: 6px 12px;
+    spacing: 2px;
+    padding: 3px 6px;
 }
 QToolBar#workspaceToolbar::separator { background-color: #D4DFED; width: 1px; margin: 5px 8px; }
-QLabel#toolbarBrand { color: #10396F; font-size: 13pt; font-weight: 700; padding-left: 4px; }
-QFrame#toolbarDivider { background-color: #D6E0ED; border: 0; margin-left: 7px; margin-right: 8px; }
+QLabel#toolbarBrand { color: #10396F; font-size: 11pt; font-weight: 700; padding-left: 2px; }
+QFrame#toolbarDivider { background-color: #D6E0ED; border: 0; margin-left: 4px; margin-right: 5px; }
 QLabel#toolbarContext { color: #5A6E86; font-size: 9pt; padding: 0px 12px; }
 QToolBar#workspaceToolbar QPushButton {
     background-color: transparent;
     color: #425571;
     border: 1px solid transparent;
-    border-radius: 7px;
-    padding: 6px 12px;
-    min-height: 24px;
+    border-radius: 6px;
+    padding: 4px 6px;
+    min-height: 22px;
     font-weight: 500;
 }
 QToolBar#workspaceToolbar QPushButton:hover {
