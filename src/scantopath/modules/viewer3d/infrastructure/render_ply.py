@@ -10,10 +10,12 @@ import sys
 from pathlib import Path
 
 from .ply_header import inspect_ply
+from ..application.navigation import CameraView
+from .camera_scene import configure_scene
 
 
 def render_ply(input_path: Path, output_path: Path, metadata_path: Path, *,
-               width: int = 1000, height: int = 620) -> None:
+               width: int = 1000, height: int = 620, view_state: CameraView | None = None) -> None:
     # Validate destinations; a malicious PLY cannot choose the output location.
     if (input_path.resolve() in (output_path.resolve(), metadata_path.resolve())
             or output_path.resolve() == metadata_path.resolve()
@@ -72,6 +74,7 @@ def render_ply(input_path: Path, output_path: Path, metadata_path: Path, *,
     renderer.SetBackground(.11, .15, .20)
     renderer.AddActor(actor)
     renderer.ResetCamera()
+    axes_actor = configure_scene(renderer, view_state) if view_state is not None else None
     window = vtkRenderWindow()
     try:
         window.SetOffScreenRendering(1)
@@ -103,6 +106,8 @@ def render_ply(input_path: Path, output_path: Path, metadata_path: Path, *,
         metadata_path.write_text(json.dumps(result, ensure_ascii=False, allow_nan=False), encoding='utf-8')
         print('SCANTOPATH_PLY_PREVIEW_OK', flush=True)
     finally:
+        if axes_actor is not None:
+            renderer.RemoveActor(axes_actor)
         renderer.RemoveActor(actor)
         window.RemoveRenderer(renderer)
         window.Finalize()  # native crash stays in isolated subprocess

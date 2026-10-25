@@ -14,6 +14,7 @@ from PySide6.QtCore import QObject, QProcess, QThread, QTimer
 from PySide6.QtWidgets import QFileDialog, QWidget
 
 from ..application.ply_contracts import PlySummary
+from ..application.navigation import CameraView
 from .view import Viewer3DPage
 
 
@@ -29,6 +30,7 @@ class Viewer3DController(QObject):
         super().__init__(parent)
         self.page = Viewer3DPage(parent)
         self.page.open_ply_requested.connect(self._choose_ply)
+        self.page.navigation_requested.connect(self.navigate)
         self._process: QProcess | None = None
         self._timeout: QTimer | None = None
         self._temp: tempfile.TemporaryDirectory | None = None
@@ -42,6 +44,11 @@ class Viewer3DController(QObject):
         self._timed_out = False
         self._job_kind = 'fixture'
         self._source_path: Path | None = None
+        self._display_kind = 'fixture'
+        self._display_ply: Path | None = None
+        self._display_summary: PlySummary | None = None
+        self._view_state = CameraView()
+        self._pending_view: CameraView | None = None
 
     def activate(self) -> None:
         if self._disposed or self._started or self._render_pending or self._attempted:
@@ -53,6 +60,23 @@ class Viewer3DController(QObject):
             return
         self._render_pending = True
         QTimer.singleShot(0, self._start_preview)
+
+    def navigate(self, action: str, dx: float = 0.0, dy: float = 0.0) -> bool:
+        """Queue one camera update; no GUI/native render reentrancy or stale state."""
+        if self._disposed or not self._started or self._process is not None or self._render_pending:
+            return False
+        if os.environ.get('QT_QPA_PLATFORM', '').lower() == 'offscreen':
+            return False
+        try:
+            candidate = self._view_state.update(action, dx, dy)
+        except (TypeError, ValueError, OverflowError):
+            self.page.set_status('Lệnh điều khiển góc nhìn không hợp lệ.', is_error=True)
+            return False
+        self._pending_view = candidate
+        if not self._start_job('navigation', self._display_ply):
+            self._pending_view = None
+            return False
+        return True
 
     def _choose_ply(self) -> None:
         if self._disposed or self._process is not None:
@@ -96,7 +120,7 @@ class Viewer3DController(QObject):
                 self.page.clear_preview('Đang tải PLY…', 'PLY đang được kiểm tra; chưa có dữ liệu mới.')
             self._temp = tempfile.TemporaryDirectory(prefix='scantopath-vtk-')
             self._image_path = Path(self._temp.name) / 'preview.png'
-            self._metadata_path = Path(self._temp.name) / 'metadata.json' if kind == 'ply' else None
+            self._metadata_path = Path(self._temp.name) / 'metadata.json' if kind in ('ply', 'navigation') and source is not None else None
             self._source_path = source
             self._job_kind = kind
             self._log = b''
@@ -121,6 +145,16 @@ class Viewer3DController(QObject):
                 args = ['--input', str(source), '--output', str(self._image_path),
                         '--metadata', str(self._metadata_path)]
                 self.page.set_status('PLY 08.03 · Đang kiểm tra và tải point cloud ở tiến trình riêng…')
+            elif kind == 'navigation' and self._pending_view is not None:
+                module = 'scantopath.modules.viewer3d.infrastructure.render_navigation'
+                args = ['--kind', self._display_kind, '--state', self._pending_view.to_json(),
+                        '--output', str(self._image_path)]
+                if self._display_kind == 'ply':
+                    if source is None or self._display_summary is None or self._metadata_path is None:
+                        raise ValueError('Missing PLY navigation source')
+                    args += ['--input', str(source), '--metadata', str(self._metadata_path),
+                             '--expected-sha256', self._display_summary.source_sha256]
+                self.page.set_status('08.04 · Đang cập nhật góc nhìn trong tiến trình VTK cách ly…')
             else:
                 raise ValueError('Unsupported viewer job')
             process.start(sys.executable, ['-X', 'faulthandler', '-m', module, *args])
@@ -154,7 +188,8 @@ class Viewer3DController(QObject):
         if self._disposed:
             self._cleanup()
             return
-        marker = (b'SCANTOPATH_PLY_PREVIEW_OK' if self._job_kind == 'ply'
+        marker = (b'SCANTOPATH_NAV_PREVIEW_OK' if self._job_kind == 'navigation'
+                  else b'SCANTOPATH_PLY_PREVIEW_OK' if self._job_kind == 'ply'
                   else b'SCANTOPATH_VTK_PREVIEW_OK')
         ok = (not self._timed_out and status == QProcess.NormalExit and code == 0
               and marker in self._log)
@@ -164,45 +199,72 @@ class Viewer3DController(QObject):
                 if self._image_path.stat().st_size > self.MAX_PNG_BYTES:
                     raise ValueError('VTK preview exceeds size limit')
                 png = self._image_path.read_bytes()
-                if self._job_kind == 'ply':
+                if self._job_kind == 'ply' or (self._job_kind == 'navigation' and self._display_kind == 'ply'):
                     if self._metadata_path is None or self._metadata_path.stat().st_size > self.MAX_JSON_BYTES:
                         raise ValueError('Invalid PLY metadata result')
                     summary = PlySummary.from_result(json.loads(
                         self._metadata_path.read_text(encoding='utf-8')))
                     if self._source_path is None or summary.name != self._source_path.name:
                         raise ValueError('PLY result does not match selected file')
+                    if self._job_kind == 'navigation' and (self._display_summary is None or
+                            summary.source_sha256 != self._display_summary.source_sha256):
+                        raise ValueError('PLY result does not match selected file')
                 ok = self.page.show_png(png)
             except (OSError, ValueError, UnicodeError, json.JSONDecodeError):
                 ok = False
         if ok:
             self._started = True
-            if summary is None:
+            if self._job_kind == 'navigation':
+                self._view_state = self._pending_view
+                self.page.set_axes(self._view_state.axes)
+                self.page.set_status('08.04 · Đã cập nhật góc nhìn · VTK tiến trình riêng · Chưa đo.')
+            elif summary is None:
+                self._display_kind = 'fixture'
+                self._display_ply = None
+                self._display_summary = None
+                self._view_state = CameraView()
+                self.page.set_axes(False)
                 self.page.show_fixture()
-                self.page.set_status('FIXTURE 08.02 · 5 điểm VTK · Nhấn Mở PLY để nhập dữ liệu (chưa tương tác 3D).')
+                self.page.set_status('FIXTURE 08.02 · 5 điểm VTK · Có thể xoay, pan và zoom ở 08.04.')
             else:
+                self._display_kind = 'ply'
+                self._display_ply = self._source_path
+                self._display_summary = summary
+                self._view_state = CameraView()
+                self.page.set_axes(False)
                 self.page.show_ply(summary)
                 self.page.set_status(
-                    f'PLY 08.03 · {summary.point_count:,} điểm · '
+                    f'PLY 08.04 · {summary.point_count:,} điểm · '
                     'Dữ liệu nhập từ tệp, chưa xác nhận đơn vị/hệ tọa độ.')
         else:
-            self._started = False
+            if self._job_kind != 'navigation':
+                self._started = False
+                self._display_ply = None
+                self._display_summary = None
             code_hex = f'0x{(int(code) & 0xFFFFFFFF):08X}'
             reason = 'timeout' if self._timed_out else ('native crash' if status == QProcess.CrashExit else 'failed')
             if self._job_kind == 'ply' and b'SCANTOPATH_PLY_REJECTED:HEADER_TERMINATOR' in self._log:
                 notice = 'PLY không hợp lệ: thiếu end_header hoặc phần đầu tệp quá dài.'
             elif self._job_kind == 'ply' and b'SCANTOPATH_PLY_REJECTED:INVALID' in self._log:
                 notice = 'PLY không hợp lệ hoặc không được hỗ trợ. Kiểm tra cấu trúc và dữ liệu XYZ.'
+            elif self._job_kind == 'navigation' and b'SCANTOPATH_NAV_REJECTED:SOURCE_CHANGED' in self._log:
+                notice = 'Tệp PLY đã thay đổi sau khi nhập. Vui lòng mở lại tệp.'
             elif self._timed_out:
                 notice = 'VTK xử lý quá thời gian cho phép. Ứng dụng vẫn hoạt động.'
             elif status == QProcess.CrashExit:
                 notice = f'VTK native crash (exit={code_hex}); ứng dụng vẫn hoạt động.'
             else:
                 notice = f'Không thể hiển thị dữ liệu bằng VTK (exit={code_hex}); ứng dụng vẫn hoạt động.'
-            self.page.show_failure(notice)
+            if self._job_kind == 'navigation':
+                self.page.set_status('08.04 · Góc nhìn KHÔNG cập nhật: ' + notice, is_error=True)
+                self.page.set_axes(self._view_state.axes)
+            else:
+                self.page.show_failure(notice)
             # Retain bounded diagnostics in stderr only; never print traceback in a GUI label.
             tail = self._log.decode('utf-8', 'backslashreplace')[-400:].replace('\n', ' ')
             print('ScanToPath 08.03 VTK child failure:', reason, code_hex, repr(tail),
                   file=sys.stderr, flush=True)
+        self._pending_view = None
         self._cleanup()
 
     def _cleanup(self) -> None:

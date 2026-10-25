@@ -7,9 +7,11 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
+from ..application.navigation import CameraView
+from .camera_scene import configure_scene
 
 
-def render_fixture_png(destination: Path, *, width: int = 1000, height: int = 620) -> None:
+def render_fixture_png(destination: Path, *, width: int = 1000, height: int = 620, view_state: CameraView | None = None) -> None:
     """Render via VTK OpenGL offscreen in the current (child) process."""
     from vtkmodules.vtkRenderingCore import vtkRenderWindow, vtkWindowToImageFilter
     from vtkmodules.vtkIOImage import vtkPNGWriter
@@ -20,6 +22,7 @@ def render_fixture_png(destination: Path, *, width: int = 1000, height: int = 62
     if destination.suffix.lower() != '.png' or not destination.parent.is_dir():
         raise ValueError('Output must be PNG in an existing directory')
     scene = VtkFixtureScene()
+    axes_actor = configure_scene(scene.renderer, view_state) if view_state is not None else None
     window = vtkRenderWindow()
     try:
         window.SetOffScreenRendering(1)
@@ -41,6 +44,8 @@ def render_fixture_png(destination: Path, *, width: int = 1000, height: int = 62
             raise RuntimeError('VTK preview output is not PNG')
         print('SCANTOPATH_VTK_PREVIEW_OK points=5 format=PNG', flush=True)
     finally:
+        if axes_actor is not None:
+            scene.renderer.RemoveActor(axes_actor)
         scene.dispose()
         window.RemoveRenderer(scene.renderer)
         # Finalize is contained inside a disposable subprocess. A native driver
