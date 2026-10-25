@@ -115,3 +115,17 @@ def test_binary_ply_renders_real_points_in_subprocess(tmp_path):
     assert not result.has_rgb and result.ply_format=='binary_little_endian'
     assert path.read_bytes()==original
     assert png.read_bytes().startswith(b'\x89PNG\r\n\x1a\n')
+
+
+def test_bad_ply_child_uses_ascii_rejection_protocol(tmp_path):
+    source = tmp_path / 'TC05_INVALID.ply'
+    source.write_bytes(b'ply\nformat ascii 1.0\nno terminator\n')
+    png, meta = tmp_path / 'out.png', tmp_path / 'meta.json'
+    proc = subprocess.run([sys.executable, '-m',
+        'scantopath.modules.viewer3d.infrastructure.render_ply',
+        '--input', str(source), '--output', str(png), '--metadata', str(meta)],
+        capture_output=True, timeout=20)
+    assert proc.returncode == 2
+    assert proc.stdout.strip() == b'SCANTOPATH_PLY_REJECTED:HEADER_TERMINATOR'
+    assert b'Traceback' not in proc.stderr
+    assert not png.exists() and not meta.exists()

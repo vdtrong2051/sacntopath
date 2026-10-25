@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import sys
 from pathlib import Path
 
 from .ply_header import inspect_ply
@@ -113,7 +114,15 @@ def main() -> int:
     ap.add_argument('--output', type=Path, required=True)
     ap.add_argument('--metadata', type=Path, required=True)
     args = ap.parse_args()
-    render_ply(args.input, args.output, args.metadata)
+    try:
+        render_ply(args.input, args.output, args.metadata)
+    except ValueError as exc:
+        # Strict ASCII machine-readable child-to-Qt error protocol; no traceback
+        # or escaped Vietnamese exceptions in the user-facing application.
+        kind = ('HEADER_TERMINATOR' if str(exc) ==
+                'Thiếu end_header hoặc header quá lớn' else 'INVALID')
+        print('SCANTOPATH_PLY_REJECTED:' + kind, flush=True)
+        return 2
     return 0
 
 

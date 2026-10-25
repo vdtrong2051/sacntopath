@@ -132,3 +132,45 @@ def test_isolated_success_updates_ply_label_without_vtk_import(window,tmp_path):
     assert 'X[0, 1]' in c.page.note.text()
     assert 'chưa xác nhận' in c.page.note.text()
     assert c._process is None
+
+
+def test_invalid_ply_child_error_clears_previous_preview(window, tmp_path):
+    from PySide6.QtCore import QBuffer, QIODevice, Qt
+    from PySide6.QtGui import QImage, QPixmap
+    c = window.viewer3d
+    # A previous valid PLY is visible before the malformed file is attempted.
+    old = QImage(8, 8, QImage.Format_RGB32)
+    old.fill(Qt.blue)
+    raw = QBuffer()
+    assert raw.open(QIODevice.WriteOnly)
+    assert old.save(raw, 'PNG')
+    assert c.page.show_png(bytes(raw.data()))
+    c.page.note.setText('PLY: TC04_BINARY_3pts.ply · 3 điểm')
+    c._job_kind = 'ply'
+    c._source_path = tmp_path / 'TC05_INVALID.ply'
+    c._log = b'SCANTOPATH_PLY_REJECTED:HEADER_TERMINATOR'
+    c._process = QProcess(c)
+    c._finished(2, QProcess.NormalExit)
+    assert 'thiếu end_header' in c.page.state.text()
+    assert 'Traceback' not in c.page.state.text()
+    assert 'exit=' not in c.page.state.text()
+    assert 'TC04' not in c.page.note.text()
+    assert c.page._image.isNull()
+    assert c.page.preview.pixmap().isNull()
+    assert 'Không thể hiển thị PLY' in c.page.preview.text()
+    assert '#9f2630' in c.page.state.styleSheet()
+    assert not c.render_initialized and not c._disposed
+
+
+def test_crash_failure_is_short_and_clears_stale_preview(window):
+    c = window.viewer3d
+    c.page.note.setText('PLY: TC03_ASCII_RGB_4pts.ply')
+    c._job_kind = 'ply'
+    c._log = b'x' * 2000 + b'\nTraceback: some internal line'
+    c._process = QProcess(c)
+    c._finished(-1073741819, QProcess.CrashExit)
+    assert 'native crash' in c.page.state.text()
+    assert 'Traceback' not in c.page.state.text()
+    assert 'TC03_ASCII_RGB_4pts' not in c.page.note.text()
+    assert len(c.page.state.text()) < 180
+    assert not c._disposed

@@ -57,6 +57,18 @@ class Viewer3DPage(QWidget):
     def set_loading(self, active: bool) -> None:
         self.open_ply_button.setEnabled(not active)
 
+    def clear_preview(self, placeholder: str = 'Chưa có dữ liệu 3D',
+                      note: str = 'Không có dữ liệu PLY đang hiển thị.') -> None:
+        self._image = QPixmap()
+        self.preview.clear()
+        self.preview.setText(placeholder)
+        self.note.setText(note)
+
+    def show_failure(self, message: str) -> None:
+        self.clear_preview('Không thể hiển thị PLY',
+                           'Không có dữ liệu đang hiển thị · Tệp trước đó đã được bỏ khỏi Viewer.')
+        self.set_status(message, is_error=True)
+
     def show_fixture(self) -> None:
         self.note.setText('FIXTURE · 5 điểm tổng hợp · Không có đơn vị đo xác nhận · '
                           'Ảnh do VTK render ở tiến trình riêng · Nhấn Mở PLY để nhập dữ liệu')
@@ -86,6 +98,13 @@ class Viewer3DPage(QWidget):
         super().resizeEvent(event)
         self._fit_preview()
 
-    def set_status(self, message: str) -> None:
+    def set_status(self, message: str, *, is_error: bool = False) -> None:
         self.state.setText(message)
         self.state.setToolTip(message)
+        # The existing global QSS styles the ordinary workspaceState as success;
+        # an invalid PLY must not appear as a green success banner.
+        self.state.setStyleSheet(
+            'QLabel#workspaceState { background: #fff0ee; color: #9f2630; '
+            'border: 1px solid #e7b0b4; border-radius: 5px; padding: 7px 10px; }'
+            if is_error else ''
+        )

@@ -70,7 +70,8 @@ class Viewer3DController(QObject):
             if source.suffix.lower() != '.ply' or not source.is_file() or source.is_symlink():
                 raise ValueError('Hãy chọn một tệp .ply có thật (không qua symbolic link)')
         except (TypeError, OSError, ValueError) as exc:
-            self.page.set_status(f'PLY không hợp lệ: {exc}')
+            self._started = False
+            self.page.show_failure('PLY không hợp lệ: Hãy chọn tệp .ply có thể đọc được.')
             return False
         if os.environ.get('QT_QPA_PLATFORM', '').lower() == 'offscreen':
             self.page.set_status('PLY 08.03 · Qt offscreen không chạy native render; cần HMI Windows.')
@@ -89,6 +90,10 @@ class Viewer3DController(QObject):
         if self._disposed or self._process is not None or QThread.currentThread() != self.thread():
             return False
         try:
+            if kind == 'ply':
+                # Never attribute a previous cloud/image to a failed import.
+                self._started = False
+                self.page.clear_preview('Đang tải PLY…', 'PLY đang được kiểm tra; chưa có dữ liệu mới.')
             self._temp = tempfile.TemporaryDirectory(prefix='scantopath-vtk-')
             self._image_path = Path(self._temp.name) / 'preview.png'
             self._metadata_path = Path(self._temp.name) / 'metadata.json' if kind == 'ply' else None
@@ -122,7 +127,7 @@ class Viewer3DController(QObject):
             timer.start(self.TIMEOUT_MS)
             return True
         except (OSError, RuntimeError, ValueError) as exc:
-            self.page.set_status(f'Không thể khởi chạy Viewer: {type(exc).__name__}')
+            self.page.show_failure('Không thể khởi chạy tiến trình VTK. Kiểm tra môi trường Python.')
             self._cleanup()
             return False
 
@@ -141,7 +146,7 @@ class Viewer3DController(QObject):
         if self._disposed:
             return
         if error == QProcess.FailedToStart:
-            self.page.set_status('Không thể khởi chạy VTK subprocess: kiểm tra Python/venv.')
+            self.page.show_failure('Không thể khởi chạy VTK: kiểm tra Python/venv.')
             self._cleanup()
 
     def _finished(self, code: int, status: QProcess.ExitStatus) -> None:
@@ -180,11 +185,24 @@ class Viewer3DController(QObject):
                     f'PLY 08.03 · {summary.point_count:,} điểm · '
                     'Dữ liệu nhập từ tệp, chưa xác nhận đơn vị/hệ tọa độ.')
         else:
+            self._started = False
             code_hex = f'0x{(int(code) & 0xFFFFFFFF):08X}'
             reason = 'timeout' if self._timed_out else ('native crash' if status == QProcess.CrashExit else 'failed')
-            tail = self._log.decode('utf-8', 'replace')[-400:].replace('\n', ' ')
-            self.page.set_status(f'VTK isolated render {reason}, exit={code_hex}. Qt vẫn an toàn. {tail}')
-            print('ScanToPath 08.03 VTK child failure:', reason, code_hex, tail, file=sys.stderr, flush=True)
+            if self._job_kind == 'ply' and b'SCANTOPATH_PLY_REJECTED:HEADER_TERMINATOR' in self._log:
+                notice = 'PLY không hợp lệ: thiếu end_header hoặc phần đầu tệp quá dài.'
+            elif self._job_kind == 'ply' and b'SCANTOPATH_PLY_REJECTED:INVALID' in self._log:
+                notice = 'PLY không hợp lệ hoặc không được hỗ trợ. Kiểm tra cấu trúc và dữ liệu XYZ.'
+            elif self._timed_out:
+                notice = 'VTK xử lý quá thời gian cho phép. Ứng dụng vẫn hoạt động.'
+            elif status == QProcess.CrashExit:
+                notice = f'VTK native crash (exit={code_hex}); ứng dụng vẫn hoạt động.'
+            else:
+                notice = f'Không thể hiển thị dữ liệu bằng VTK (exit={code_hex}); ứng dụng vẫn hoạt động.'
+            self.page.show_failure(notice)
+            # Retain bounded diagnostics in stderr only; never print traceback in a GUI label.
+            tail = self._log.decode('utf-8', 'backslashreplace')[-400:].replace('\n', ' ')
+            print('ScanToPath 08.03 VTK child failure:', reason, code_hex, repr(tail),
+                  file=sys.stderr, flush=True)
         self._cleanup()
 
     def _cleanup(self) -> None:
