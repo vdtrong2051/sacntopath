@@ -14,6 +14,9 @@ CORE = {'application', 'domain', 'metadata', 'storage', 'acquisition'}
 FEATURE = 'scantopath.modules.'
 ALLOWED_BOOTSTRAP = ('modules/project_workspace/application/service.py',
                      'scantopath.modules.project_workspace.infrastructure.sqlite_backend')
+# Only stable DTO/Protocol surfaces may be shared between feature modules.
+CROSS_FEATURE_PUBLIC = ('application.ports', 'application.models',
+                        'application.contracts', 'domain.models')
 
 
 def _resolved_imports(node: ast.AST, module_parts: tuple[str, ...], is_package: bool):
@@ -48,7 +51,7 @@ def scan(project_root: Path) -> list[tuple[str, int, str]]:
         relative = rel.as_posix()
         module_parts = ('scantopath', *rel.with_suffix('').parts)
         kind = rel.parts[0]
-        is_feature = len(rel.parts) >= 4 and rel.parts[:1] == ('modules',)
+        is_feature = len(rel.parts) >= 3 and rel.parts[0] == 'modules'
         area = rel.parts[2] if is_feature else None
         core = kind in CORE or area in ('application', 'domain', 'infrastructure')
         presentation = area == 'presentation'
@@ -65,6 +68,22 @@ def scan(project_root: Path) -> list[tuple[str, int, str]]:
                 if presentation or shell:
                     forbidden |= (_starts(target, 'scantopath.metadata') or
                                   _starts(target, 'scantopath.storage'))
+                # 08.01: protect feature ownership as the second feature (Viewer) arrives.
+                # Other modules may expose small typed contracts but not concrete
+                # infrastructure, presentation, services or private implementations.
+                if is_feature and target.startswith(FEATURE):
+                    parts = target.split('.')
+                    if len(parts) >= 3 and parts[2] != rel.parts[1]:
+                        public = '.'.join(parts[3:])
+                        if not any(_starts(public, api) for api in CROSS_FEATURE_PUBLIC):
+                            forbidden = True
+                    if area == 'presentation' and _starts(
+                            target, f'{FEATURE}{rel.parts[1]}.infrastructure'):
+                        forbidden = True
+                # Rendering belongs to the Qt presentation/VTK adapter boundary;
+                # do not let application/domain silently depend on the VTK runtime.
+                if kind in ('application', 'domain') or area in ('application', 'domain'):
+                    forbidden |= _starts(target, 'vtkmodules') or _starts(target, 'vtk')
                 if area in ('application','domain'):
                     # The feature core must not depend on concrete providers. Only
                     # the legacy facade may import the specific feature bootstrap.
