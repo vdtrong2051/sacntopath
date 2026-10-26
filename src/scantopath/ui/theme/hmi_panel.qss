@@ -421,3 +421,49 @@ QListWidget#recentStoreList::item {
 }
 QPushButton#recentStoreBrowse { font-weight: 600; }
 QPushButton#recentStoreOpenSelected { color: #0B55B8; }
+
+/* R3.2 central Project overview. Actual separators are QFrames, no paint overlay. */
+QFrame#projectDashboard {
+    background-color: #FFFFFF;
+    border: 1px solid #C9D9EA;
+    border-radius: 8px;
+}
+QWidget#dashboardHeader { background-color: #F5F8FD; }
+QLabel#dashboardTitle { color: #173D6A; font-weight: 700; font-size: 10pt; }
+QFrame#dashboardHeaderSeparator, QFrame#dashboardContextSeparator {
+    background-color: #CAD9EA; border: 0;
+}
+QWidget#dashboardContext { background-color: #FFFFFF; }
+QLabel#dashboardStoreLabel { color: #506A85; font-size: 9pt; }
+QLabel#dashboardStats { color: #3D5878; font-size: 9pt; }
+QWidget#dashboardActions {
+    background-color: #FFFFFF; border-top: 1px solid #D5E1EF;
+}
+QTabWidget#dashboardTabs { background-color: #F5F8FD; }
+QTabWidget#dashboardTabs::pane {
+    background-color: #FFFFFF; border: 0;
+    border-top: 1px solid #C6D9EA;
+}
+QTabWidget#dashboardTabs QTabBar::tab {
+    background-color: transparent; color: #47607D;
+    border: 1px solid transparent; border-radius: 5px;
+    padding: 4px 11px; margin: 3px 2px 3px 5px;
+    min-height: 20px;
+}
+QTabWidget#dashboardTabs QTabBar::tab:selected {
+    background-color: #E7F0FF;
+    border: 1px solid #C8DDFB;
+    color: #0B55B8; font-weight: 600;
+}
+QTreeWidget#dashboardTable_specimen, QTreeWidget#dashboardTable_scan_session,
+QTreeWidget#dashboardTable_capture, QTreeWidget#dashboardTable_processing_run {
+    border: 0; border-radius: 0; background-color: #FFFFFF;
+}
+QPushButton#dashboardCreateProject {
+    color: #FFFFFF; background-color: #1463D7;
+    border: 1px solid #1463D7; font-weight: 600;
+}
+QPushButton#dashboardCreateProject:disabled {
+    color: #8292A8; background-color: #F2F5F9;
+    border: 1px solid #DFE6EF;
+}

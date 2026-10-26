@@ -21,6 +21,8 @@ class ProjectWorkspaceController(QObject):
         self._install_capture_checker()
         from .store_management import RecentStorePresenter
         self.recent_stores = RecentStorePresenter(self.view, self.project_loader, self)
+        from .dashboard import ProjectDashboardPresenter
+        self.project_dashboard = ProjectDashboardPresenter(self.view, self)
 
     def _install_project_loader(self) -> None:
         return self._reads._install_project_loader()
