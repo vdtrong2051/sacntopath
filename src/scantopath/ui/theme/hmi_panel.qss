@@ -467,3 +467,48 @@ QPushButton#dashboardCreateProject:disabled {
     color: #8292A8; background-color: #F2F5F9;
     border: 1px solid #DFE6EF;
 }
+
+/* R3.3 Contextual Inspector — distinct native bands, compact body. */
+QFrame#inspectorContextFrame {
+    background-color: #F4F8FD;
+    border: 0;
+}
+QLabel#inspectorEntityKind {
+    color: #426186;
+    font-size: 9pt;
+    font-weight: 700;
+}
+QLabel#inspectorEntityTitle {
+    color: #193B60;
+    font-weight: 600;
+    font-size: 10pt;
+}
+QFrame#inspectorContextSeparator, QFrame#inspectorActionSeparator {
+    background-color: #BACDE1;
+    border: 0;
+    min-height: 1px;
+    max-height: 1px;
+}
+QWidget#inspectorPropertiesFrame { background-color: #FFFFFF; border: 0; }
+QLabel#inspectorSectionTitle {
+    color: #536F8A;
+    font-size: 9pt;
+    font-weight: 600;
+}
+QTreeWidget#inspectorProperties {
+    background-color: #FFFFFF;
+    alternate-background-color: #F5F8FC;
+    border: 1px solid #D4E0EC;
+    border-radius: 4px;
+}
+QTreeWidget#inspectorProperties::item { min-height: 20px; padding: 3px 4px; }
+QLabel#inspectorSourceNote { color: #60758A; font-size: 9pt; padding: 1px 2px; }
+QFrame#inspectorActionsFrame {
+    background-color: #F9FBFE;
+    border: 0;
+}
+QLabel#inspectorEmptyLabel { color: #637991; font-size: 9pt; }
+QFrame#inspectorActionsFrame QPushButton {
+    min-height: 28px;
+    padding: 4px 7px;
+}
