@@ -93,14 +93,16 @@ def create_workspace_page(workspace: WorkspaceId) -> QWidget:
     content = QWidget()
     content.setObjectName("workspaceScrollContent")
     outer = QVBoxLayout(content)
-    outer.setContentsMargins(24, 25, 24, 24)
-    outer.setSpacing(13)
+    outer.setContentsMargins(24, 10, 24, 16)
+    outer.setSpacing(6)
     frame.addWidget(scroll)
     scroll.setWidget(content)
 
     eyebrow = QLabel("KHÔNG GIAN LÀM VIỆC")
     eyebrow.setObjectName("workspaceEyebrow")
+    eyebrow.setVisible(False)
     outer.addWidget(eyebrow)
+    # R3.2.1: compact header; preserve widget positions for R3.1/R3.2 presenters.
 
     heading = QLabel(info.title)
     heading.setObjectName("workspaceHeading")
@@ -112,7 +114,7 @@ def create_workspace_page(workspace: WorkspaceId) -> QWidget:
     description.setObjectName("workspaceSubtitle")
     description.setWordWrap(True)
     outer.addWidget(description)
-    outer.addSpacing(14)
+    outer.addSpacing(4)
 
     panel = QFrame(content)
     panel.setObjectName("workspacePanel")
