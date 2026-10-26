@@ -23,6 +23,8 @@ class ProjectWorkspaceController(QObject):
         self.recent_stores = RecentStorePresenter(self.view, self.project_loader, self)
         from .dashboard import ProjectDashboardPresenter
         self.project_dashboard = ProjectDashboardPresenter(self.view, self)
+        from .processing_workspace import ProcessingWorkspacePresenter
+        self.processing_workspace = ProcessingWorkspacePresenter(self.view, self)
 
     def _install_project_loader(self) -> None:
         return self._reads._install_project_loader()
