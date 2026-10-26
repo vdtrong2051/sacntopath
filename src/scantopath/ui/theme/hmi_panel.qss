@@ -381,3 +381,43 @@ QWidget#taskAndEventPanel QTabWidget#taskEventTabs::pane {
 
 /* R2.2.3C layout separator is 1 real pixel, outside text paint areas. */
 QFrame#taskDockHeaderSeparator { background-color: #AFC3DB; border: 0; }
+
+/* R3.1: explicit Store context with real visual boundaries; Project scope only. */
+QFrame#recentStorePanel {
+    background-color: #FFFFFF;
+    border: 1px solid #C9D8E8;
+    border-radius: 8px;
+}
+QLabel#recentStoreHeading, QLabel#recentStoreListHeading {
+    color: #163D70;
+    font-size: 9pt;
+    font-weight: 700;
+}
+QFrame#recentStoreTopSeparator, QFrame#recentStoreListSeparator {
+    background-color: #CAD9E9;
+    border: 0;
+}
+QLabel#recentStoreName {
+    color: #15365B;
+    font-weight: 700;
+    font-size: 12pt;
+}
+QLabel#recentStorePath {
+    color: #516982;
+    font-size: 9pt;
+}
+QLabel#recentStoreState, QLabel#recentStoreEmpty {
+    color: #5D7590;
+    font-size: 9pt;
+}
+QListWidget#recentStoreList {
+    border: 1px solid #D7E3F0;
+    border-radius: 5px;
+    background-color: #FFFFFF;
+}
+QListWidget#recentStoreList::item {
+    min-height: 24px;
+    padding: 3px 8px;
+}
+QPushButton#recentStoreBrowse { font-weight: 600; }
+QPushButton#recentStoreOpenSelected { color: #0B55B8; }
