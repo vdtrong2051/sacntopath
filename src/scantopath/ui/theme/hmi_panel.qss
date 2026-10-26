@@ -244,3 +244,140 @@ QLabel#explorerEmptyLabel, QLabel#inspectorSourceNote {
     padding-top: 3px;
     padding-bottom: 3px;
 }
+
+/* R2.2.3A: scoped IDE-style task drawer; other docks/workspaces unchanged. */
+QWidget#taskDockTitleBar { background-color: #F4F8FD; border: 0; }
+QLabel#taskDockTitle { color: #223B5A; font-size: 10pt; font-weight: 600; }
+QLabel#taskDockTitleSummary { color: #60758E; font-size: 9pt; }
+QWidget#taskDockTitleBar QToolButton,
+QWidget#taskDockTitleBar QPushButton#taskPanelExpandToggle {
+    background: transparent; border: 0; border-radius: 3px;
+    padding: 0; margin: 0; min-width: 0; min-height: 0;
+}
+QWidget#taskDockTitleBar QToolButton:hover,
+QWidget#taskDockTitleBar QPushButton#taskPanelExpandToggle:hover { background-color: #E3EAF5; }
+QWidget#taskAndEventPanel QTabWidget::pane { border: 0; border-radius: 0; }
+QWidget#taskAndEventPanel QTabBar::tab {
+    border: 0; border-bottom: 2px solid transparent; border-radius: 0;
+    background: transparent; margin-right: 3px; padding: 3px 11px;
+    min-height: 22px;
+}
+QWidget#taskAndEventPanel QTabBar::tab:selected {
+    background: transparent; color: #0B55B8; border-bottom: 2px solid #1463D7;
+}
+QWidget#taskAndEventPanel QTreeWidget#sqliteAuditTimeline {
+    border: 0; border-radius: 0; background-color: #FFFFFF;
+}
+QWidget#taskAndEventPanel QTreeWidget::item,
+QWidget#taskAndEventPanel QListWidget::item { padding: 2px 4px; min-height: 19px; }
+QLabel#taskOperatorEmpty, QLabel#taskEventEmpty {
+    color: #60758E; font-size: 9pt; padding: 5px 8px;
+}
+
+/* R2.2.3A-FINAL: IDE chrome + visible gutters and crisp task panes. */
+QWidget#taskDockTitleBar {
+    background-color: #FFFFFF;
+    border: 0;
+    border-bottom: 1px solid #B8CAE0;
+}
+QLabel#taskDockTitle { color: #193653; font-weight: 600; }
+QLabel#taskDockTitleSummary { color: #61738A; }
+QWidget#taskDockTitleBar QToolButton,
+QWidget#taskDockTitleBar QPushButton#taskPanelExpandToggle {
+    border: 1px solid transparent;
+    background-color: transparent;
+    border-radius: 4px;
+    padding: 0;
+}
+QWidget#taskDockTitleBar QToolButton:hover,
+QWidget#taskDockTitleBar QPushButton#taskPanelExpandToggle:hover {
+    border-color: #C9D9EA;
+    background-color: #E7EFF8;
+}
+QWidget#taskAndEventPanel QTabWidget#taskEventTabs { background-color: #F4F8FD; }
+QWidget#taskAndEventPanel QTabWidget#taskEventTabs::pane {
+    background-color: #FFFFFF;
+    border: 0;
+    border-top: 1px solid #C9D9EA;
+    border-radius: 0;
+}
+QWidget#taskAndEventPanel QTabBar::tab {
+    background-color: transparent;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    padding: 2px 10px;
+    margin: 3px 2px 3px 4px;
+    min-height: 18px;
+}
+QWidget#taskAndEventPanel QTabBar::tab:selected {
+    background-color: #E7F0FF;
+    color: #0B55B8;
+    border: 1px solid #C8DDFB;
+    font-weight: 600;
+}
+QWidget#taskAndEventPanel QTreeWidget#sqliteAuditTimeline {
+    background-color: #FFFFFF;
+    border: 1px solid #D5E1EF;
+    border-radius: 0;
+}
+QWidget#taskAndEventPanel QListWidget#uiEventList {
+    background-color: #FFFFFF;
+    border: 1px solid #D5E1EF;
+    border-radius: 0;
+}
+QLabel#taskOperatorEmpty, QLabel#taskEventEmpty {
+    background: #FFFFFF;
+    color: #60758E;
+    border: 0;
+    padding: 6px 10px;
+}
+
+/* R2.2.3C: distinct task title, tab strip, and content surfaces. */
+QWidget#taskDockTitleBar {
+    background-color: #EBF2FA;
+    border: 0;
+    border-bottom: 1px solid #AFC3DB;
+}
+QLabel#taskDockTitle {
+    color: #17395F;
+    font-weight: 600;
+}
+QLabel#taskDockTitleSummary {
+    color: #5D718A;
+    padding-left: 5px;
+}
+QWidget#taskAndEventPanel QTabWidget#taskEventTabs {
+    background-color: #F7FAFE;
+}
+QWidget#taskAndEventPanel QTabBar {
+    background-color: #F7FAFE;
+    border: 0; /* separator is now a real layout widget, not an overpaint */
+}
+QWidget#taskAndEventPanel QTabBar::tab {
+    background-color: transparent;
+    color: #425B77;
+    border: 1px solid transparent;
+    border-radius: 5px;
+    min-height: 19px;
+    padding: 2px 11px;
+    margin: 3px 2px 3px 4px;
+}
+QWidget#taskAndEventPanel QTabBar::tab:hover {
+    background-color: #EDF4FF;
+    color: #0B55B8;
+}
+QWidget#taskAndEventPanel QTabBar::tab:selected {
+    background-color: #E7F0FF;
+    border: 1px solid #C8DDFB;
+    color: #0B55B8;
+    font-weight: 600;
+}
+QWidget#taskAndEventPanel QTabWidget#taskEventTabs::pane {
+    background-color: #FFFFFF;
+    border: 0;
+    border-top: 1px solid #B9CCDF;
+    border-radius: 0;
+}
+
+/* R2.2.3C layout separator is 1 real pixel, outside text paint areas. */
+QFrame#taskDockHeaderSeparator { background-color: #AFC3DB; border: 0; }

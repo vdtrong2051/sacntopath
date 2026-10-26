@@ -36,7 +36,7 @@ def test_task_titlebar_owns_toggle_summary_and_native_reopen(window,app):
     assert panel.expand_button.isVisible()
     assert not panel.expanded and panel.tabs.isHidden()
     assert chrome.close_button.isVisible()
-    assert chrome.float_button.isVisible()
+    assert chrome.maximize_button.isVisible()  # R2.2.3A final: independent square button
     assert window.task_dock.toggleViewAction() is not None
 
 

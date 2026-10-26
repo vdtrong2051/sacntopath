@@ -22,13 +22,14 @@ def window(app):
 def test_title_icons_are_vectors_without_font_dependent_glyphs(window):
     chrome = window.task_dock_chrome
     buttons = (window.task_event_panel.expand_button,
-               chrome.float_button, chrome.close_button)
+               chrome.maximize_button, chrome.close_button)
     for button in buttons:
         assert button.text() == ""
         assert not button.icon().isNull()
         assert button.toolTip()
         assert button.accessibleName()
     assert window.task_dock.titleBarWidget() is chrome
+    assert chrome.maximize_button.isVisible()  # R2.2.3A final: independent square button
 
 def test_toggle_updates_icon_without_losing_dock_contents(window, app):
     panel = window.task_event_panel

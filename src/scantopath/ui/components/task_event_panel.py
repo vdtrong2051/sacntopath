@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from PySide6.QtWidgets import (
     QBoxLayout, QHBoxLayout, QLabel, QListWidget, QPushButton, QTabWidget, QTreeWidget,
-    QTreeWidgetItem, QVBoxLayout, QWidget,
+    QTreeWidgetItem, QVBoxLayout, QWidget, QHeaderView,
 )
 
 from PySide6.QtCore import Qt, Signal
@@ -60,13 +60,13 @@ class TaskAndEventPanel(QWidget):
 
         tasks_page = QWidget(self.tabs)
         task_layout = QVBoxLayout(tasks_page)
-        task_layout.setContentsMargins(8, 8, 8, 8)
-        task_layout.setSpacing(8)
+        task_layout.setContentsMargins(5, 3, 5, 3)
+        task_layout.setSpacing(3)
         self.task_hint = QLabel("Bước 06.5: Chưa có tác vụ đang hiển thị. Chỉ chạy tác vụ KIỂM THỬ, không ghi vào SQLite.")
         self.task_hint.setObjectName("taskEmptyLabel")
         self.task_hint.setWordWrap(True)
         task_layout.addWidget(self.task_hint)
-        self.task_empty = QLabel("Chưa có tác vụ. Tiến trình sẽ xuất hiện tại đây khi có công việc.", tasks_page)
+        self.task_empty = QLabel("Chưa có tác vụ.", tasks_page)
         self.task_empty.setObjectName("taskOperatorEmpty")
         self.task_empty.setWordWrap(False)
         self.task_empty.hide()
@@ -96,33 +96,52 @@ class TaskAndEventPanel(QWidget):
         self.tasks.itemSelectionChanged.connect(self._update_cancel_button)
         self.tasks.setVisible(False)
         task_layout.addWidget(self.tasks, stretch=1)
+        # Anchor the empty label near the tab top; do not vertically center it
+        # within the vacant task pane. Hidden while real task rows are present.
+        self.task_blank_spacer = QWidget(tasks_page)
+        task_layout.addWidget(self.task_blank_spacer, stretch=1)
         self.tabs.addTab(tasks_page, "Tác vụ")
 
         events_page = QWidget(self.tabs)
         events_layout = QVBoxLayout(events_page)
-        events_layout.setContentsMargins(8, 8, 8, 8)
+        events_layout.setContentsMargins(4, 2, 4, 2)
         self.event_hint = QLabel("Thông báo ở đây chỉ là thao tác giao diện, không phải nhật ký kiểm toán SQLite.")
         self.event_hint.setObjectName("eventSourceNote")
         self.event_hint.setWordWrap(True)
         events_layout.addWidget(self.event_hint)
+        self.event_hint.hide()  # Source explanation is available via tooltip, not a permanent row.
         self.events = QListWidget(events_page)
         self.events.setObjectName("uiEventList")
         self.events.setAccessibleName("Lịch sử thao tác giao diện trong phiên hiện tại")
+        self.events.setToolTip("Lịch sử thông báo giao diện trong phiên; không phải nhật ký SQLite")
+        self.event_empty = QLabel("Chưa có thông báo.", events_page)
+        self.event_empty.setObjectName("taskEventEmpty")
+        events_layout.addWidget(self.event_empty)
+        self.events.hide()
         events_layout.addWidget(self.events, stretch=1)
+        self.event_blank_spacer = QWidget(events_page)
+        events_layout.addWidget(self.event_blank_spacer, stretch=1)
         self.tabs.addTab(events_page, "Thông báo UI")
 
         audit_page = QWidget(self.tabs)
         audit_layout = QVBoxLayout(audit_page)
-        audit_layout.setContentsMargins(8, 8, 8, 8)
+        audit_layout.setContentsMargins(0, 0, 0, 0)
+        audit_layout.setSpacing(0)
         self.audit_hint = QLabel("Chỉ đọc 100 sự kiện SQLite gần nhất của kho đã mở; không phải tác vụ UI.")
         self.audit_hint.setWordWrap(True)
         audit_layout.addWidget(self.audit_hint)
+        self.audit_hint.hide()  # Keep compatibility metadata, remove visual commentary.
         self.audit_table = QTreeWidget(audit_page)
         self.audit_table.setObjectName("sqliteAuditTimeline")
         self.audit_table.setHeaderLabels(["Thời gian (UTC)", "Mức", "Sự kiện", "Đối tượng"])
         # Keep the full UTC header and common ISO-8601 timestamps readable.
         # QHeaderView remains interactive, so operators can still drag the column.
         self.audit_table.setColumnWidth(0, 240)
+        self.audit_table.setColumnWidth(1, 92)
+        self.audit_table.setColumnWidth(3, 220)
+        self.audit_table.header().setSectionResizeMode(2, QHeaderView.Stretch)
+        self.audit_table.setUniformRowHeights(True)
+        self.audit_table.setToolTip("Tối đa 100 sự kiện SQLite gần nhất; nhấn Tải lại ở Cây dự án để cập nhật")
         self.audit_table.setRootIsDecorated(False)
         audit_layout.addWidget(self.audit_table, stretch=1)
         self.tabs.addTab(audit_page, "Nhật ký SQLite")
@@ -197,6 +216,7 @@ class TaskAndEventPanel(QWidget):
         self.cancel_button.setVisible(self._demo_tools_visible or bool(snapshots))
         self._update_compact_summary(snapshots)
         self.tasks.setVisible(bool(snapshots))
+        self.task_blank_spacer.setVisible(not snapshots)
         for snapshot in snapshots:
             progress = "Không xác định" if snapshot.progress is None else f"{snapshot.progress:g}%"
             item = QTreeWidgetItem(self.tasks, [
@@ -227,6 +247,9 @@ class TaskAndEventPanel(QWidget):
         if not isinstance(message, str) or not message.strip():
             raise ValueError("Thông báo UI phải là chuỗi không rỗng")
         self.events.addItem(message)
+        self.event_empty.hide()
+        self.events.show()
+        self.event_blank_spacer.hide()
         while self.events.count() > self.MAX_UI_EVENTS:
             self.events.takeItem(0)
         self.events.scrollToBottom()
