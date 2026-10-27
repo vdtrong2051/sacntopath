@@ -14,4 +14,4 @@ Tài liệu này phân biệt công nghệ **đã dùng trong source**, công ng
 | Open3D, OpenCV, Eigen | Mục tiêu/thư viện trong định hướng xử lý hình học | Không suy ra mọi pipeline đã tích hợp vào Viewer |
 | PCL, các mô hình AI 2D/3D, CAD từ ngôn ngữ | Nghiên cứu/đánh giá sau | Phải có A/B, hiệu năng, license, rủi ro phép đo |
 
-Danh mục nghiên cứu và link chi tiết ban đầu được bảo toàn ở [bản tài nguyên lịch sử](../archive/NGUON_THAM_KHAO/RESOURCE_MATRIX.md). Không xác nhận một mô hình AI hoặc tham số benchmark ngoài nguồn nếu chưa có lần kiểm chứng độc lập.
+Danh mục nghiên cứu và link chi tiết ban đầu được bảo toàn ở [bản tài nguyên lịch sử](https://github.com/vdtrong2051/sacntopath/blob/08ef856a04d61f20db1e26b2ceeb399065db902f/docs/archive/NGUON_THAM_KHAO/RESOURCE_MATRIX.md). Không xác nhận một mô hình AI hoặc tham số benchmark ngoài nguồn nếu chưa có lần kiểm chứng độc lập.

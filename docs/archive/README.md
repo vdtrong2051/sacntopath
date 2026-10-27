@@ -1,19 +1,27 @@
-# Kho lưu trữ hồ sơ kỹ thuật theo thời điểm
+# Hồ sơ kỹ thuật lịch sử giữ lại trong repository
 
-**Đây không phải tài liệu hướng dẫn hệ thống hiện hành.** Mỗi tệp ở đây ghi lại tình trạng hoặc đề xuất tại **một thời điểm lịch sử**. Để hiểu phần mềm đang chạy, quay về [Tài liệu kỹ thuật](../README.md).
+**Chỉ dùng để truy cứu nguồn và bằng chứng lịch sử; không phải tài liệu hiện hành.**
 
-## Phân loại
+Sau R7-D, hồ sơ triển khai trung gian được gỡ khỏi cây làm việc để giảm trùng lặp.
+Tất cả vẫn tồn tại trong Git tại commit trước khi tinh gọn.
 
-| Thư mục | Nội dung |
-|---|---|
-| `GD0/PRE/` | Các bước nền tảng RAW, metadata và nghiệm thu PRE-01–06 |
-| `GD0/CAMERA/` | Hồ sơ camera/SDK/pybind11 từ giai đoạn thiết lập; **nhãn giai đoạn cần đối chiếu** |
-| `GD1/06/` | Desktop shell phiên 06 |
-| `GD1/07/` | Project Workspace phiên 07 và audit kiến trúc |
-| `GD1/08/` | Viewer phiên 08, crash, test và HMI thời điểm đó |
-| `GD1/R1-R5/` | Hồ sơ tái chuẩn hóa UX và renderer R1–R5 |
-| `R7_TRUOC/` | Các tài liệu chuẩn do R7 cũ tạo trước khi tổ chức lại |
-| `ROADMAP_CU/` | Lộ trình phiên bản cũ |
-| `NGUON_THAM_KHAO/` | Bảng tài nguyên nghiên cứu bản gốc |
+- [Mở cây tài liệu trước khi tinh gọn](https://github.com/vdtrong2051/sacntopath/tree/08ef856a04d61f20db1e26b2ceeb399065db902f/docs)
+- [Chỉ mục phục hồi tài liệu đã gỡ](../history/NGUON_HO_SO_CU.md)
+- [Tài liệu hiện hành](../README.md)
 
-Các tệp lịch sử được giữ nội dung; **chỉ các địa chỉ liên kết Markdown tương đối có thể được cập nhật** cho đúng vị trí mới. Tra [bản đồ đường dẫn R7-B](../standardization/R7B_BAN_DO_DI_CHUYEN.md) để định vị bản cũ. Nếu gặp thông tin khác với tài liệu hiện hành, cần đọc ngày/baseline trong tệp lịch sử; không ghép hai trạng thái làm một.
+## Hồ sơ quan trọng còn giữ cục bộ
+
+- [PRE_02_RAW_RGBD_CONTRACT.md](GD0/PRE/PRE_02_RAW_RGBD_CONTRACT.md)
+- [PRE_06_GD0_ACCEPTANCE.md](GD0/PRE/PRE_06_GD0_ACCEPTANCE.md)
+- [07_01_STORAGE_LAYOUT_V2_CONTRACT.md](GD1/07/07_01_STORAGE_LAYOUT_V2_CONTRACT.md)
+- [07_12_CONSOLIDATION_RISK_REGISTER.md](GD1/07/07_12_CONSOLIDATION_RISK_REGISTER.md)
+- [08_06_4_WINDOWS_HMI_ACCEPTANCE.md](GD1/08/08_06_4_WINDOWS_HMI_ACCEPTANCE.md)
+- [08_06_5_DEFECT_DISPOSITION_AND_HMI_WAIVER.md](GD1/08/08_06_5_DEFECT_DISPOSITION_AND_HMI_WAIVER.md)
+- [R4_03_FRAME_TRANSPORT_AND_LIFECYCLE.md](GD1/R1-R5/R4_03_FRAME_TRANSPORT_AND_LIFECYCLE.md)
+- [R4_05_R5_HANDOVER_GATES.md](GD1/R1-R5/R4_05_R5_HANDOVER_GATES.md)
+- [R4_05_RENDERER_ARCHITECTURE_DECISION.md](GD1/R1-R5/R4_05_RENDERER_ARCHITECTURE_DECISION.md)
+- [R5_01_SCENE_GEOMETRY_CONTRACTS.md](GD1/R1-R5/R5_01_SCENE_GEOMETRY_CONTRACTS.md)
+- [R5_03_INTERACTION_INSPECTOR_UX.md](GD1/R1-R5/R5_03_INTERACTION_INSPECTOR_UX.md)
+- [ROADMAP_V1_ARCHIVED.md](ROADMAP_CU/ROADMAP_V1_ARCHIVED.md)
+
+Các tệp khác có thể xem hoặc phục hồi chính xác bằng Git tại commit được ghim trên.

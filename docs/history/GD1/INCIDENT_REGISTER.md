@@ -22,7 +22,7 @@ Hồ sơ [07.12 — rủi ro hợp nhất](../../archive/GD1/07/07_12_CONSOLIDAT
 
 ### `INC-GD1-08-VTK`
 
-Xem [08.02 — sửa crash](../../archive/GD1/08/08_02_CRASH_REPAIR.md) và [R4.5 — quyết định kiến trúc](../../archive/GD1/R1-R5/R4_05_RENDERER_ARCHITECTURE_DECISION.md). Tách renderer khỏi GUI làm giảm khả năng một lỗi renderer giết trực tiếp Qt; **không chứng minh** mọi crash native thực đều đã được xử lý. Cần phép thử có kiểm soát ngoài tiến trình Qt.
+Xem [08.02 — sửa crash](https://github.com/vdtrong2051/sacntopath/blob/08ef856a04d61f20db1e26b2ceeb399065db902f/docs/archive/GD1/08/08_02_CRASH_REPAIR.md) và [R4.5 — quyết định kiến trúc](../../archive/GD1/R1-R5/R4_05_RENDERER_ARCHITECTURE_DECISION.md). Tách renderer khỏi GUI làm giảm khả năng một lỗi renderer giết trực tiếp Qt; **không chứng minh** mọi crash native thực đều đã được xử lý. Cần phép thử có kiểm soát ngoài tiến trình Qt.
 
 ### `INC-GD1-R5-003`
 

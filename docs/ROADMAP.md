@@ -96,7 +96,7 @@ Không lấy việc «mô hình nhìn giống» làm bằng chứng «đúng kí
 ## 8. Nguồn và lịch sử quyết định
 
 - [`docs/PRE_06_GD0_ACCEPTANCE.md`](archive/GD0/PRE/PRE_06_GD0_ACCEPTANCE.md) — báo cáo nghiệm thu GĐ0 **được tạo trước merge**, trạng thái checkbox trong đó là lịch sử tại thời điểm soạn; sau đó PR #3 đã merge lên `main`.
-- [`docs/ARCHITECTURE.md`](archive/GD0/ARCHITECTURE.md) — baseline kiến trúc sau GĐ0 và ranh giới UI–core.
+- [`docs/ARCHITECTURE.md`](https://github.com/vdtrong2051/sacntopath/blob/08ef856a04d61f20db1e26b2ceeb399065db902f/docs/archive/GD0/ARCHITECTURE.md) — baseline kiến trúc sau GĐ0 và ranh giới UI–core.
 - [`docs/roadmap/ROADMAP_V1_ARCHIVED.md`](archive/ROADMAP_CU/ROADMAP_V1_ARCHIVED.md) — nguyên văn bản roadmap cũ (Git blob SHA `f64afcf5af6a59134fae7e08052434b755284209`).
 - [`docs/roadmap/SESSION_CROSSWALK.md`](roadmap/SESSION_CROSSWALK.md) — ánh xạ kỹ thuật cũ→mới, không bỏ sót yêu cầu.
 - [`docs/decisions/ADR_001_UI_FIRST.md`](decisions/ADR_001_UI_FIRST.md) — lý do đổi thứ tự.

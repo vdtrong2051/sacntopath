@@ -30,5 +30,5 @@
 
 - [GĐ0 — PRE-01–06](GD0/GD0_EXECUTION_JOURNAL.md) · [GĐ1 — R1–R7](GD1/GD1_EXECUTION_JOURNAL.md) · [Sổ sự cố](GD1/INCIDENT_REGISTER.md).
 - [Trạng thái R6](../acceptance/GD1_R6_ACCEPTANCE_STATUS.md) và [hồ sơ GĐ1](../acceptance/GD1.md).
-- Hồ sơ nguồn giữ ở [kho lưu trữ](../archive/README.md); đối chiếu đường dẫn trước–sau R7-B trong [bản đồ di chuyển](../standardization/R7B_BAN_DO_DI_CHUYEN.md).
+- Hồ sơ nguồn giữ ở [kho lưu trữ](../archive/README.md); đối chiếu đường dẫn trước–sau R7-B trong [bản đồ di chuyển](NGUON_HO_SO_CU.md).
 - Evidence thô (nếu còn tại Windows) nằm trong `_setup/.../evidence`, không được sao chép sang Git hoặc coi như đã kiểm chứng từ xa.

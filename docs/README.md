@@ -14,7 +14,7 @@
 | Viết mã và tài liệu | [Quy chuẩn mã](development/QUY_CHUAN_CODE.md) | [Quy tắc tài liệu](development/QUY_TAC_TAI_LIEU.md) |
 | Kiểm thử và nghiệm thu | [Quy trình kiểm thử](development/QUY_TRINH_KIEM_THU.md) | [Tổng hợp nghiệm thu](acceptance/TONG_HOP_NGHIEM_THU.md) |
 | Tìm quyết định thiết kế | [Chỉ mục quyết định](decisions/DECISION_INDEX.md) | [Nhật ký phát triển](history/DEVELOPMENT_MASTER_LOG.md) |
-| Tìm tài liệu từng phiên cũ | [Kho lưu trữ](archive/README.md) | [Bảng đối chiếu đường dẫn R7-B](standardization/R7B_BAN_DO_DI_CHUYEN.md) |
+| Tìm tài liệu từng phiên cũ | [Kho lưu trữ](archive/README.md) | [Bảng đối chiếu đường dẫn R7-B](history/NGUON_HO_SO_CU.md) |
 | Xem lộ trình nghiên cứu | [Lộ trình hiện hành](ROADMAP.md) | [Ánh xạ phiên](roadmap/SESSION_CROSSWALK.md) |
 
 ## Phân biệt đúng phạm vi

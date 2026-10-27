@@ -14,4 +14,4 @@ Kiểm tra HEAD/branch sạch
 
 Không tự merge vào `main`. Không dùng `git reset --hard` để chữa lỗi patch; nếu cần hoàn tác, dùng cơ chế backup và kiểm tra đúng phạm vi thay đổi.
 
-Với tài liệu đã chuyển nơi, Git có thể nhận diện rename tự động qua độ tương đồng; nếu cần ghi lịch sử rõ, dùng `git mv` khi thực thi. Không thay lịch sử commit hoặc xóa bản ghi FAIL đã được lưu. R7-B có [bản đồ đường dẫn](../standardization/R7B_BAN_DO_DI_CHUYEN.md) để tra cứu.
+Với tài liệu đã chuyển nơi, Git có thể nhận diện rename tự động qua độ tương đồng; nếu cần ghi lịch sử rõ, dùng `git mv` khi thực thi. Không thay lịch sử commit hoặc xóa bản ghi FAIL đã được lưu. R7-B có [bản đồ đường dẫn](../history/NGUON_HO_SO_CU.md) để tra cứu.

@@ -10,7 +10,7 @@
 
 ## Khi bổ sung tính năng
 
-Cập nhật trang mô-đun và luồng dữ liệu; nếu thay đổi kiến trúc, cập nhật sơ đồ và ADR. Nhật ký nên liên kết tới commit/test/receipt, không sao chép terminal log dài. Không làm cho tài liệu cũ "biến mất": mọi tài liệu di chuyển được ghi trong [bản đồ R7-B](../standardization/R7B_BAN_DO_DI_CHUYEN.md).
+Cập nhật trang mô-đun và luồng dữ liệu; nếu thay đổi kiến trúc, cập nhật sơ đồ và ADR. Nhật ký nên liên kết tới commit/test/receipt, không sao chép terminal log dài. Không làm cho tài liệu cũ "biến mất": mọi tài liệu di chuyển được ghi trong [bản đồ R7-B](../history/NGUON_HO_SO_CU.md).
 
 ## Bảo toàn lịch sử
 
