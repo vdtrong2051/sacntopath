@@ -42,6 +42,9 @@ class ResidentRenderClient:
         self._sequence = 0
         self._last_frame: dict[str, Any] | None = None
         self._lock = threading.Lock()
+        self._ack_mode = False
+        self._seen_frame_revision = -1
+        self._seen_scene_revision = -1
 
     @property
     def pid(self) -> int | None:
@@ -53,6 +56,10 @@ class ResidentRenderClient:
             raise RuntimeError('Client already running')
         self._responses = queue.Queue(maxsize=8)
         self._sequence = 0
+        self._ack_mode = False
+        self._seen_frame_revision = -1
+        self._seen_scene_revision = -1
+        self._last_frame = None
         self._errors.clear()
         self._shm = shared_memory.SharedMemory(create=True, size=self._stride * 2)
         try:
@@ -134,10 +141,46 @@ class ResidentRenderClient:
                         answer.get('byte_count') != self._stride or
                         answer.get('width') != self.width or answer.get('height') != self.height):
                     raise RenderHostError('INVALID_FRAME_DESCRIPTOR')
+                if self._ack_mode:
+                    scene_rev = answer.get('scene_revision')
+                    frame_rev = answer.get('frame_revision')
+                    if (type(scene_rev) is not int or type(frame_rev) is not int
+                            or scene_rev < self._seen_scene_revision
+                            or frame_rev <= self._seen_frame_revision):
+                        raise RenderHostError('STALE_FRAME_DESCRIPTOR')
+                    self._seen_scene_revision = scene_rev
+                    self._seen_frame_revision = frame_rev
                 self._last_frame = answer
             elif op in ('close_scene', 'shutdown'):
                 self._last_frame = None
             return answer
+
+    def enable_frame_ack(self) -> None:
+        """Opt into strict consumer acknowledgement without changing R4.1 semantics."""
+        result = self.request('hello', frame_mode='ack')
+        if result.get('frame_mode') != 'ack':
+            raise RenderHostError('ACK_NEGOTIATION_FAILED')
+        self._ack_mode = True
+
+    def copy_ack_frame(self) -> tuple[dict[str, Any], bytes]:
+        """Copy immutable RGB bytes before releasing the host's shared slot."""
+        if not self._ack_mode or self._last_frame is None:
+            raise RenderHostError('NO_PENDING_FRAME')
+        descriptor = dict(self._last_frame)
+        rgb = self.latest_rgb()
+        ack = self.request('ack_frame', scene_revision=descriptor['scene_revision'],
+                           frame_revision=descriptor['frame_revision'], slot=descriptor['slot'])
+        if ack.get('acked_frame_revision') != descriptor['frame_revision']:
+            raise RenderHostError('INVALID_ACK_RESPONSE')
+        self._last_frame = None
+        return descriptor, rgb
+
+    def set_camera(self, state: str) -> dict[str, Any]:
+        return self.request('set_camera', state=state)
+
+    def abort(self) -> None:
+        """Interrupt native work without waiting on the synchronous request lock."""
+        self._terminate()
 
     def open_ply(self, path: os.PathLike | str) -> dict[str, Any]:
         """Load and verify geometry exactly once in the isolated process."""
@@ -194,6 +237,7 @@ class ResidentRenderClient:
                 pass
             self._shm = None
         self._last_frame = None
+        self._ack_mode = False
 
     def __enter__(self):
         self.start()

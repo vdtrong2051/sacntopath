@@ -36,6 +36,8 @@ class PersistentScene:
         self.frame_revision = 0
         self.open_count = 0
         self._slot = 0
+        self.strict_frame_ack = False
+        self.pending_frame: tuple[int, int, int] | None = None
         self._glyph = None
         self._reader = None
 
@@ -65,6 +67,7 @@ class PersistentScene:
         self.source_sha256 = None
         self.points = 0
         self.camera = CameraView()
+        self.pending_frame = None
         self.scene_revision += 1
 
     def open(self, path: str) -> dict[str, Any]:
@@ -130,8 +133,27 @@ class PersistentScene:
             self.axes_actor = None
         self.axes_actor = configure_scene(self.renderer, self.camera)
 
+    def ack_frame(self, scene_revision: int, frame_revision: int, slot: int) -> dict[str, Any]:
+        """Release the producer slot only after the consumer has copied its RGB bytes."""
+        if not self.strict_frame_ack or self.pending_frame != (scene_revision, frame_revision, slot):
+            raise ValueError('STALE_FRAME_ACK')
+        self.pending_frame = None
+        return {'acked_frame_revision': frame_revision, 'scene_revision': self.scene_revision}
+
+    def set_camera(self, state: str) -> dict[str, Any]:
+        """Render an absolute camera intent; latest-wins scheduling preserves final pose."""
+        if self.actor is None:
+            raise ValueError('NO_SCENE')
+        if self.strict_frame_ack and self.pending_frame is not None:
+            raise ValueError('FRAME_NOT_ACKED')
+        self.camera = CameraView.from_json(state)
+        self._configure_camera()
+        return self.render()
+
     def render(self) -> dict[str, Any]:
         """Render cached scene and publish raw RGB after the entire frame is ready."""
+        if self.strict_frame_ack and self.pending_frame is not None:
+            raise ValueError('FRAME_NOT_ACKED')
         from vtkmodules.vtkRenderingCore import vtkWindowToImageFilter
         from vtkmodules.util.numpy_support import vtk_to_numpy
         self.window.Render()
@@ -150,6 +172,8 @@ class PersistentScene:
         self.buffer.buf[offset:offset + self.stride] = rgb
         self._slot = 1 - slot
         self.frame_revision += 1
+        if self.strict_frame_ack:
+            self.pending_frame = (self.scene_revision, self.frame_revision, slot)
         return {'frame_revision': self.frame_revision, 'scene_revision': self.scene_revision,
                 'slot': slot, 'width': self.width, 'height': self.height,
                 'byte_count': self.stride, 'point_count': self.points,
@@ -158,6 +182,8 @@ class PersistentScene:
     def update_camera(self, action: str, dx: float, dy: float) -> dict[str, Any]:
         if self.actor is None:
             raise ValueError('NO_SCENE')
+        if self.strict_frame_ack and self.pending_frame is not None:
+            raise ValueError('FRAME_NOT_ACKED')
         self.camera = self.camera.update(action, dx, dy)
         self._configure_camera()
         return self.render()
@@ -200,17 +226,26 @@ def run_host(width: int, height: int, shm_name: str) -> int:
                     raise ValueError('NON_MONOTONIC_ID')
                 previous_id = rid
                 op = request['op']
+                if op == 'hello' and request.get('frame_mode') == 'ack':
+                    if scene.actor is not None or scene.pending_frame is not None:
+                        raise ValueError('ACK_NEGOTIATION_REQUIRES_EMPTY_SCENE')
+                    scene.strict_frame_ack = True
                 if op == 'open':
                     data = scene.open(request['path'])
                 elif op == 'camera':
                     data = scene.update_camera(request['action'], request['dx'], request['dy'])
+                elif op == 'set_camera':
+                    data = scene.set_camera(request['state'])
+                elif op == 'ack_frame':
+                    data = scene.ack_frame(request['scene_revision'], request['frame_revision'], request['slot'])
                 elif op == 'close_scene':
                     scene.close_scene()
                     data = scene.status()
                 elif op == 'status':
                     data = scene.status()
                 elif op == 'hello':
-                    data = {**scene.status(), 'width': width, 'height': height, 'transport': 'rgb24-shm-2slot'}
+                    data = {**scene.status(), 'width': width, 'height': height, 'transport': 'rgb24-shm-2slot',
+                            'frame_mode': 'ack' if scene.strict_frame_ack else 'legacy'}
                 else:
                     data = scene.status()
                     done = True
