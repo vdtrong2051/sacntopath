@@ -331,12 +331,14 @@ class ScanToPathMainWindow(QMainWindow):
         project_stopped = self.project_loader.begin_shutdown()
         write_stopped = self.project_writer.begin_shutdown()
         check_stopped = self.capture_checker.begin_shutdown()
-        if tasks_stopped and project_stopped and write_stopped and check_stopped:
+        viewer_stopped = self.viewer3d is None or getattr(self.viewer3d, 'begin_shutdown', lambda: True)()
+        if tasks_stopped and project_stopped and write_stopped and check_stopped and viewer_stopped:
             if self.viewer3d is not None:
                 self.viewer3d.dispose()
-            super().closeEvent(event)
-        else:
-            event.ignore()
+            return super().closeEvent(event)
+        event.ignore()
+        if not viewer_stopped and getattr(self.viewer3d, 'shutdown_pending', False):
+            QTimer.singleShot(120, self.close)
 
     def _create_menus(self) -> None:
         file_menu = self.menuBar().addMenu("&Tệp")
@@ -403,8 +405,8 @@ class ScanToPathMainWindow(QMainWindow):
         """Composition only: create a process-isolated VTK preview on first visit."""
         if self.viewer3d is not None:
             return
-        from scantopath.modules.viewer3d.presentation.controller import Viewer3DController
-        controller = Viewer3DController(self)
+        from scantopath.ui.shell.viewer_bootstrap import create_viewer_controller
+        controller = create_viewer_controller(self)
         old = self._pages[WorkspaceId.INSPECT3D]
         index = self.workspace_stack.indexOf(old)
         if index < 0:
