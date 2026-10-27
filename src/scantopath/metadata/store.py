@@ -1,6 +1,7 @@
-"""Stable metadata façade, delegating responsibilities to cohesive repositories.
+"""Lớp giao diện metadata ổn định, phân quyền xử lý cho các repository.
 
-v1/v2 schema, session transaction boundaries and public API remain unchanged.
+Giữ hợp đồng công khai, phiên bản schema v1/v2 và ranh giới giao dịch SQLite;
+không âm thầm nâng cấp cơ sở dữ liệu đã có.
 """
 from __future__ import annotations
 from pathlib import Path
@@ -37,7 +38,7 @@ class MetadataStore:
                 if version not in (0, *self.SUPPORTED_SCHEMA_VERSIONS):
                     raise RuntimeError(f"Unsupported metadata schema version {version}")
                 if version == 0:
-                    # Refuse to take over a pre-existing, unknown database.
+                    # Từ chối chiếm quyền quản lý cơ sở dữ liệu đã có nhưng chưa xác định schema.
                     existing = conn.exec_driver_sql(
                         "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
                     ).scalars().all()
@@ -46,7 +47,7 @@ class MetadataStore:
                     _Base.metadata.create_all(conn)
                     conn.exec_driver_sql(f"PRAGMA user_version={self.SCHEMA_VERSION}")
                 else:
-                    # create_all cannot upgrade an existing schema: exact version is required.
+                    # create_all không nâng cấp schema cũ; phải xác thực đúng phiên bản trước khi dùng.
                     expected = set(_Base.metadata.tables)
                     existing = set(conn.exec_driver_sql(
                         "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
@@ -119,7 +120,7 @@ class MetadataStore:
     def _run_dict(db: Session, obj: _ProcessingRun) -> dict:
         inputs = db.scalars(select(_RunInput).where(_RunInput.run_id == obj.run_id)
                             .order_by(_RunInput.ordinal)).all()
-        # Pending rows may need a flush before _RunInput becomes queryable.
+        # Có thể cần flush bản ghi chờ trước khi truy vấn được _RunInput.
         return {**_plain(obj), "input_capture_ids": [item.capture_id for item in inputs]}
 
     def get_processing_run(self, run_id: str) -> dict:

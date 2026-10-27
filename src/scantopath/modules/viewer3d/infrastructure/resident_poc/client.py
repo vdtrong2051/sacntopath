@@ -1,4 +1,4 @@
-"""Stdlib-only supervised client for the R4.1 isolated renderer prototype."""
+"""Trình khách giám sát tiến trình Render Host cô lập, chỉ dùng thư viện chuẩn."""
 from __future__ import annotations
 from multiprocessing import shared_memory
 import json
@@ -16,14 +16,14 @@ HOST = 'scantopath.modules.viewer3d.infrastructure.resident_poc.host'
 
 
 class RenderHostError(RuntimeError):
-    """Isolated render-host rejected a request or exited unexpectedly."""
+    """Render Host từ chối yêu cầu hoặc kết thúc bất thường."""
 
 
 class ResidentRenderClient:
-    """Supervise one host process and own its two RGB24 shared-memory slots.
+    """Giám sát một tiến trình Render Host và sở hữu hai ô bộ nhớ chung RGB24.
 
-    This synchronous PoC client is NOT called from the Qt GUI thread. R4.3
-    will add asynchronous scheduling, coalescing, and frame acknowledgement.
+    Khách đồng bộ này KHÔNG được gọi từ luồng giao diện Qt. Lớp điều phối
+    CoalescingRenderSession bên ngoài chịu trách nhiệm chạy nền và gộp lệnh camera.
     """
 
     def __init__(self, width: int = 320, height: int = 240, *, timeout: float = 20.0):
@@ -51,7 +51,7 @@ class ResidentRenderClient:
         return self._proc.pid if self._proc else None
 
     def start(self) -> None:
-        """Create buffers once and launch one VTK process for all interactions."""
+        """Tạo bộ đệm một lần rồi khởi chạy một tiến trình VTK cho cả phiên tương tác."""
         if self._proc is not None:
             raise RuntimeError('Client already running')
         self._responses = queue.Queue(maxsize=8)
@@ -106,7 +106,7 @@ class ResidentRenderClient:
         return tuple(self._errors)
 
     def request(self, op: str, **kwargs) -> dict[str, Any]:
-        """One in-flight command; fail closed on timeout or broken child pipe."""
+        """Mỗi thời điểm một lệnh đang xử lý; thất bại an toàn khi timeout hoặc đứt pipe."""
         with self._lock:
             if self._proc is None or self._proc.poll() is not None or self._proc.stdin is None:
                 raise RenderHostError('HOST_NOT_RUNNING')
@@ -189,7 +189,7 @@ class ResidentRenderClient:
 
     def open_source(self, path: os.PathLike | str,
                     expected_sha256: str | None = None) -> dict[str, Any]:
-        # R5.1 scene loader; legacy open_ply remains vertex-only.
+        # Bộ đọc hình học R5.1; lệnh open_ply đời cũ vẫn chỉ đọc đỉnh.
         from ...application.scene_contracts import SceneSource
         source = SceneSource(os.fspath(path), expected_sha256)
         self._last_frame = None

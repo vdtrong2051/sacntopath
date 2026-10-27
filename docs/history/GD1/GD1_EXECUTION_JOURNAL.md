@@ -1,23 +1,42 @@
-# GĐ1 — Nhật ký thực thi, hồi quy và UX rebaseline
+# GĐ1 — Nhật ký triển khai và những lần kiểm thử
 
-**Lập ngày:** 27/10/2026. **Nhánh:** `feat/gd1-desktop-ui`. **R7 baseline:** `ff45ccf87ce770e25eedf6e12df6bb5aaa958734`. Nguồn chủ yếu là docs Git + log PowerShell người vận hành; ghi `HISTORY_INCOMPLETE` khi thiếu từng attempt.
+**Mốc tài liệu:** R7-C, sau commit R7-B `f923d1e`. **Phân loại nguồn:** commit/tài liệu Git = `XAC_MINH_GIT`, log PowerShell dán trong trao đổi = `NGUOI_VAN_HANH_BAO_CAO`. Không tự lập số lần thử chưa có dữ liệu.
 
-| Mốc | Phạm vi / kết quả | Trạng thái và carry-over |
+## 1. Chuỗi triển khai
+
+| Phiên | Nội dung đã triển khai | Điều cần nhớ khi bảo trì |
 |---|---|---|
-| 06–07 / 07.11–07.12 | Shell, SQLite metadata/RAW workspace, split controllers; hardening static boundaries | Đã có architecture guard và quality gate, không là chứng minh SOLID hoàn hảo |
-| 08 đầu tiên | PLY preview và HMI, lỗi in-process VTK/Qt | Rebaseline bắt buộc do crash/lifecycle, 1–3s/gesture theo hồ sơ trước R4 |
-| R1–R3.5 | Audit UX, compact shell, Project, Inspector, processing workspace | Nhóm thay đổi HMI; attempts rải trong `_setup`, cần bổ sung evidence nếu audit hoàn chỉnh |
-| R4.1–R4.5 | PoC isolated resident vs embedded, shared frame/ACK, benchmark; ADR B conditional | Native crash C++/GPU real/display latency chưa được chứng minh đầy đủ |
-| R5.1 | Typed Scene geometry PLY point/faces + OBJ | Không có camera scan→mesh tự động |
-| R5.2 | Qt live viewer, source swap / retry / PNG fallback | Inc R5.2 shell 511 > 500 → regression repair; HMI operator báo tương tác mượt |
-| R5.3 attempt A | Picker, tools text; focused 8 PASS/1 FAIL (fixture chưa có frame) | INC-GD1-R5-001: test và UX chưa đạt; không commit |
-| R5.3 attempt B | SVG, XY grid, orientation corner, Inspector X/Y/Z; 16 focused PASS; full 617 PASS/1 FAIL/3 SKIP | INC-GD1-R5-002: R5.2 brittle source-string test, sửa compat, không xóa regression |
-| R5.3 accepted | Commit `ff45ccf`, UI operator báo OK | Cần R6 HMI/DPI rộng hơn; không coi acceptance cảm quan là HMI 100/125/150 bằng chứng |
-| R6 attempt A | All subprocess FAIL do PowerShell tự động `$args`; receipts thiếu theo hệ quả | INC-GD1-R6-RUNNER-001; **không phải thất bại của code ScanToPath** |
-| R6 attempt B | Python thực 618 PASS/3 SKIP, CTest thiếu `-C Release`, exit_code reporter blank | INC-GD1-R6-RUNNER-002; kết quả thất bại thuộc harness |
-| R6 attempt C | 14/14 automated PASS, 618/3, CTest 2/2, native probe+benchmark PASS, Git sạch | **R6_AUTOMATED_PASS**, tổng thể **PENDING** do các gate khác |
-| R7 | Chuẩn hóa comment module, canonical docs, history, docs gate; không thay đổi runtime | PENDING cho đến Windows verify + commit |
+| 06–07, 07.11–07.12 | Qt shell, Project/SQLite/RAW, phân tách controller và quy tắc dependency | Architecture Guard/Quality Gate là kiểm tra tĩnh, không phải chứng minh toàn diện SOLID |
+| 08 đầu | PLY/VTK preview; sửa lỗi khi tương tác hoặc đóng tiến trình | Sự cố UI/native đã dẫn đến quyết định tái kiến trúc; đừng dùng kết quả preview làm kết quả live hiện tại |
+| R1–R3.5 | Compact navigation, Project Workspace, Inspector, Processing Workspace | Những lần HMI sớm không thay cho HMI R6 trên các mức DPI |
+| R4.1–R4.5 | So sánh VTK nhúng và VTK ở tiến trình riêng, IPC và shared RGB frame/ACK | Chọn Render Host B **có điều kiện**, chưa đo FPS hiển thị/VRAM hay crash C++ thật |
+| R5.1 | PLY points/mesh, OBJ và SHA nguồn | Nhập file ngoài; không phải pipeline biến ảnh RAW thành hình học |
+| R5.2 | Live Qt viewer, đổi nguồn, retry và fallback PNG | Có sửa regression giới hạn dòng `main_window.py` |
+| R5.3 | Picker điểm/mặt, SVG, grid, Inspector, thao tác chuột | Giữ giới hạn revision và clear selection; có 2 lỗi test được sửa trước commit |
+| R6 | Kiểm thử tự động tích hợp | 14/14 PASS theo operator; **R6 tổng thể còn PENDING** |
+| R7-A | Kiểm kê toàn bộ tài liệu hiện có | Commit `8e37eba` sau lần kiểm kê 91 file |
+| R7-B | Tổ chức tài liệu tiếng Việt, archive và chuyển hướng | Commit `f923d1e`; giữ các đường dẫn tương thích mà test cũ sử dụng |
+| R7-C | Nhật ký/sự cố và chú thích mã nguồn | Gói tài liệu/comment, chưa tự chứng minh hồi quy Windows PASS |
 
-**Log không nhét vào Git:** `_setup/ScanToPath_R6_Auto_Acceptance/evidence/R6_20261027T150605Z_19408` (operator báo, R7 không sở hữu dữ liệu trong đó). Bằng chứng cũ `_setup` không được tự suy đoán đã đầy đủ.
+## 2. Các lượt thử không được xóa
 
-**Open acceptance:** [R6 matrix](../../acceptance/GD1_R6_ACCEPTANCE_STATUS.md). **Sự cố:** [register](INCIDENT_REGISTER.md). **Tài liệu nền:** [R4.5](../../archive/GD1/R1-R5/R4_05_R5_HANDOVER_GATES.md), [R5.3](../../archive/GD1/R1-R5/R5_03_INTERACTION_INSPECTOR_UX.md).
+| Lượt thử | Dấu hiệu trên log | Diễn giải đúng | Trạng thái tiếp theo |
+|---|---|---|---|
+| R5.3 ban đầu | 8 PASS, 1 FAIL: `test_r53_live_click_emits_uv_only_in_select_mode` | Fixture thiếu frame đã nhận ACK, đồng thời UI chưa đạt yêu cầu sử dụng | Sửa fixture, giữ no-frame guard, rework giao diện |
+| R5.3 UI rework | 16 focused PASS; full 617 PASS, 1 FAIL, 3 SKIP | Bài R5.2 kiểm chuỗi constructor cũ không khớp lớp kế thừa | Sửa alias tương thích, không tắt test |
+| R5.3 sau sửa | Commit `ff45ccf` | Git đã nhận mã nguồn R5.3 | HMI chuyên sâu chuyển R6 |
+| R6 attempt 1 | Mọi subprocess FAIL trước khi chạy thực | `$args` đụng biến tự động PowerShell, các lỗi thiếu receipt chỉ là hệ quả | Vá runner; **không gán lỗi cho ScanToPath** |
+| R6 attempt 2 | Pytest 618 PASS/3 SKIP nhưng runner ghi FAIL; CTest thiếu cấu hình | Exit code rỗng và CTest thiếu `-C Release` | Vá runner, không sửa source sản phẩm |
+| R6 attempt 3 | 14/14 PASS, 618 PASS/3 SKIP, CTest 2/2, native Viewer và benchmark PASS | Log người vận hành, evidence `_setup/ScanToPath_R6_Auto_Acceptance/evidence/R6_20261027T150605Z_19408` | Đóng riêng phần **tự động**; tổng thể PENDING |
+
+## 3. Những điều còn mở
+
+**Chưa được xác nhận bằng phép thử phù hợp:** các DPI 100/125/150%, đóng khi native đang thực sự bận, tiêm lỗi C++ thực, GPU/VRAM, thời gian từ thao tác đến hiện trên màn hình. Thử kill tiến trình và benchmark render không chứng minh những việc này.
+
+Ba `SKIP` quyền tạo symlink trên Windows: `tests/test_gd1_07_2_numbered_storage.py`, `tests/test_gd1_r4_3_transport_lifecycle.py`, `tests/test_raw_storage.py`. Đây là **ngoại lệ có giải thích**, không phải ba nhánh bảo vệ đã được kiểm thử.
+
+## 4. Nguồn chi tiết
+
+- [Sổ sự cố](INCIDENT_REGISTER.md) · [Nghiệm thu R6](../../acceptance/GD1_R6_ACCEPTANCE_STATUS.md) · [Nhật ký tổng](../DEVELOPMENT_MASTER_LOG.md).
+- [Hồ sơ R5.3](../../archive/GD1/R1-R5/R5_03_INTERACTION_INSPECTOR_UX.md) · [R4.5 bàn giao](../../archive/GD1/R1-R5/R4_05_R5_HANDOVER_GATES.md) · [Kho lưu trữ](../../archive/README.md).
+- **CHƯA ĐỦ LỊCH SỬ:** tổng số lần thay đổi và thời gian từng attempt R1–R4 nếu không có nhật ký đầy đủ; không ước đoán.

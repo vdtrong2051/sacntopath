@@ -1,4 +1,4 @@
-"""Bounded request/response contracts for the R4.1 standalone renderer."""
+"""Hợp đồng yêu cầu/phản hồi IPC có giới hạn cho Render Host tách tiến trình."""
 from __future__ import annotations
 import json
 from typing import Any
@@ -9,7 +9,7 @@ MAX_SIZE = 1024
 
 
 def decode_request(raw: bytes) -> dict[str, Any]:
-    """Reject incomplete/oversized/ambiguous commands before dispatching to VTK."""
+    """Từ chối lệnh thiếu, quá kích thước hoặc nhập nhằng trước khi giao cho VTK."""
     if not raw.endswith(b'\n') or len(raw) > MAX_MESSAGE_BYTES:
         raise ValueError('INVALID_LINE')
     try:

@@ -1,7 +1,7 @@
-"""Crash-conscious capture store: per-capture atomic directory commit.
+"""Lưu capture theo thư mục tạm và công bố có kiểm soát.
 
-A rename is atomic only inside the same filesystem. We use a staging sibling,
-flush files, then rename. This does not claim power-loss durability on every FS.
+Đổi tên thư mục chỉ nguyên tử trong cùng hệ tệp: ghi vào thư mục tạm bên cạnh,
+đẩy dữ liệu xuống hệ tệp rồi đổi tên. Không bảo đảm chống mất điện trên mọi ổ đĩa.
 """
 from pathlib import Path
 import json
@@ -105,7 +105,7 @@ class SessionStore:
         return meta, depth, rgb
 
 
-    # PRE-03: v2 RAW persistence. The v1 commit()/read() APIs above are unchanged.
+    # PRE-03: lưu RAW v2; giao diện commit()/read() của v1 ở phía trên vẫn được giữ nguyên.
     _RAW_FILES = frozenset({"color.mjpg", "depth.y16", "metadata.json"})
     _RAW_DIRECTORY_FILES = _RAW_FILES | {"manifest.json", "COMMITTED"}
 
@@ -192,9 +192,9 @@ class SessionStore:
                 partial / "manifest.json",
                 (json.dumps(manifest, ensure_ascii=False, sort_keys=True, indent=2) + "\n").encode("utf-8"),
             )
-            # Incomplete directories lack the public COMMITTED marker.
+            # Thư mục ghi dở không có dấu COMMITTED để được công bố như capture hoàn chỉnh.
             self._write_bytes(partial / "COMMITTED", b"1\n")
-            # On Windows, rename will not overwrite an existing directory.
+            # Trên Windows, phép đổi tên thư mục không tự ghi đè đích đang tồn tại.
             if destination.exists() or destination.is_symlink():
                 raise FileExistsError(f"Capture already exists: {capture_id}")
             partial.rename(destination)
@@ -210,8 +210,8 @@ class SessionStore:
         attacker who can edit both payloads and manifest.
         """
         supplied = Path(path)
-        # Prevent a caller from selecting a capture outside the configured store
-        # and prevent symlink redirection within the capture directory.
+        # Không cho người gọi chọn capture nằm ngoài kho đã cấu hình;
+        # đồng thời từ chối chuyển hướng bằng symbolic link trong thư mục capture.
         location = supplied.resolve(strict=True)
         if location != supplied.absolute():
             raise ValueError("RAW capture path must not use symlinks or traversal")
@@ -303,7 +303,7 @@ class SessionStore:
         capture_dir = Path(path)
         if not (capture_dir / "COMMITTED").is_file():
             raise ValueError("Capture not committed")
-        # Only version discovery here; v2 performs full metadata hash checking.
+        # Tại đây chỉ nhận diện phiên bản; RAW v2 còn phải kiểm tra toàn bộ hash metadata.
         with (capture_dir / "metadata.json").open("r", encoding="utf-8") as stream:
             version = json.load(stream).get("schema_version")
         if type(version) is not int:

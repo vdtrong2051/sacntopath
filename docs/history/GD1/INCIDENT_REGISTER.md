@@ -1,23 +1,58 @@
-# GĐ1 — Danh mục sự cố và bài học được bảo toàn (R7)
+# GĐ1 — Sổ sự cố kỹ thuật
 
-**Phân lớp chứng cứ:** nhật ký Windows do operator cung cấp = `OPERATOR_REPORTED`; commit/docs trên GitHub = `VERIFIED`. Root cause chỉ ghi chắc chắn nếu log/hành vi trực tiếp hỗ trợ. Số attempt tổng thể cho các giai đoạn cũ có thể `HISTORY_INCOMPLETE`.
+**Bản R7-C:** giữ nguyên mã sự cố đã tồn tại; phân biệt lỗi chương trình với lỗi công cụ kiểm thử. Nguyên nhân chưa chứng minh thì ghi **CHƯA XÁC NHẬN**, không chuyển thành kết luận.
 
-| ID | Triệu chứng và nguyên nhân | Cách giải quyết / kiểm chứng | Phòng ngừa |
-|---|---|---|---|
-| INC-GD1-07-ARCH | 07.11/07.12 refactor: Windows `python -c` quoting, QObject parent/relative import, harness kiểm thử lặp lỗi theo risk register; chi tiết attempt `HISTORY_INCOMPLETE` | [07.12 risk register](../../archive/GD1/07/07_12_CONSOLIDATION_RISK_REGISTER.md) | Tránh `python -c` phức tạp, test import Qt ở cây thật, kiểm tra lifecycle |
-| INC-GD1-08-VTK | Qt/VTK in-process crash, lỗi lifecycle | [08.02 crash repair](../../archive/GD1/08/08_02_CRASH_REPAIR.md); R4 chọn B isolated có điều kiện | Native fault isolation + GUI process survival |
-| INC-GD1-R5-001 | `test_r53_live_click_emits_uv_only_in_select_mode`: `_ready_tools` cần frame đã ACK, fixture để revision=-1; cùng lúc UI chỉ chữ, thao tác khó | Rework fixture có frame hợp lệ, giữ no-frame guard, toolbar SVG; focused 16 PASS theo operator | Test event lifecycle thực và HMI, không tháo chốt an toàn |
-| INC-GD1-R5-002 | Full R5.3 617 PASS, 1 FAIL: R5.2 test kiểm chuỗi `LiveViewer3DController(` trong bootstrap khi R5.3 dùng subclass | Compatibility repair trong factory; không sửa test cũ; R6 sau đó full 618 PASS | R8 thay brittle string assertion bằng kiểm tra hành vi/contract |
-| INC-GD1-R5-003 | R5.2 shell 511 dòng vượt giới hạn `<500`, full regression 2 FAIL | Tách bootstrap, sửa deprecated `QImage.mirrored`, focused/legacy sau sửa | Giữ composition root gọn; tránh chất thêm logic vào shell |
-| INC-GD1-R6-RUNNER-001 | R6 đầu tiên: `Start-Process -ArgumentList` nhận NULL vì tham số hàm tên `$args` đụng biến tự động PowerShell | Vá runner, lần kế tiếp subprocess đã chạy; khẳng định nguyên nhân từ script | Không dùng automatic variables làm tham số PS; unit test wrapper thật trên PS 5.1 |
-| INC-GD1-R6-RUNNER-002 | R6 lần 2: chương trình in PASS nhưng status FAIL/`exit_code` trống; CTest báo `Missing -C <config>` | Dùng `.ExitCode` thực, `ctest -C Release`; lượt kế 14/14 PASS | Kiểm thử exit-code zero/nonzero, loại generator multi-config |
+## 1. Danh mục
 
-## Rủi ro không được biến thành incident đã xảy ra
+| Mã sự cố | Triệu chứng | Phân loại | Kết quả đã ghi nhận | Rủi ro còn lại |
+|---|---|---|---|---|
+| `INC-GD1-07-ARCH` | Lỗi quoting PowerShell/Qt QObject/import trong đợt 07.11–07.12 | Công cụ và ranh giới kiến trúc | Có Architecture Guard 07.11, Quality Gate 07.12; R6 đều PASS | Không chứng minh tất cả tương tác bất đồng bộ |
+| `INC-GD1-08-VTK` | Qt/VTK cùng tiến trình không ổn định | Vòng đời native/Qt | R4.5 chọn Render Host riêng, có điều kiện | Chưa thực hiện crash-injection C++ thật |
+| `INC-GD1-R5-003` | File Qt shell vượt giới hạn 500 dòng; cảnh báo Qt image API | Hồi quy cấu trúc | Tách bootstrap, sửa gọi API và hồi quy theo log R5.2 | Cần giữ giới hạn khi bổ sung UI |
+| `INC-GD1-R5-001` | R5.3 chọn hình học báo FAIL khi fixture chưa có frame hợp lệ | Bài kiểm thử và UX | Sửa fixture, giữ chốt từ chối khi chưa có frame; 16 focused PASS | Cần HMI thật cho thao tác người dùng |
+| `INC-GD1-R5-002` | Full R5.3 617 PASS, 1 FAIL do test dò chuỗi `LiveViewer3DController(` | Bài kiểm thử phụ thuộc mã nguồn | Dùng alias tương thích lớp tương tác; R6 full pytest 618 PASS | R8 nên kiểm tra hợp đồng thực thay vì chuỗi |
+| `INC-GD1-R6-RUNNER-001` | Mọi chương trình R6 không khởi chạy, `ArgumentList` rỗng | **Lỗi runner**, không phải app | Sửa tham số `$args` xung đột biến tự động của PowerShell | Cần test runner trong PowerShell 5.1 |
+| `INC-GD1-R6-RUNNER-002` | Chương trình in PASS nhưng runner ghi FAIL; CTest thiếu cấu hình | **Lỗi runner**, không phải app | Lấy mã thoát trực tiếp và dùng `ctest -C Release`; 14/14 cổng tự động PASS | Luôn kiểm tra exit code/receipt |
 
-- `AR-03` / close while genuine native busy: **NOT_TESTED**, không phải crash đã tái hiện. Controlled process `SIGTERM` hoặc `kill()` **không bằng** native C++ segfault.
-- GPU/VRAM & physical present latency: **NOT_MEASURED**; benchmark completed-render và Qt frame copy không thay số đo hiển thị.
-- Quyền tạo symlink trên Windows: 3 skipped; không ghi thành PASS cho đường tấn công symlink.
+## 2. Chuỗi bằng chứng và cách phòng ngừa
 
-## Quy tắc bản ghi sự cố mới
+### `INC-GD1-07-ARCH`
 
-Bản ghi sau này phải gồm `incident_id`, `symptom`, `first_seen`, `root_cause_status`, `attempts` (kèm report path), `resolution`, `linked_regression`, `prevention`, `unverified_scope`. Nếu không có bằng chứng, dùng `HISTORY_INCOMPLETE`/`UNCONFIRMED`, không tự sinh số attempt.
+Hồ sơ [07.12 — rủi ro hợp nhất](../../archive/GD1/07/07_12_CONSOLIDATION_RISK_REGISTER.md) ghi nhận tình huống quote trong `python -c` trên Windows và ranh giới import, QObject. Nguyên nhân chi tiết của *mọi* attempt **CHƯA ĐỦ LỊCH SỬ**. Phòng ngừa: dùng script `.py` cho lệnh dài, kiểm tra import/lifecycle bằng test Windows thật.
+
+### `INC-GD1-08-VTK`
+
+Xem [08.02 — sửa crash](../../archive/GD1/08/08_02_CRASH_REPAIR.md) và [R4.5 — quyết định kiến trúc](../../archive/GD1/R1-R5/R4_05_RENDERER_ARCHITECTURE_DECISION.md). Tách renderer khỏi GUI làm giảm khả năng một lỗi renderer giết trực tiếp Qt; **không chứng minh** mọi crash native thực đều đã được xử lý. Cần phép thử có kiểm soát ngoài tiến trình Qt.
+
+### `INC-GD1-R5-003`
+
+Log R5.2 ghi nhận `main_window.py` vượt giới hạn dòng và cảnh báo API ảnh Qt; đã tách phần khởi tạo Viewer ra khỏi shell, giữ khả năng tương thích. Phòng ngừa: giữ composition root gọn, mỗi module một trách nhiệm. Số lần sửa trước PASS chưa có thống kê đầy đủ.
+
+### `INC-GD1-R5-001`
+
+Test `test_r53_live_click_emits_uv_only_in_select_mode` chưa cấp frame đã xác nhận nên `_ready_tools()` từ chối chọn là **đúng chốt an toàn**. Sửa test fixture chứ không tháo chốt. Cùng đợt cải tiến toolbar SVG, lưới và Inspector; log người vận hành báo các focused test PASS.
+
+### `INC-GD1-R5-002`
+
+Test R5.2 dò chữ trong `viewer_bootstrap.py`, trong khi R5.3 khởi tạo lớp kế thừa. Bản vá dùng alias thật trỏ tới `InteractiveViewer3DController`; không đánh lừa bằng chuỗi comment. Sự cố đã được hồi quy xác nhận qua R6, nhưng test kiểm chuỗi vẫn là khoản nợ cần đánh giá ở R8.
+
+### `INC-GD1-R6-RUNNER-001`
+
+Tham số tên `$args` va chạm biến tự động PowerShell; mọi lệnh con dừng trước pytest/CTest, kéo theo thiếu receipt. Sau sửa, các lệnh thực thi đã chạy. **Không** ghi các FAIL giả ban đầu thành lỗi module Python/C++.
+
+### `INC-GD1-R6-RUNNER-002`
+
+Bản runner tiếp theo không lấy được exit code (trống), và CTest không dùng `-C Release` cho build multi-config. Sau sửa, đối chiếu `Process.ExitCode` của tiến trình; log R6 báo 14/14 PASS, 618 Python PASS/3 SKIP, CTest 2/2; vẫn chưa phải PASS tổng thể HMI.
+
+## 3. Những điều không được liệt kê là sự cố đã phát sinh
+
+| Rủi ro | Trạng thái đúng |
+|---|---|
+| Đóng cửa sổ khi native C++ **thực sự bận** | `NOT_TESTED` theo phạm vi R6 |
+| Tiêm lỗi C++ thực | `NOT_TESTED`; kill/SIGTERM chỉ là kết thúc có kiểm soát |
+| GPU/VRAM, độ trễ hiển thị vật lý | `NOT_MEASURED`/thiếu đo |
+| Symlink privilege Windows | Ba bài SKIP, không là chứng nhận bảo vệ symlink |
+
+## 4. Quy tắc thêm sự cố
+
+Dùng [quy tắc ghi nhật ký](../QUY_UOC_GHI_NHAT_KY.md). Một sự cố mới cần ID, ngày/nguồn, triệu chứng, phân loại, nguyên nhân và **mức xác nhận**, từng attempt thực tế, bản sửa, kiểm thử sau sửa, giới hạn còn mở và phòng ngừa. Nếu chỉ là kế hoạch phép thử, không cấp ID *incident đã xảy ra*.

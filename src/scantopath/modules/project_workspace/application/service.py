@@ -1,8 +1,8 @@
-"""07.11: stable public facade over small feature use-case services.
+"""07.11: giao diện dịch vụ Project ổn định trên các nhóm tác vụ nhỏ.
 
-Only explicit construction probes an existing SQLite store; ordinary imports
-load no Qt, camera, SQLite connection or RAW payload. Application logic is
-split by responsibility; concrete defaults live in feature infrastructure.
+Chỉ khi khởi tạo tường minh mới kiểm tra kho SQLite hiện có; thao tác import
+không tự mở Qt, camera, kết nối SQLite hay dữ liệu RAW. Mỗi nhóm tác vụ có
+trách nhiệm riêng, còn triển khai mặc định nằm ở tầng infrastructure.
 """
 from __future__ import annotations
 from pathlib import Path
@@ -24,8 +24,8 @@ class ProjectWorkspaceService:
     def __init__(self, root: str | Path, *,
                  metadata_factory: Callable[[Path], object] | None = None,
                  registry_factory: Callable[[Path], object] | None = None) -> None:
-        # A compatibility bootstrap only: explicit adapter dependency is supplied
-        # by the composition root in future modules. Do not import on UI startup.
+        # Điểm ghép tương thích: phần triển khai adapter được cung cấp ở lớp ghép ứng dụng.
+        # Không nạp hoặc khởi tạo kho dữ liệu chỉ vì giao diện Qt khởi động.
         from ..infrastructure.sqlite_backend import (
             default_factories, probe_existing, safe_raw_path,
         )

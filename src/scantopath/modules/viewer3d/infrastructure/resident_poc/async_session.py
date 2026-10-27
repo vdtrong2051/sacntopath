@@ -1,7 +1,7 @@
-"""R4.3 bounded, Qt-independent resident renderer scheduler.
+"""Bộ điều phối Render Host R4.3 độc lập Qt và có giới hạn hàng đợi.
 
-The worker owns the child process. Camera inputs coalesce into one absolute
-CameraView; each completed RGB frame is copied and ACKed before the next render.
+Luồng worker sở hữu tiến trình con. Các lệnh camera được gộp vào CameraView
+đích; frame RGB được sao chép rồi ACK trước khi Render Host ghi frame tiếp theo.
 """
 from __future__ import annotations
 
@@ -29,10 +29,10 @@ class FrameSnapshot:
 
 
 class CoalescingRenderSession:
-    """Async proof-of-concept; never call worker I/O on Qt's GUI thread.
+    """Điều phối I/O Render Host ở luồng riêng, không chặn luồng giao diện Qt.
 
-    Commands: bounded FIFO for scene lifecycle; latest-wins absolute camera.
-    Frames: one immutable snapshot, older frames dropped when consumer is slow.
+    Lệnh vòng đời scene dùng FIFO giới hạn; camera dùng trạng thái mới nhất.
+    Hàng đợi frame chỉ giữ một bản sao bất biến, bỏ frame cũ nếu bên nhận chậm.
     """
 
     def __init__(self, width: int = 320, height: int = 240, *, timeout: float = 30.0):
@@ -91,7 +91,7 @@ class CoalescingRenderSession:
         return self._queue_command('open', str(source))
 
     def open_source(self, path: str | Path, expected_sha256: str | None = None) -> Future:
-        # Queue geometry load for PLY points/mesh or OBJ.
+        # Xếp lệnh nạp hình học PLY điểm/mesh hoặc OBJ vào hàng đợi worker.
         from ...application.scene_contracts import SceneSource
         source = Path(path)
         if (not source.is_absolute() or source.is_symlink() or not source.is_file() or
@@ -102,9 +102,9 @@ class CoalescingRenderSession:
 
     def pick(self, u: float, v: float, scene_revision: int,
              frame_revision: int) -> Future:
-        """Bounded worker request; never block Qt or accept a pending camera."""
+        """Yêu cầu chọn hình học có giới hạn; không chặn Qt hoặc chấp nhận camera còn chờ."""
         from .protocol import decode_request, encode_response
-        # Validate at the source and again inside the isolated host.
+        # Kiểm tra dữ liệu từ nơi gọi và lặp lại ở tiến trình Render Host cô lập.
         decode_request(encode_response({'id': 1, 'op': 'pick', 'u': u, 'v': v,
                                          'scene_revision': scene_revision,
                                          'frame_revision': frame_revision}))

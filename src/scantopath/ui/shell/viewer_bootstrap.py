@@ -1,7 +1,7 @@
-"""Lazy R5.2 Viewer composition; native VTK never runs in the Qt process.
+"""Khởi tạo Viewer theo nhu cầu, không chạy VTK native trong tiến trình Qt.
 
-The desktop composition layer owns the choice between the accepted legacy PNG
-controller for Qt offscreen tests and the isolated resident renderer on Windows.
+Khi Qt offscreen/minimal, sử dụng bộ xem trước PNG tương thích; trên giao diện
+Windows thật, dùng Render Host cô lập với bộ điều khiển tương tác R5.3.
 """
 from __future__ import annotations
 
@@ -11,8 +11,8 @@ def create_viewer_controller(parent):
     if QGuiApplication.platformName().lower() in ('offscreen', 'minimal'):
         from scantopath.modules.viewer3d.presentation.controller import Viewer3DController
         return Viewer3DController(parent)
-    # R5.3 is a compatible subclass of R5.2 LiveViewer3DController.
-    # Keep the R5.2 composition constructor contract without changing runtime type.
+    # Bộ điều khiển R5.3 kế thừa lớp live R5.2; tên alias giữ hợp đồng khởi tạo
+    # mà bài kiểm thử tương thích R5.2 vẫn yêu cầu, không đổi loại đối tượng thật.
     from scantopath.modules.viewer3d.presentation.interactive_controller import (
         InteractiveViewer3DController as LiveViewer3DController,
     )
