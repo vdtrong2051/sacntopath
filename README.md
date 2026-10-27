@@ -1,5 +1,7 @@
 # ScanToPath 2026 — Engineering 3D Reconstruction Desktop
 
+**GĐ1 hiện hành (R7, 27/10/2026):** [Tài liệu GĐ1 hiện hành](docs/INDEX.md) ghi kiến trúc Viewer/Project sau R5.3, lịch sử sửa lỗi, và ma trận R6. R6 tự động 14/14 PASS theo log người vận hành; R6 tổng thể vẫn PENDING. Các mục GĐ0 và kế hoạch bên dưới là mốc lịch sử theo thời điểm soạn README.
+
 **Trạng thái:** GĐ0 (Software Skeleton + Gemini 2 RAW/metadata) đã merge vào `main` qua [PR #3](https://github.com/vdtrong2051/sacntopath/pull/3), commit `8bf33591389dcdff82f0fbd5bf5932a22547c984`. Sau GĐ0 phát triển theo **UI-first + vertical slices**, roadmap mới có đối chiếu và kho lưu bản cũ.
 
 **Tài liệu bắt đầu:** [ROADMAP](docs/ROADMAP.md) · [ARCHITECTURE](docs/ARCHITECTURE.md) · [Công nghệ](docs/roadmap/TECHNOLOGY_SCOPE.md) · [Ánh xạ phiên cũ/mới](docs/roadmap/SESSION_CROSSWALK.md) · [ADR-001 UI-first](docs/decisions/ADR_001_UI_FIRST.md) · [Bản cũ](docs/roadmap/ROADMAP_V1_ARCHIVED.md).

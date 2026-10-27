@@ -1,7 +1,8 @@
-"""R5.3 native point/face selection, localized controls, Inspector events.
+"""Qt presentation controller for live 3D tools and source-backed selections.
 
-Extends the R5.2 live controller without importing VTK or infrastructure.
-Only immutable scene data and bounded asynchronous requests cross the boundary.
+Inherits the live controller; native VTK stays in an isolated subprocess.
+Only results for the active source and scene may reach the Inspector;
+displayed coordinates are not independently verified metric measurements.
 """
 from __future__ import annotations
 

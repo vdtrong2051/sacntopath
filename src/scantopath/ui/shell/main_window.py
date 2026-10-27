@@ -1,7 +1,7 @@
-"""GĐ1 — Desktop Qt composition root, current light HMI.
+"""Qt desktop composition root for workspaces and their feature controllers.
 
-Project Workspace is delegated to its feature controller. Persistence is never
-loaded automatically at startup; no native camera/VTK activation here.
+Project persistence opens by explicit user action, not at startup. The 3D feature starts its resident VTK renderer in a separate child process;
+this Qt shell never imports the VTK runtime or activates the camera.
 """
 from __future__ import annotations
 
