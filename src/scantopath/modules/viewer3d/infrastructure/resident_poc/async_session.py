@@ -100,6 +100,29 @@ class CoalescingRenderSession:
         dto = SceneSource(str(source), expected_sha256)
         return self._queue_command('open_scene', dto)
 
+    def pick(self, u: float, v: float, scene_revision: int,
+             frame_revision: int) -> Future:
+        """Bounded worker request; never block Qt or accept a pending camera."""
+        from .protocol import decode_request, encode_response
+        # Validate at the source and again inside the isolated host.
+        decode_request(encode_response({'id': 1, 'op': 'pick', 'u': u, 'v': v,
+                                         'scene_revision': scene_revision,
+                                         'frame_revision': frame_revision}))
+        with self._cv:
+            if not self._active or self._wanted_revision != self._sent_revision:
+                raise ValueError('CAMERA_NOT_SETTLED')
+        return self._queue_command('pick', (u, v, scene_revision, frame_revision))
+
+    def set_grid(self, enabled: bool, mode: str = 'xy') -> Future:
+        if type(enabled) is not bool or mode not in ('xy', 'base'):
+            raise ValueError('INVALID_REFERENCE_GRID')
+        return self._queue_command('grid', (enabled, mode))
+
+    def set_visibility(self, visible: bool) -> Future:
+        if type(visible) is not bool:
+            raise ValueError('INVALID_LAYER_VISIBILITY')
+        return self._queue_command('visibility', visible)
+
     def close_scene(self) -> Future:
         return self._queue_command('close_scene')
 
@@ -179,6 +202,22 @@ class CoalescingRenderSession:
                         raise
                     with self._cv:
                         self._active = True
+                    current.set_result(response)
+                elif op == 'pick':
+                    u, v, scene_revision, frame_revision = value
+                    current.set_result(self._client.request(
+                        'pick', u=u, v=v, scene_revision=scene_revision,
+                        frame_revision=frame_revision))
+                elif op == 'grid':
+                    enabled, mode = value
+                    response = self._client.request('set_grid', enabled=enabled, mode=mode)
+                    descriptor, rgb = self._client.copy_ack_frame()
+                    self._publish_frame(descriptor, rgb, revision)
+                    current.set_result(response)
+                elif op == 'visibility':
+                    response = self._client.request('set_visibility', visible=value)
+                    descriptor, rgb = self._client.copy_ack_frame()
+                    self._publish_frame(descriptor, rgb, revision)
                     current.set_result(response)
                 elif op == 'close_scene':
                     response = self._client.request('close_scene')

@@ -41,6 +41,10 @@ class PersistentScene:
         self._glyph = None
         self._reader = None
         self._loaded = None
+        self.grid_actor = None
+        self.grid_enabled = False
+        self.grid_mode = 'xy'
+        self._orientation_renderer = None
 
     def _ensure_renderer(self) -> None:
         if self.window is not None:
@@ -63,6 +67,13 @@ class PersistentScene:
                 self.renderer.RemoveActor(self.axes_actor)
             if self.actor is not None:
                 self.renderer.RemoveActor(self.actor)
+        if self.renderer is not None and self.grid_actor is not None:
+            self.renderer.RemoveActor(self.grid_actor)
+        self.grid_actor = None
+        self.grid_enabled = False
+        self.grid_mode = 'xy'
+        if self._orientation_renderer is not None:
+            self._orientation_renderer.DrawOff()
         self.axes_actor = self.actor = self._glyph = self._reader = self._loaded = None
         self.source = None
         self.source_sha256 = None
@@ -91,6 +102,13 @@ class PersistentScene:
             raise ValueError('MESH_DEFERRED_R5_1')
         self.renderer.AddActor(loaded.actor)
         self._loaded = loaded
+        if not legacy:
+            self.grid_enabled = True
+            self.grid_mode = 'xy'
+            self._build_reference_grid()
+            self._ensure_orientation_marker()
+        elif self._orientation_renderer is not None:
+            self._orientation_renderer.DrawOff()
         self._reader = loaded.reader
         self._glyph = loaded.glyph
         self.actor = loaded.actor
@@ -109,11 +127,170 @@ class PersistentScene:
                 'units': d.units, 'coordinate_frame': d.coordinate_frame,
                 'geometry_kind': d.geometry_kind}
 
+    def _build_reference_grid(self) -> None:
+        """Reference-only XOY lines: never considered measured/calibrated geometry."""
+        if self.renderer is None or self._loaded is None:
+            return
+        if self.grid_actor is not None:
+            self.renderer.RemoveActor(self.grid_actor)
+            self.grid_actor = None
+        import math
+        from vtkmodules.vtkCommonCore import vtkPoints
+        from vtkmodules.vtkCommonDataModel import vtkPolyData, vtkCellArray
+        from vtkmodules.vtkRenderingCore import vtkActor, vtkPolyDataMapper
+        bounds = self._loaded.descriptor.bounds
+        xmin, xmax, ymin, ymax, zmin, _ = bounds
+        span = max(xmax-xmin, ymax-ymin, 1.e-6)
+        target = span / 12.0
+        exponent = math.floor(math.log10(target))
+        scale = 10.0**exponent
+        step = min((scale, 2*scale, 5*scale, 10*scale), key=lambda s: abs(s-target))
+        center_x = (xmin+xmax)/2.0
+        center_y = (ymin+ymax)/2.0
+        anchor_x = round(center_x/step)*step
+        anchor_y = round(center_y/step)*step
+        x0, x1 = anchor_x-10*step, anchor_x+10*step
+        y0, y1 = anchor_y-10*step, anchor_y+10*step
+        z = 0.0 if self.grid_mode == 'xy' else zmin
+        points = vtkPoints()
+        lines = vtkCellArray()
+        for i in range(-10, 11):
+            x = anchor_x + i*step
+            for a, b in (((x,y0,z),(x,y1,z)),
+                         ((x0,anchor_y+i*step,z),(x1,anchor_y+i*step,z))):
+                start = points.InsertNextPoint(*a)
+                end = points.InsertNextPoint(*b)
+                lines.InsertNextCell(2)
+                lines.InsertCellPoint(start)
+                lines.InsertCellPoint(end)
+        poly = vtkPolyData()
+        poly.SetPoints(points)
+        poly.SetLines(lines)
+        mapper = vtkPolyDataMapper()
+        mapper.SetInputData(poly)
+        actor = vtkActor()
+        actor.SetMapper(mapper)
+        actor.GetProperty().SetColor(0.53, 0.63, 0.75)
+        actor.GetProperty().SetOpacity(0.35)
+        actor.GetProperty().SetLineWidth(1.0)
+        actor.PickableOff()
+        actor.SetVisibility(self.grid_enabled)
+        self.renderer.AddActor(actor)
+        self.grid_actor = actor
+
+    def _ensure_orientation_marker(self) -> None:
+        if self._orientation_renderer is None:
+            from vtkmodules.vtkRenderingCore import vtkRenderer
+            from vtkmodules.vtkRenderingAnnotation import vtkAxesActor
+            overlay = vtkRenderer()
+            overlay.SetLayer(1)
+            overlay.SetViewport(0.81, 0.75, 0.99, 0.99)
+            overlay.SetInteractive(False)
+            overlay.SetPreserveColorBuffer(True)
+            axes = vtkAxesActor()
+            axes.SetTotalLength(0.75, 0.75, 0.75)
+            axes.PickableOff()
+            overlay.AddActor(axes)
+            self.window.SetNumberOfLayers(2)
+            self.window.AddRenderer(overlay)
+            self._orientation_renderer = overlay
+        self._orientation_renderer.DrawOn()
+
+    def _sync_orientation_marker(self) -> None:
+        if self._orientation_renderer is None:
+            return
+        base = self.renderer.GetActiveCamera()
+        pos = base.GetPosition()
+        focal = base.GetFocalPoint()
+        delta = [pos[i]-focal[i] for i in range(3)]
+        norm = sum(x*x for x in delta)**.5
+        if norm < 1.e-9:
+            return
+        camera = self._orientation_renderer.GetActiveCamera()
+        camera.SetFocalPoint(0.,0.,0.)
+        camera.SetPosition(*[3.0*x/norm for x in delta])
+        camera.SetViewUp(*base.GetViewUp())
+        camera.OrthogonalizeViewUp()
+        camera.ParallelProjectionOn()
+        camera.SetParallelScale(1.35)
+        self._orientation_renderer.ResetCameraClippingRange()
+
+    def set_grid(self, enabled: bool, mode: str) -> dict[str, Any]:
+        if self.actor is None or mode not in ('xy','base') or type(enabled) is not bool:
+            raise ValueError('INVALID_REFERENCE_GRID')
+        if self.strict_frame_ack and self.pending_frame is not None:
+            raise ValueError('FRAME_NOT_ACKED')
+        self.grid_enabled = enabled
+        if mode != self.grid_mode:
+            self.grid_mode = mode
+            self._build_reference_grid()
+        elif self.grid_actor is not None:
+            self.grid_actor.SetVisibility(enabled)
+        return {**self.render(), 'grid_enabled': enabled, 'grid_mode': self.grid_mode}
+
     def _configure_camera(self) -> None:
         if self.axes_actor is not None:
             self.renderer.RemoveActor(self.axes_actor)
             self.axes_actor = None
+        # Grid is visual context only: it must not affect fit/ResetCamera bounds.
+        if self.grid_actor is not None:
+            self.grid_actor.SetVisibility(False)
         self.axes_actor = configure_scene(self.renderer, self.camera)
+        if self.grid_actor is not None:
+            self.grid_actor.SetVisibility(self.grid_enabled)
+        self._sync_orientation_marker()
+
+    def pick(self, u: float, v: float, scene_revision: int,
+             frame_revision: int) -> dict[str, Any]:
+        """Pick native geometry on the exact displayed frame; never hash/reload."""
+        if (self.actor is None or self._loaded is None or
+                self.scene_revision != scene_revision or self.frame_revision != frame_revision):
+            raise ValueError('STALE_PICK_FRAME')
+        from vtkmodules.vtkRenderingCore import vtkCellPicker, vtkPointPicker
+        loaded = self._loaded
+        desc = loaded.descriptor
+        base = {'scene_revision': self.scene_revision, 'frame_revision': self.frame_revision,
+                'source_sha256': desc.source_sha256, 'geometry_kind': desc.geometry_kind,
+                'units': 'unknown', 'coordinate_frame': 'unknown'}
+        if not self.actor.GetVisibility():
+            return {**base, 'hit': False}
+        x, y = float(u) * (self.width - 1), float(v) * (self.height - 1)
+        if desc.geometry_kind == 'mesh':
+            picker = vtkCellPicker()
+            picker.SetTolerance(.002)
+            picker.AddPickList(self.actor)
+            picker.PickFromListOn()
+            hit = picker.Pick(x, y, 0, self.renderer)
+            cell_id = int(picker.GetCellId())
+            if not hit or picker.GetActor() != self.actor or not 0 <= cell_id < desc.face_count:
+                return {**base, 'hit': False}
+            xyz = tuple(float(a) for a in picker.GetPickPosition())
+            kind = 'face'
+            element_id = cell_id
+        else:
+            picker = vtkPointPicker()
+            picker.SetTolerance(.02)
+            picker.AddPickList(self.actor)
+            picker.PickFromListOn()
+            hit = picker.Pick(x, y, 0, self.renderer)
+            point_id = int(picker.GetPointId())
+            if not hit or picker.GetActor() != self.actor or not 0 <= point_id < desc.point_count:
+                return {**base, 'hit': False}
+            xyz = tuple(float(a) for a in loaded.poly_data.GetPoint(point_id))
+            kind = 'point'
+            element_id = point_id
+        if not all(__import__('math').isfinite(a) for a in xyz):
+            raise ValueError('NONFINITE_PICK_POSITION')
+        return {**base, 'hit': True, 'kind': kind, 'element_id': element_id,
+                'xyz': list(xyz)}
+
+    def set_visibility(self, visible: bool) -> dict[str, Any]:
+        if self.actor is None:
+            raise ValueError('NO_SCENE')
+        if self.strict_frame_ack and self.pending_frame is not None:
+            raise ValueError('FRAME_NOT_ACKED')
+        self.actor.SetVisibility(visible)
+        return {**self.render(), 'visible': visible}
 
     def ack_frame(self, scene_revision: int, frame_revision: int, slot: int) -> dict[str, Any]:
         """Release the producer slot only after the consumer has copied its RGB bytes."""
@@ -180,7 +357,7 @@ class PersistentScene:
         if self.window is not None:
             self.window.RemoveRenderer(self.renderer)
             self.window.Finalize()
-        self.window = self.renderer = None
+        self.window = self.renderer = self._orientation_renderer = None
 
 
 def run_host(width: int, height: int, shm_name: str) -> int:
@@ -220,6 +397,13 @@ def run_host(width: int, height: int, shm_name: str) -> int:
                     data = scene.update_camera(request['action'], request['dx'], request['dy'])
                 elif op == 'set_camera':
                     data = scene.set_camera(request['state'])
+                elif op == 'pick':
+                    data = scene.pick(request['u'], request['v'],
+                                      request['scene_revision'], request['frame_revision'])
+                elif op == 'set_visibility':
+                    data = scene.set_visibility(request['visible'])
+                elif op == 'set_grid':
+                    data = scene.set_grid(request['enabled'], request['mode'])
                 elif op == 'ack_frame':
                     data = scene.ack_frame(request['scene_revision'], request['frame_revision'], request['slot'])
                 elif op == 'close_scene':

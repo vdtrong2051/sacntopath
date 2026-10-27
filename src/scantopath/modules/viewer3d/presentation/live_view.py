@@ -8,6 +8,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QImage, QPixmap
 
 from .view import NavigationPreview
+from ..application.picking import image_click_uv
 
 
 class LiveNavigationPreview(NavigationPreview):
@@ -18,6 +19,7 @@ class LiveNavigationPreview(NavigationPreview):
         self._last_pos = None
         self._dragged = False
         self.live_enabled = True
+        self.interaction_mode = 'orbit'
 
     def mousePressEvent(self, event):
         if (self.live_enabled and event.button() in (Qt.LeftButton, Qt.RightButton, Qt.MiddleButton)
@@ -37,7 +39,9 @@ class LiveNavigationPreview(NavigationPreview):
             self._last_pos = pos
             if delta.x() or delta.y():
                 self._dragged = True
-                if self._button == Qt.LeftButton:
+                if self._button == Qt.LeftButton and self.interaction_mode == 'select':
+                    pass  # Drag in selection mode never moves the camera or picks.
+                elif self._button == Qt.LeftButton and self.interaction_mode != 'pan':
                     self.gesture.emit('orbit', delta.x() * .45, delta.y() * .45)
                 else:
                     self.gesture.emit('pan', float(delta.x()), float(delta.y()))
@@ -50,9 +54,16 @@ class LiveNavigationPreview(NavigationPreview):
             was_click = not self._dragged and self._button == Qt.LeftButton
             self._last_pos = self._origin = self._button = None
             self._dragged = False
-            if was_click and self._pick_enabled:
-                # Picking remains disabled in R5.2; R5.3 adds validated host picking.
-                pass
+            if was_click and self._pick_enabled and self.interaction_mode == 'select':
+                pix = self.pixmap()
+                if pix is not None and not pix.isNull():
+                    try:
+                        uv = image_click_uv(float(event.position().x()), float(event.position().y()),
+                                            self.width(), self.height(), pix.width(), pix.height())
+                    except ValueError:
+                        uv = None
+                    if uv is not None:
+                        self.point_clicked.emit(*uv)
             event.accept()
             return
         super().mouseReleaseEvent(event)

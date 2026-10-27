@@ -16,12 +16,12 @@ def decode_request(raw: bytes) -> dict[str, Any]:
         value = json.loads(raw)
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise ValueError('INVALID_JSON') from exc
-    if not isinstance(value, dict) or set(value) - {'id', 'op', 'path', 'action', 'dx', 'dy', 'frame_mode', 'state', 'scene_revision', 'frame_revision', 'slot', 'expected_sha256'}:
+    if not isinstance(value, dict) or set(value) - {'id', 'op', 'path', 'action', 'dx', 'dy', 'frame_mode', 'state', 'scene_revision', 'frame_revision', 'slot', 'expected_sha256', 'u', 'v', 'visible', 'enabled', 'mode'}:
         raise ValueError('INVALID_FIELDS')
     if type(value.get('id')) is not int or not 1 <= value['id'] <= 2**53:
         raise ValueError('INVALID_ID')
     if type(value.get('op')) is not str or value['op'] not in {
-        'hello', 'open', 'open_scene', 'camera', 'set_camera', 'ack_frame', 'status', 'close_scene', 'shutdown'
+        'hello', 'open', 'open_scene', 'camera', 'set_camera', 'ack_frame', 'status', 'close_scene', 'shutdown', 'pick', 'set_visibility', 'set_grid'
     }:
         raise ValueError('INVALID_OP')
     allowed = {
@@ -32,6 +32,9 @@ def decode_request(raw: bytes) -> dict[str, Any]:
         'camera': {'id', 'op', 'action', 'dx', 'dy'},
         'status': {'id', 'op'}, 'close_scene': {'id', 'op'},
         'shutdown': {'id', 'op'},
+        'pick': {'id', 'op', 'u', 'v', 'scene_revision', 'frame_revision'},
+        'set_visibility': {'id', 'op', 'visible'},
+        'set_grid': {'id', 'op', 'enabled', 'mode'},
     }[value['op']]
     if value['op'] == 'hello' and set(value) == {'id', 'op', 'frame_mode'}:
         if value['frame_mode'] != 'ack':
@@ -48,6 +51,19 @@ def decode_request(raw: bytes) -> dict[str, Any]:
                 raise ValueError('INVALID_FRAME_ACK')
         if type(value['slot']) is not int or value['slot'] not in (0, 1):
             raise ValueError('INVALID_FRAME_ACK')
+    if value['op'] == 'pick':
+        for name in ('scene_revision', 'frame_revision'):
+            if type(value[name]) is not int or not 0 <= value[name] <= 2**53:
+                raise ValueError('INVALID_PICK_REVISION')
+        for name in ('u', 'v'):
+            x = value[name]
+            if type(x) not in (int, float) or not 0.0 <= x <= 1.0:
+                raise ValueError('INVALID_PICK_COORDINATE')
+    if value['op'] == 'set_grid' and (type(value['enabled']) is not bool or
+                                      value['mode'] not in ('xy', 'base')):
+        raise ValueError('INVALID_REFERENCE_GRID')
+    if value['op'] == 'set_visibility' and type(value['visible']) is not bool:
+        raise ValueError('INVALID_LAYER_VISIBILITY')
     if value['op'] == 'set_camera':
         from ...application.navigation import CameraView
         CameraView.from_json(value['state'])
