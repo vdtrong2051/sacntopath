@@ -187,6 +187,15 @@ class ResidentRenderClient:
         self._last_frame = None
         return self.request('open', path=os.fspath(path))
 
+    def open_source(self, path: os.PathLike | str,
+                    expected_sha256: str | None = None) -> dict[str, Any]:
+        # R5.1 scene loader; legacy open_ply remains vertex-only.
+        from ...application.scene_contracts import SceneSource
+        source = SceneSource(os.fspath(path), expected_sha256)
+        self._last_frame = None
+        return self.request('open_scene', path=source.path,
+                            expected_sha256=source.expected_sha256)
+
     def camera(self, action: str, dx: float = 0, dy: float = 0) -> dict[str, Any]:
         return self.request('camera', action=action, dx=dx, dy=dy)
 

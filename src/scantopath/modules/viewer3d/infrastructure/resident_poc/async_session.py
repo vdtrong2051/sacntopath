@@ -90,6 +90,16 @@ class CoalescingRenderSession:
             raise ValueError('INVALID_SOURCE_PATH')
         return self._queue_command('open', str(source))
 
+    def open_source(self, path: str | Path, expected_sha256: str | None = None) -> Future:
+        # Queue geometry load for PLY points/mesh or OBJ.
+        from ...application.scene_contracts import SceneSource
+        source = Path(path)
+        if (not source.is_absolute() or source.is_symlink() or not source.is_file() or
+                source.suffix.lower() not in ('.ply', '.obj')):
+            raise ValueError('INVALID_SOURCE_PATH')
+        dto = SceneSource(str(source), expected_sha256)
+        return self._queue_command('open_scene', dto)
+
     def close_scene(self) -> Future:
         return self._queue_command('close_scene')
 
@@ -153,14 +163,15 @@ class CoalescingRenderSession:
                     else:
                         op, value, current = 'set_camera', self._desired.to_json(), None
                         revision = self._wanted_revision
-                if op == 'open':
+                if op in ('open', 'open_scene'):
                     with self._cv:
                         self._active = False
                         self._desired = CameraView()
                         self._wanted_revision = self._sent_revision = 0
                     self._clear_frames()
                     try:
-                        response = self._client.open_ply(value)
+                        response = (self._client.open_ply(value) if op == 'open' else
+                                    self._client.open_source(value.path, value.expected_sha256))
                         descriptor, rgb = self._client.copy_ack_frame()
                         self._publish_frame(descriptor, rgb, 0)
                     except Exception:

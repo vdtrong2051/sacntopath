@@ -16,16 +16,17 @@ def decode_request(raw: bytes) -> dict[str, Any]:
         value = json.loads(raw)
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise ValueError('INVALID_JSON') from exc
-    if not isinstance(value, dict) or set(value) - {'id', 'op', 'path', 'action', 'dx', 'dy', 'frame_mode', 'state', 'scene_revision', 'frame_revision', 'slot'}:
+    if not isinstance(value, dict) or set(value) - {'id', 'op', 'path', 'action', 'dx', 'dy', 'frame_mode', 'state', 'scene_revision', 'frame_revision', 'slot', 'expected_sha256'}:
         raise ValueError('INVALID_FIELDS')
     if type(value.get('id')) is not int or not 1 <= value['id'] <= 2**53:
         raise ValueError('INVALID_ID')
     if type(value.get('op')) is not str or value['op'] not in {
-        'hello', 'open', 'camera', 'set_camera', 'ack_frame', 'status', 'close_scene', 'shutdown'
+        'hello', 'open', 'open_scene', 'camera', 'set_camera', 'ack_frame', 'status', 'close_scene', 'shutdown'
     }:
         raise ValueError('INVALID_OP')
     allowed = {
         'hello': {'id', 'op'}, 'open': {'id', 'op', 'path'},
+        'open_scene': {'id', 'op', 'path'},
         'set_camera': {'id', 'op', 'state'},
         'ack_frame': {'id', 'op', 'scene_revision', 'frame_revision', 'slot'},
         'camera': {'id', 'op', 'action', 'dx', 'dy'},
@@ -35,6 +36,10 @@ def decode_request(raw: bytes) -> dict[str, Any]:
     if value['op'] == 'hello' and set(value) == {'id', 'op', 'frame_mode'}:
         if value['frame_mode'] != 'ack':
             raise ValueError('INVALID_FRAME_MODE')
+    elif (value['op'] == 'open_scene' and
+          set(value) == {'id', 'op', 'path', 'expected_sha256'}):
+        from ...application.scene_contracts import SceneSource
+        SceneSource(value['path'], value['expected_sha256'])
     elif set(value) != allowed:
         raise ValueError('INVALID_FIELDS')
     if value['op'] == 'ack_frame':
@@ -46,7 +51,7 @@ def decode_request(raw: bytes) -> dict[str, Any]:
     if value['op'] == 'set_camera':
         from ...application.navigation import CameraView
         CameraView.from_json(value['state'])
-    if value['op'] == 'open':
+    if value['op'] in ('open', 'open_scene'):
         path = value['path']
         if type(path) is not str or not path or len(path) > 1024 or '\x00' in path:
             raise ValueError('INVALID_PATH')

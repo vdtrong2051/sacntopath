@@ -6,7 +6,6 @@ R4.3 will decide production IPC, synchronization and frame transport.
 from __future__ import annotations
 import argparse
 import os
-import math
 from multiprocessing import shared_memory
 from pathlib import Path
 import sys
@@ -14,7 +13,8 @@ from typing import Any
 
 from .protocol import MAX_MESSAGE_BYTES, MIN_SIZE, MAX_SIZE, decode_request, encode_response
 from ...application.navigation import CameraView
-from ..ply_header import inspect_ply
+from ..scene_reader import load_scene
+from ...application.scene_contracts import SceneSource
 from ..camera_scene import configure_scene
 
 
@@ -40,6 +40,7 @@ class PersistentScene:
         self.pending_frame: tuple[int, int, int] | None = None
         self._glyph = None
         self._reader = None
+        self._loaded = None
 
     def _ensure_renderer(self) -> None:
         if self.window is not None:
@@ -62,7 +63,7 @@ class PersistentScene:
                 self.renderer.RemoveActor(self.axes_actor)
             if self.actor is not None:
                 self.renderer.RemoveActor(self.actor)
-        self.axes_actor = self.actor = self._glyph = self._reader = None
+        self.axes_actor = self.actor = self._glyph = self._reader = self._loaded = None
         self.source = None
         self.source_sha256 = None
         self.points = 0
@@ -71,61 +72,42 @@ class PersistentScene:
         self.scene_revision += 1
 
     def open(self, path: str) -> dict[str, Any]:
-        """Validate/hash PLY once, then cache geometry for camera interactions."""
+        """R4.1 compatibility: vertex-only PLY; reject mesh and OBJ."""
+        return self._open_scene(path, legacy=True)
+
+    def open_scene(self, path: str, expected_sha256: str | None = None) -> dict[str, Any]:
+        """R5.1: verified PLY points/mesh or OBJ geometry, no UI/DB writes."""
+        return self._open_scene(path, expected_sha256=expected_sha256)
+
+    def _open_scene(self, path: str, *, expected_sha256: str | None = None,
+                    legacy: bool = False) -> dict[str, Any]:
         self.close_scene()
-        source = Path(path)
-        if source.is_symlink() or not source.is_absolute():
-            raise ValueError('SOURCE_PATH_REJECTED')
-        hdr = inspect_ply(source)
-        from vtkmodules.vtkIOPLY import vtkPLYReader
-        from vtkmodules.vtkFiltersGeneral import vtkVertexGlyphFilter
-        from vtkmodules.vtkRenderingCore import vtkActor, vtkPolyDataMapper
-        reader = vtkPLYReader()
-        errors: list[str] = []
-        reader.AddObserver('ErrorEvent', lambda *_: errors.append('reader'))
-        reader.SetFileName(str(source))
-        reader.Update()
-        data = reader.GetOutput()
-        if errors or data is None or data.GetNumberOfPoints() != hdr.vertex_count:
-            raise ValueError('INVALID_PLY_DATA')
-        if data.GetNumberOfPolys() or data.GetNumberOfStrips():
-            raise ValueError('MESH_DEFERRED_R5_1')
-        for i in range(hdr.vertex_count):
-            if not all(math.isfinite(float(v)) for v in data.GetPoint(i)):
-                raise ValueError('NONFINITE_PLY')
-        if not all(math.isfinite(float(v)) for v in data.GetBounds()):
-            raise ValueError('INVALID_BOUNDS')
-        after = source.stat()
-        if after.st_size != hdr.source_bytes or after.st_mtime_ns != hdr.source_mtime_ns:
-            raise ValueError('SOURCE_CHANGED_DURING_LOAD')
+        source = SceneSource(path, expected_sha256)
+        if legacy and Path(path).suffix.lower() != '.ply':
+            raise ValueError('LEGACY_PLY_ONLY')
         self._ensure_renderer()
-        glyph = vtkVertexGlyphFilter()
-        glyph.SetInputData(data)
-        glyph.Update()
-        mapper = vtkPolyDataMapper()
-        mapper.SetInputConnection(glyph.GetOutputPort())
-        colors = data.GetPointData().GetScalars() if data.GetPointData() else None
-        has_rgb = bool(hdr.has_rgb and colors is not None and colors.GetNumberOfComponents() >= 3)
-        if has_rgb:
-            mapper.SetScalarVisibility(True)
-            mapper.SetColorModeToDirectScalars()
-        else:
-            mapper.ScalarVisibilityOff()
-        actor = vtkActor()
-        actor.SetMapper(mapper)
-        actor.GetProperty().SetPointSize(4 if hdr.vertex_count > 100_000 else 6)
-        if not has_rgb:
-            actor.GetProperty().SetColor(.12, .52, .87)
-        self.renderer.AddActor(actor)
-        self._reader, self._glyph, self.actor = reader, glyph, actor
-        self.source, self.source_sha256, self.points = source, hdr.source_sha256, hdr.vertex_count
+        loaded = load_scene(source)
+        if legacy and loaded.descriptor.geometry_kind != 'points':
+            raise ValueError('MESH_DEFERRED_R5_1')
+        self.renderer.AddActor(loaded.actor)
+        self._loaded = loaded
+        self._reader = loaded.reader
+        self._glyph = loaded.glyph
+        self.actor = loaded.actor
+        self.source = Path(path)
+        self.source_sha256 = loaded.descriptor.source_sha256
+        self.points = loaded.descriptor.point_count
         self.open_count += 1
         self.camera = CameraView()
         self._configure_camera()
         frame = self.render()
-        return {**frame, 'source_sha256': self.source_sha256, 'point_count': self.points,
-                'units': 'unknown', 'coordinate_frame': 'unknown', 'has_rgb': has_rgb,
-                'geometry_kind': 'points'}
+        d = loaded.descriptor
+        return {**frame, 'name': d.name, 'source_sha256': d.source_sha256,
+                'source_bytes': d.source_bytes, 'source_format': d.source_format,
+                'point_count': d.point_count, 'face_count': d.face_count,
+                'bounds': list(d.bounds), 'has_rgb': d.has_rgb,
+                'units': d.units, 'coordinate_frame': d.coordinate_frame,
+                'geometry_kind': d.geometry_kind}
 
     def _configure_camera(self) -> None:
         if self.axes_actor is not None:
@@ -232,6 +214,8 @@ def run_host(width: int, height: int, shm_name: str) -> int:
                     scene.strict_frame_ack = True
                 if op == 'open':
                     data = scene.open(request['path'])
+                elif op == 'open_scene':
+                    data = scene.open_scene(request['path'], request.get('expected_sha256'))
                 elif op == 'camera':
                     data = scene.update_camera(request['action'], request['dx'], request['dy'])
                 elif op == 'set_camera':
