@@ -4,8 +4,8 @@
 
 | ID | Triệu chứng và nguyên nhân | Cách giải quyết / kiểm chứng | Phòng ngừa |
 |---|---|---|---|
-| INC-GD1-07-ARCH | 07.11/07.12 refactor: Windows `python -c` quoting, QObject parent/relative import, harness kiểm thử lặp lỗi theo risk register; chi tiết attempt `HISTORY_INCOMPLETE` | [07.12 risk register](../../architecture/07_12_CONSOLIDATION_RISK_REGISTER.md) | Tránh `python -c` phức tạp, test import Qt ở cây thật, kiểm tra lifecycle |
-| INC-GD1-08-VTK | Qt/VTK in-process crash, lỗi lifecycle | [08.02 crash repair](../../gd1/08_02_CRASH_REPAIR.md); R4 chọn B isolated có điều kiện | Native fault isolation + GUI process survival |
+| INC-GD1-07-ARCH | 07.11/07.12 refactor: Windows `python -c` quoting, QObject parent/relative import, harness kiểm thử lặp lỗi theo risk register; chi tiết attempt `HISTORY_INCOMPLETE` | [07.12 risk register](../../archive/GD1/07/07_12_CONSOLIDATION_RISK_REGISTER.md) | Tránh `python -c` phức tạp, test import Qt ở cây thật, kiểm tra lifecycle |
+| INC-GD1-08-VTK | Qt/VTK in-process crash, lỗi lifecycle | [08.02 crash repair](../../archive/GD1/08/08_02_CRASH_REPAIR.md); R4 chọn B isolated có điều kiện | Native fault isolation + GUI process survival |
 | INC-GD1-R5-001 | `test_r53_live_click_emits_uv_only_in_select_mode`: `_ready_tools` cần frame đã ACK, fixture để revision=-1; cùng lúc UI chỉ chữ, thao tác khó | Rework fixture có frame hợp lệ, giữ no-frame guard, toolbar SVG; focused 16 PASS theo operator | Test event lifecycle thực và HMI, không tháo chốt an toàn |
 | INC-GD1-R5-002 | Full R5.3 617 PASS, 1 FAIL: R5.2 test kiểm chuỗi `LiveViewer3DController(` trong bootstrap khi R5.3 dùng subclass | Compatibility repair trong factory; không sửa test cũ; R6 sau đó full 618 PASS | R8 thay brittle string assertion bằng kiểm tra hành vi/contract |
 | INC-GD1-R5-003 | R5.2 shell 511 dòng vượt giới hạn `<500`, full regression 2 FAIL | Tách bootstrap, sửa deprecated `QImage.mirrored`, focused/legacy sau sửa | Giữ composition root gọn; tránh chất thêm logic vào shell |

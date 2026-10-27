@@ -3,7 +3,7 @@
 **Nhánh dùng chung:** `feat/gd1-desktop-ui` (KHÔNG tạo nhánh mới theo bước).
 **Commit đầu vào đã kiểm tra:** `c736d007202e4ae0e14d7671cb3d8159305c9b90` (06.2).
 **Trạng thái:** đã xây dựng bản vá mã nguồn; **chưa nghiệm thu Qt/Windows** khi soạn tài liệu này.
-**Nguồn thiết kế:** [06.1 Audit](06_1_UI_AUDIT_AND_DESIGN.md) · [06 Delivery Gates](06_DELIVERY_GATES.md) · [Roadmap](../ROADMAP.md).
+**Nguồn thiết kế:** [06.1 Audit](06_1_UI_AUDIT_AND_DESIGN.md) · [06 Delivery Gates](06_DELIVERY_GATES.md) · [Roadmap](../../../ROADMAP.md).
 
 ## 1. Phạm vi giao hàng
 

@@ -1,10 +1,12 @@
 # ScanToPath 2026 — Engineering 3D Reconstruction Desktop
 
+> **Tài liệu kỹ thuật tiếng Việt hiện hành:** [Bắt đầu với tài liệu tiếng Việt](docs/README.md). Các hồ sơ phiên cũ đã được phân loại trong `docs/archive/`.
+
 **GĐ1 hiện hành (R7, 27/10/2026):** [Tài liệu GĐ1 hiện hành](docs/INDEX.md) ghi kiến trúc Viewer/Project sau R5.3, lịch sử sửa lỗi, và ma trận R6. R6 tự động 14/14 PASS theo log người vận hành; R6 tổng thể vẫn PENDING. Các mục GĐ0 và kế hoạch bên dưới là mốc lịch sử theo thời điểm soạn README.
 
 **Trạng thái:** GĐ0 (Software Skeleton + Gemini 2 RAW/metadata) đã merge vào `main` qua [PR #3](https://github.com/vdtrong2051/sacntopath/pull/3), commit `8bf33591389dcdff82f0fbd5bf5932a22547c984`. Sau GĐ0 phát triển theo **UI-first + vertical slices**, roadmap mới có đối chiếu và kho lưu bản cũ.
 
-**Tài liệu bắt đầu:** [ROADMAP](docs/ROADMAP.md) · [ARCHITECTURE](docs/ARCHITECTURE.md) · [Công nghệ](docs/roadmap/TECHNOLOGY_SCOPE.md) · [Ánh xạ phiên cũ/mới](docs/roadmap/SESSION_CROSSWALK.md) · [ADR-001 UI-first](docs/decisions/ADR_001_UI_FIRST.md) · [Bản cũ](docs/roadmap/ROADMAP_V1_ARCHIVED.md).
+**Tài liệu bắt đầu:** [ROADMAP](docs/ROADMAP.md) · [Kiến trúc hiện hành](docs/architecture/TONG_QUAN_KIEN_TRUC.md) · [Công nghệ](docs/roadmap/TECHNOLOGY_SCOPE.md) · [Ánh xạ phiên cũ/mới](docs/roadmap/SESSION_CROSSWALK.md) · [ADR-001 UI-first](docs/decisions/ADR_001_UI_FIRST.md) · [Bản cũ](docs/archive/ROADMAP_CU/ROADMAP_V1_ARCHIVED.md).
 
 ## Mục tiêu
 
@@ -51,6 +53,6 @@ CLI hiện có (không tự mở camera trừ `--once`):
 
 ## Hồ sơ và lịch sử
 
-- [`docs/PRE_06_GD0_ACCEPTANCE.md`](docs/PRE_06_GD0_ACCEPTANCE.md) là hồ sơ được viết **trước lúc merge** (trạng thái pending/checkbox trong file giữ nguyên làm lịch sử); PR #3/commit nói trên xác nhận đã merge sau đó.
-- [`docs/PRE_01_BASELINE.md`](docs/PRE_01_BASELINE.md) … [`docs/PRE_05_GD0_METADATA_PERSISTENCE.md`](docs/PRE_05_GD0_METADATA_PERSISTENCE.md) là hồ sơ các bước nền tảng.
-- [`docs/roadmap/ROADMAP_V1_ARCHIVED.md`](docs/roadmap/ROADMAP_V1_ARCHIVED.md) giữ nguyên phiên bản roadmap lịch sử, không viết lại Git history.
+- [`docs/PRE_06_GD0_ACCEPTANCE.md`](docs/archive/GD0/PRE/PRE_06_GD0_ACCEPTANCE.md) là hồ sơ được viết **trước lúc merge** (trạng thái pending/checkbox trong file giữ nguyên làm lịch sử); PR #3/commit nói trên xác nhận đã merge sau đó.
+- [`docs/PRE_01_BASELINE.md`](docs/archive/GD0/PRE/PRE_01_BASELINE.md) … [`docs/PRE_05_GD0_METADATA_PERSISTENCE.md`](docs/archive/GD0/PRE/PRE_05_GD0_METADATA_PERSISTENCE.md) là hồ sơ các bước nền tảng.
+- [`docs/roadmap/ROADMAP_V1_ARCHIVED.md`](docs/archive/ROADMAP_CU/ROADMAP_V1_ARCHIVED.md) giữ nguyên phiên bản roadmap lịch sử, không viết lại Git history.

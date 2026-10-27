@@ -1,6 +1,6 @@
 # GĐ1 / 07.1 — Rà soát lưu trữ GĐ0 và điểm nghẽn triển khai Project Workspace
 
-**Trạng thái:** Audit hoàn tất trên source nhánh `feat/gd1-desktop-ui`, commit `e1a63374380f7816ff5dcff741fa6a7dd985b0b0` (19/10/2026). Đây là **bước tài liệu**: chưa đổi định dạng dữ liệu, SQLite schema, UI hay RAW. Thiết kế mục tiêu đọc tại [07_01_STORAGE_LAYOUT_V2_CONTRACT.md](07_01_STORAGE_LAYOUT_V2_CONTRACT.md) và [ADR-002](../../decisions/ADR_002_NUMBERED_STORAGE_LAYOUT.md).
+**Trạng thái:** Audit hoàn tất trên source nhánh `feat/gd1-desktop-ui`, commit `e1a63374380f7816ff5dcff741fa6a7dd985b0b0` (19/10/2026). Đây là **bước tài liệu**: chưa đổi định dạng dữ liệu, SQLite schema, UI hay RAW. Thiết kế mục tiêu đọc tại [07_01_STORAGE_LAYOUT_V2_CONTRACT.md](07_01_STORAGE_LAYOUT_V2_CONTRACT.md) và [ADR-002](../../../decisions/ADR_002_NUMBERED_STORAGE_LAYOUT.md).
 
 ## 1. Ranh giới GĐ1
 

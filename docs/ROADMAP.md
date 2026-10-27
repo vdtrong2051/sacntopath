@@ -1,6 +1,6 @@
 # ScanToPath — Lộ trình phát triển UI-first (baseline từ 18/10/2026)
 
-**Trạng thái:** Roadmap được chốt cho giai đoạn **sau GĐ0**, triển khai vào repository qua thay đổi tài liệu riêng. **Bản này thay thế thứ tự chức năng của phiên 06–20+**, không viết lại lịch sử của phiên 01–05/PRE-01–06. Xem [bản cũ nguyên văn](roadmap/ROADMAP_V1_ARCHIVED.md) và [bảng ánh xạ](roadmap/SESSION_CROSSWALK.md).
+**Trạng thái:** Roadmap được chốt cho giai đoạn **sau GĐ0**, triển khai vào repository qua thay đổi tài liệu riêng. **Bản này thay thế thứ tự chức năng của phiên 06–20+**, không viết lại lịch sử của phiên 01–05/PRE-01–06. Xem [bản cũ nguyên văn](archive/ROADMAP_CU/ROADMAP_V1_ARCHIVED.md) và [bảng ánh xạ](roadmap/SESSION_CROSSWALK.md).
 
 **Mốc xuất phát đã xác minh:** PR #3 đã merge GĐ0 vào `main` ở `8bf33591389dcdff82f0fbd5bf5932a22547c984`. Windows PRE-06 báo cáo `80 passed, 1 skipped`, CTest `2/2`, native self-test exit `0`, Gemini 2 thực lưu/đọc lại RAW và SQLite. **Không** suy ra rằng toàn bộ công việc GĐ1 đã được triển khai. Kết quả hậu-merge trên `main` chưa được trình ra riêng.
 
@@ -95,9 +95,9 @@ Không lấy việc «mô hình nhìn giống» làm bằng chứng «đúng kí
 
 ## 8. Nguồn và lịch sử quyết định
 
-- [`docs/PRE_06_GD0_ACCEPTANCE.md`](PRE_06_GD0_ACCEPTANCE.md) — báo cáo nghiệm thu GĐ0 **được tạo trước merge**, trạng thái checkbox trong đó là lịch sử tại thời điểm soạn; sau đó PR #3 đã merge lên `main`.
-- [`docs/ARCHITECTURE.md`](ARCHITECTURE.md) — baseline kiến trúc sau GĐ0 và ranh giới UI–core.
-- [`docs/roadmap/ROADMAP_V1_ARCHIVED.md`](roadmap/ROADMAP_V1_ARCHIVED.md) — nguyên văn bản roadmap cũ (Git blob SHA `f64afcf5af6a59134fae7e08052434b755284209`).
+- [`docs/PRE_06_GD0_ACCEPTANCE.md`](archive/GD0/PRE/PRE_06_GD0_ACCEPTANCE.md) — báo cáo nghiệm thu GĐ0 **được tạo trước merge**, trạng thái checkbox trong đó là lịch sử tại thời điểm soạn; sau đó PR #3 đã merge lên `main`.
+- [`docs/ARCHITECTURE.md`](archive/GD0/ARCHITECTURE.md) — baseline kiến trúc sau GĐ0 và ranh giới UI–core.
+- [`docs/roadmap/ROADMAP_V1_ARCHIVED.md`](archive/ROADMAP_CU/ROADMAP_V1_ARCHIVED.md) — nguyên văn bản roadmap cũ (Git blob SHA `f64afcf5af6a59134fae7e08052434b755284209`).
 - [`docs/roadmap/SESSION_CROSSWALK.md`](roadmap/SESSION_CROSSWALK.md) — ánh xạ kỹ thuật cũ→mới, không bỏ sót yêu cầu.
 - [`docs/decisions/ADR_001_UI_FIRST.md`](decisions/ADR_001_UI_FIRST.md) — lý do đổi thứ tự.
 - [Bản đồ nghiên cứu NCKH](https://drive.google.com/drive/folders/1Otz7om-m-4I56CklchqkmDuJDy5-L-ed), tài liệu `01_PHAM_VI_VA_BAN_DO_NGHIEN_CUU` (09/2026): metric/trust/feature/replica/task-specific acquisition; phân loại A/B/C.

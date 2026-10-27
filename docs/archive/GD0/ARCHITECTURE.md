@@ -1,6 +1,6 @@
 # ScanToPath — Kiến trúc sau nghiệm thu GĐ0 (UI-first baseline)
 
-**Cập nhật:** 2026-10-18. **Đây là mô tả kiến trúc hiện có + kiến trúc mục tiêu, không phải chứng nhận tất cả module đã triển khai.** Đọc cùng [`ROADMAP.md`](ROADMAP.md) và [ADR-001](decisions/ADR_001_UI_FIRST.md).
+**Cập nhật:** 2026-10-18. **Đây là mô tả kiến trúc hiện có + kiến trúc mục tiêu, không phải chứng nhận tất cả module đã triển khai.** Đọc cùng [`ROADMAP.md`](../../ROADMAP.md) và [ADR-001](../../decisions/ADR_001_UI_FIRST.md).
 
 ## 1. Hiện trạng đã có / chưa có
 
@@ -14,7 +14,7 @@
 | 3D geometry | C++ geometry smoke; **chưa** có application cloud pipeline/metric validation/registration/fusion |
 | AI tracking/guidance | Chưa triển khai; hardware hiện tại là **camera cầm tay**, không có actuator |
 
-Bằng chứng: [`PRE_06_GD0_ACCEPTANCE.md`](PRE_06_GD0_ACCEPTANCE.md) là hồ sơ viết trước merge; PR #3 đã merge lên `main` tại `8bf33591389dcdff82f0fbd5bf5932a22547c984`. Python Windows 80 passed/1 skipped (symlink privilege); CTest 2/2; native self-test 0; camera thu/đọc RAW được người dùng kiểm thử. Không gán `validated metric` chỉ vì `measured=True`.
+Bằng chứng: [`PRE_06_GD0_ACCEPTANCE.md`](PRE/PRE_06_GD0_ACCEPTANCE.md) là hồ sơ viết trước merge; PR #3 đã merge lên `main` tại `8bf33591389dcdff82f0fbd5bf5932a22547c984`. Python Windows 80 passed/1 skipped (symlink privilege); CTest 2/2; native self-test 0; camera thu/đọc RAW được người dùng kiểm thử. Không gán `validated metric` chỉ vì `measured=True`.
 
 ## 2. Kiến trúc mục tiêu — modular monolith, UI-first theo lát cắt
 
@@ -102,4 +102,4 @@ Project → Specimen → ScanSession → RAW Capture (v1/v2, immutable)
 - **GĐ4 (17–18)**: features/relations → engineering replica.
 - **GĐ5 (19–20+)**: object perception, scan guidance và uncertainty/task-specific rescan.
 
-Thứ tự phiên cũ và các mục còn cần được giữ để truy vết ở [`roadmap/SESSION_CROSSWALK.md`](roadmap/SESSION_CROSSWALK.md). Không có motor/turntable/encoder/Raspberry Pi/ESP32 trong current acceptance. Nếu sau này có rig, viết ADR riêng cho pose provider và phần cứng.
+Thứ tự phiên cũ và các mục còn cần được giữ để truy vết ở [`roadmap/SESSION_CROSSWALK.md`](../../roadmap/SESSION_CROSSWALK.md). Không có motor/turntable/encoder/Raspberry Pi/ESP32 trong current acceptance. Nếu sau này có rig, viết ADR riêng cho pose provider và phần cứng.

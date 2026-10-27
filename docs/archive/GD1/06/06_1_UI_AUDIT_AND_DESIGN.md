@@ -1,6 +1,6 @@
 # GĐ1 — 06.1: Rà soát và chốt thiết kế Desktop UI Foundation
 
-**Trạng thái:** thiết kế hoàn thành trên commit `main` `93e5afb86081c2018987d86bf83d26b202a85f39` (18/10/2026). Chưa nghiệm thu Windows, chưa triển khai UI mới. **Phạm vi 06.1 chỉ có tài liệu, không sửa GĐ0.** Tham khảo: [Roadmap](../ROADMAP.md), [Architecture](../ARCHITECTURE.md), [ADR-001](../decisions/ADR_001_UI_FIRST.md).
+**Trạng thái:** thiết kế hoàn thành trên commit `main` `93e5afb86081c2018987d86bf83d26b202a85f39` (18/10/2026). Chưa nghiệm thu Windows, chưa triển khai UI mới. **Phạm vi 06.1 chỉ có tài liệu, không sửa GĐ0.** Tham khảo: [Roadmap](../../../ROADMAP.md), [Architecture](../../GD0/ARCHITECTURE.md), [ADR-001](../../../decisions/ADR_001_UI_FIRST.md).
 
 ## 1. Kết quả audit repository hiện hành
 

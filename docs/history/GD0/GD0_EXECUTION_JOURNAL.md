@@ -1,6 +1,6 @@
 # GĐ0 — Nhật ký hồi cứu PRE-01 đến PRE-06
 
-**Nguồn:** [PRE-06 Acceptance](../../PRE_06_GD0_ACCEPTANCE.md), [PRE-04 Gemini2](../../PRE_04_GEMINI2_STORAGE_INTEGRATION.md), Git merge PR #3. Đây là **hồi cứu**, không diễn lại test phần cứng ở R7.
+**Nguồn:** [PRE-06 Acceptance](../../archive/GD0/PRE/PRE_06_GD0_ACCEPTANCE.md), [PRE-04 Gemini2](../../archive/GD0/PRE/PRE_04_GEMINI2_STORAGE_INTEGRATION.md), Git merge PR #3. Đây là **hồi cứu**, không diễn lại test phần cứng ở R7.
 
 | Nhóm | Thực hiện/quan sát | Giới hạn |
 |---|---|---|

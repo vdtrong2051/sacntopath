@@ -1,6 +1,6 @@
 # GĐ1 / Phiên 06 — Ma trận giao hàng từng bước
 
-**Nguồn chuẩn:** [thiết kế 06.1](06_1_UI_AUDIT_AND_DESIGN.md), [ROADMAP](../ROADMAP.md), [ADR-001](../decisions/ADR_001_UI_FIRST.md).
+**Nguồn chuẩn:** [thiết kế 06.1](06_1_UI_AUDIT_AND_DESIGN.md), [ROADMAP](../../../ROADMAP.md), [ADR-001](../../../decisions/ADR_001_UI_FIRST.md).
 
 **Một nhánh chung `feat/gd1-desktop-ui` cho toàn bộ GĐ1**, không tạo nhánh 06.2/06.3 riêng và không merge đến khi nghiệm thu GĐ1. Mỗi bước có commit riêng sau khi kiểm thử.
 

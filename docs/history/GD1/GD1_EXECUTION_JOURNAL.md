@@ -20,4 +20,4 @@
 
 **Log không nhét vào Git:** `_setup/ScanToPath_R6_Auto_Acceptance/evidence/R6_20261027T150605Z_19408` (operator báo, R7 không sở hữu dữ liệu trong đó). Bằng chứng cũ `_setup` không được tự suy đoán đã đầy đủ.
 
-**Open acceptance:** [R6 matrix](../../acceptance/GD1_R6_ACCEPTANCE_STATUS.md). **Sự cố:** [register](INCIDENT_REGISTER.md). **Tài liệu nền:** [R4.5](../../gd1/ux_rebaseline/R4_05_R5_HANDOVER_GATES.md), [R5.3](../../gd1/ux_rebaseline/R5_03_INTERACTION_INSPECTOR_UX.md).
+**Open acceptance:** [R6 matrix](../../acceptance/GD1_R6_ACCEPTANCE_STATUS.md). **Sự cố:** [register](INCIDENT_REGISTER.md). **Tài liệu nền:** [R4.5](../../archive/GD1/R1-R5/R4_05_R5_HANDOVER_GATES.md), [R5.3](../../archive/GD1/R1-R5/R5_03_INTERACTION_INSPECTOR_UX.md).

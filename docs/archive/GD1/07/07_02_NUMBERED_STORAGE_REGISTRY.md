@@ -1,6 +1,6 @@
 # GĐ1 / 07.2 — Numbered Storage Registry và Path Resolver
 
-**Mốc source:** `feat/gd1-desktop-ui`, commit `417558619128cfcfc267640cda8d9b13f2aaee99` (07.1 đã push). **Mục tiêu:** triển khai hợp đồng ở [07.1](07_01_STORAGE_LAYOUT_V2_CONTRACT.md) và [ADR-002](../../decisions/ADR_002_NUMBERED_STORAGE_LAYOUT.md), không sửa dữ liệu RAW legacy trong lần áp dụng patch.
+**Mốc source:** `feat/gd1-desktop-ui`, commit `417558619128cfcfc267640cda8d9b13f2aaee99` (07.1 đã push). **Mục tiêu:** triển khai hợp đồng ở [07.1](07_01_STORAGE_LAYOUT_V2_CONTRACT.md) và [ADR-002](../../../decisions/ADR_002_NUMBERED_STORAGE_LAYOUT.md), không sửa dữ liệu RAW legacy trong lần áp dụng patch.
 
 ## 1. Kết quả triển khai, ranh giới
 
