@@ -128,12 +128,18 @@ def scan(root: Path) -> dict:
         errors.append('DUPLICATE_CATALOG_PATHS')
     if set(registered_paths) != set(tests + scripts):
         errors.append(f'CATALOG_PATH_MISMATCH:missing={sorted(set(tests+scripts)-set(registered_paths))}:extra={sorted(set(registered_paths)-set(tests+scripts))}')
+    relocation = {}
+    mapping_file = root / 'docs/standardization/R8_2_BAN_DO_TEST.csv'
+    if mapping_file.is_file():
+        with mapping_file.open(encoding='utf-8-sig', newline='') as f:
+            relocation = {r['duong_dan_cu']: r['duong_dan_moi'] for r in csv.DictReader(f)}
     results = []
     functions: dict[str, list[str]] = defaultdict(list)
     imported_test_file: dict[str, list[str]] = defaultdict(list)
     for row in registered:
         p = row['duong_dan']
-        path = root / p
+        current_path = relocation.get(p, p)
+        path = root / current_path
         if not path.is_file() or path.is_symlink():
             errors.append(f'FILE_MISSING_OR_SYMLINK:{p}')
             continue
@@ -165,6 +171,7 @@ def scan(root: Path) -> dict:
                 risks.append('KHONG_CO_TEST_FUNCTION_TRUC_TIEP')
         results.append({
             **row,
+            'duong_dan_hien_tai': current_path,
             'git_blob_baseline': git(root, 'rev-parse', f'{BASELINE}:{p}'),
             'sha256_worktree': hashlib.sha256(raw).hexdigest(),
             'bytes': len(raw), 'test_functions_static': len(funcs),

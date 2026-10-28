@@ -23,3 +23,7 @@ Qt offscreen không thay thế thao tác chuột, bố cục tại các DPI khá
 R6 tự động (operator Windows, 27/10/2026): 14/14 cổng PASS, 618 pytest PASS, ba symlink SKIP do quyền Windows, CTest 2/2. Benchmark 1K/100K/1M là completed renderer workload, **không phải FPS vật lý**.
 
 Chi tiết: [Bảng nghiệm thu](../acceptance/GD1.md).
+
+## R8.2 — Phân nhóm test theo chức năng
+
+Các ca kiểm thử được phân theo nhóm và giữ nguyên tên hàm pytest. Dùng `python -m pytest -q tests` để chạy tất cả. Đường dẫn trước/sau xem [bản đồ R8.2](../standardization/R8_2_BAN_DO_TEST.csv). Fixture RAW và Project dùng chung nằm trong `tests/support/`. Không tự xóa test trong R8.2; R8.3 mới xử lý chất lượng hợp đồng.

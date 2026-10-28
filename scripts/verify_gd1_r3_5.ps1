@@ -26,15 +26,15 @@ $env:QT_QPA_PLATFORM = 'offscreen'
 $env:PYTHONUTF8 = '1'
 
 $focused = @(
-    'tests/test_gd1_r3_1_recent_store.py',
-    'tests/test_gd1_r3_2_project_dashboard.py',
-    'tests/test_gd1_r3_2_1_header_density.py',
-    'tests/test_gd1_r3_3_contextual_inspector.py',
-    'tests/test_gd1_r3_4_processing_workspace.py',
-    'tests/test_gd1_r3_5_integrated_ux.py',
-    'tests/test_gd1_07_8_qt.py',
-    'tests/test_gd1_07_12_architecture.py',
-    'tests/test_gd1_07_12_qt.py'
+    'tests/ui/project/test_gd1_r3_1_recent_store.py',
+    'tests/ui/project/test_gd1_r3_2_project_dashboard.py',
+    'tests/ui/project/test_gd1_r3_2_1_header_density.py',
+    'tests/ui/project/test_gd1_r3_3_contextual_inspector.py',
+    'tests/ui/project/test_gd1_r3_4_processing_workspace.py',
+    'tests/ui/project/test_gd1_r3_5_integrated_ux.py',
+    'tests/ui/project/test_gd1_07_8_qt.py',
+    'tests/contracts/kien_truc/test_gd1_07_12_architecture.py',
+    'tests/ui/project/test_gd1_07_12_qt.py'
 )
 
 & $python -X utf8 -c 'import PySide6; import pytest'
