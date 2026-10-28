@@ -31,3 +31,7 @@ Các ca kiểm thử được phân theo nhóm và giữ nguyên tên hàm pytes
 ## R8.3 — Hợp đồng fixture và SKIP Windows
 
 Fixture RAW/SQLite tổng hợp giữ nguyên thân hàm sau R8.2; kiểm tra tính bất biến ở `tests/contracts/quality/test_gd1_r8_3_contracts.py`. JUnit chỉ chấp nhận ba SKIP do quyền symlink trên Windows theo **đúng test ID**, các SKIP khác là FAIL; Qt bắt buộc không được SKIP. Tài liệu: [R8.3](../standardization/R8_3_HOP_DONG_FIXTURE_VA_SKIP.md). Chạy full pytest với `--junitxml=<evidence>/R83_full.xml` rồi dùng `scripts/check_qt_acceptance_xml.py --junit <evidence>/R83_full.xml` trên Windows. Qt offscreen không thay thế HMI/native trên thiết bị thật.
+
+## R8.4 — Bộ kiểm thử thống nhất
+
+Sử dụng `scripts/verify.ps1 -Profile Quick|Full|Acceptance` để chạy một pipeline duy nhất, ghi JUnit/JSON bên ngoài repository. `Quick` không thay `Full`; `Acceptance` vẫn ghi `PENDING_MANUAL` nếu thiếu xác nhận HMI/native thực tế. Có thể chủ động bật `-RunNativeProbe` và `-RunBenchmark` riêng trong `Acceptance`. Xem [hướng dẫn R8.4](../standardization/R8_4_BO_KIEM_THU_THONG_NHAT.md).
