@@ -36,7 +36,7 @@ class InteractiveViewer3DController(LiveViewer3DController):
         self._tool_mode = 'orbit'
         self.tools = LiveViewerTools(self.page.surface)
         self.tools.mode_changed.connect(self._set_tool_mode)
-        self.tools.camera_action.connect(lambda action: self.navigate(action, 0.0, 0.0))
+        self.tools.camera_action.connect(self._handle_toolbar_camera)
         self.tools.layer_changed.connect(self._change_layer)
         self.tools.grid_changed.connect(self._change_grid)
         self._install_keyboard_shortcuts()
@@ -54,6 +54,13 @@ class InteractiveViewer3DController(LiveViewer3DController):
         self.page.note.setStyleSheet('font-size: 12px; color: #64748b;')
         self._ready_tools()
 
+    def _handle_toolbar_camera(self, action: str) -> None:
+        if action == "zoom_in":
+            self.navigate("zoom", 1.0, 0.0)
+        elif action == "zoom_out":
+            self.navigate("zoom", -1.0, 0.0)
+        else:
+            self.navigate(action, 0.0, 0.0)
     def _install_keyboard_shortcuts(self):
         shortcuts = (
             ('S', lambda: self._set_tool_mode('select')),

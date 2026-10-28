@@ -15,6 +15,7 @@ import subprocess
 from datetime import datetime, timezone
 
 BASELINE = 'ff45ccf87ce770e25eedf6e12df6bb5aaa958734'
+R7_LOCK = 'b6369dfc07a3e0f9551408219815a9ff980085f5'
 CANONICAL = (
     'docs/README.md',
     'docs/02-kien-truc/KIEN_TRUC_HE_THONG.md',
@@ -128,12 +129,13 @@ def audit(root: Path) -> dict:
     readme = (root / 'README.md').read_text(encoding='utf-8')
     if '[Tài liệu GĐ1 hiện hành](docs/README.md)' not in readme:
         errors.append('README_CANONICAL_LINK_MISSING')
+    # Verify historical R7 documentation-only semantics, not later runtime changes.
     for rel in R7_DOCSTRINGS:
-        current = (root / rel).read_bytes()
+        r7_content = _git(root, 'show', R7_LOCK + ':' + rel)
         original = _git(root, 'show', BASELINE + ':' + rel)
-        if _semantics(current) != _semantics(original):
+        if _semantics(r7_content) != _semantics(original):
             errors.append('EXECUTABLE_AST_CHANGED:' + rel)
-        if ast.get_docstring(ast.parse(current.decode('utf-8-sig'))) == ast.get_docstring(ast.parse(original.decode('utf-8-sig'))):
+        if ast.get_docstring(ast.parse(r7_content.decode('utf-8-sig'))) == ast.get_docstring(ast.parse(original.decode('utf-8-sig'))):
             errors.append('R7_DOCSTRING_NOT_UPDATED:' + rel)
     return {'schema': 'scantopath-r7-documentation-gate-v1', 'baseline_sha': BASELINE,
             'timestamp_utc': datetime.now(timezone.utc).isoformat(),

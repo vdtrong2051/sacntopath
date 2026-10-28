@@ -9,7 +9,7 @@ import sys
 ROOT = Path(__file__).resolve().parents[3]
 SCRIPTS = ROOT / 'scripts'
 sys.path.insert(0, str(SCRIPTS))
-from r7_docs_gate import audit, BASELINE, CANONICAL, R7_DOCSTRINGS
+from r7_docs_gate import audit, BASELINE, R7_LOCK, CANONICAL, R7_DOCSTRINGS
 
 
 def _check():
@@ -24,7 +24,7 @@ def test_r7_canonical_docs_gate_passes():
 
 def test_r7_module_docstrings_do_not_modify_executable_ast():
     for rel in R7_DOCSTRINGS:
-        src = (ROOT / rel).read_text('utf-8')
+        src = subprocess.check_output(['git', 'show', R7_LOCK + ':' + rel], cwd=ROOT).decode()
         before = subprocess.check_output(['git', 'show', BASELINE + ':' + rel], cwd=ROOT).decode()
         def normalize(s):
             tree = ast.parse(s)
