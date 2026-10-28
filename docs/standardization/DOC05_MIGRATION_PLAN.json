@@ -1,0 +1,176 @@
+{
+  "schema": "scantopath-doc05-history-plan-v1",
+  "base_commit": "8bf5e1e1603a0acf735ffc55f0b3d11ef9d96286",
+  "policy": "COPY_REBASE_VALID_MD_LINKS; LEGACY_SOURCE_PRESERVED",
+  "mirrors": [
+    {
+      "id": "DOC-014",
+      "source": "docs/archive/GD0/PRE/PRE_02_RAW_RGBD_CONTRACT.md",
+      "target": "docs/99-lich-su/ARCHIVE/GD0/PRE/PRE_02_RAW_RGBD_CONTRACT.md",
+      "source_git_blob": "b06cf55d0719fb8014a758fda8f4f9c7230b54f9"
+    },
+    {
+      "id": "DOC-015",
+      "source": "docs/archive/GD0/PRE/PRE_06_GD0_ACCEPTANCE.md",
+      "target": "docs/99-lich-su/ARCHIVE/GD0/PRE/PRE_06_GD0_ACCEPTANCE.md",
+      "source_git_blob": "14f6225e9a006a03d6b367606e327810a5ff852b"
+    },
+    {
+      "id": "DOC-016",
+      "source": "docs/archive/GD1/07/07_01_STORAGE_LAYOUT_V2_CONTRACT.md",
+      "target": "docs/99-lich-su/ARCHIVE/GD1/07/07_01_STORAGE_LAYOUT_V2_CONTRACT.md",
+      "source_git_blob": "d654391ad6c41287d974f0c6a50d1a0c0f7923c6"
+    },
+    {
+      "id": "DOC-017",
+      "source": "docs/archive/GD1/07/07_12_CONSOLIDATION_RISK_REGISTER.md",
+      "target": "docs/99-lich-su/ARCHIVE/GD1/07/07_12_CONSOLIDATION_RISK_REGISTER.md",
+      "source_git_blob": "b70add19f4acf97d365f4bc260a17c2ba920051e"
+    },
+    {
+      "id": "DOC-018",
+      "source": "docs/archive/GD1/08/08_06_4_WINDOWS_HMI_ACCEPTANCE.md",
+      "target": "docs/99-lich-su/ARCHIVE/GD1/08/08_06_4_WINDOWS_HMI_ACCEPTANCE.md",
+      "source_git_blob": "bc5142445e1a65334c45555df8bbc3d0187985f4"
+    },
+    {
+      "id": "DOC-019",
+      "source": "docs/archive/GD1/08/08_06_5_DEFECT_DISPOSITION_AND_HMI_WAIVER.md",
+      "target": "docs/99-lich-su/ARCHIVE/GD1/08/08_06_5_DEFECT_DISPOSITION_AND_HMI_WAIVER.md",
+      "source_git_blob": "9e79fa6cdd776f2e7d2b3afd4b743e7314b239af"
+    },
+    {
+      "id": "DOC-020",
+      "source": "docs/archive/GD1/R1-R5/R4_03_FRAME_TRANSPORT_AND_LIFECYCLE.md",
+      "target": "docs/99-lich-su/ARCHIVE/GD1/R1-R5/R4_03_FRAME_TRANSPORT_AND_LIFECYCLE.md",
+      "source_git_blob": "9c845d191f52f34fba9fd65e45fd8506f60bc2c5"
+    },
+    {
+      "id": "DOC-021",
+      "source": "docs/archive/GD1/R1-R5/R4_05_R5_HANDOVER_GATES.md",
+      "target": "docs/99-lich-su/ARCHIVE/GD1/R1-R5/R4_05_R5_HANDOVER_GATES.md",
+      "source_git_blob": "c1e208d9775531f71eb1e81778d1839280d8eacd"
+    },
+    {
+      "id": "DOC-022",
+      "source": "docs/archive/GD1/R1-R5/R4_05_RENDERER_ARCHITECTURE_DECISION.md",
+      "target": "docs/99-lich-su/ARCHIVE/GD1/R1-R5/R4_05_RENDERER_ARCHITECTURE_DECISION.md",
+      "source_git_blob": "ffc42b760c60bd8f28bf7e1d9f05301059e8ec98"
+    },
+    {
+      "id": "DOC-023",
+      "source": "docs/archive/GD1/R1-R5/R5_01_SCENE_GEOMETRY_CONTRACTS.md",
+      "target": "docs/99-lich-su/ARCHIVE/GD1/R1-R5/R5_01_SCENE_GEOMETRY_CONTRACTS.md",
+      "source_git_blob": "eac7d85bf06424ace06f481854d3353bb5c098a6"
+    },
+    {
+      "id": "DOC-024",
+      "source": "docs/archive/GD1/R1-R5/R5_03_INTERACTION_INSPECTOR_UX.md",
+      "target": "docs/99-lich-su/ARCHIVE/GD1/R1-R5/R5_03_INTERACTION_INSPECTOR_UX.md",
+      "source_git_blob": "6141c0ea24ceae1b2b0ea0b3afa99ccbb75238ed"
+    },
+    {
+      "id": "DOC-026",
+      "source": "docs/archive/ROADMAP_CU/ROADMAP_V1_ARCHIVED.md",
+      "target": "docs/99-lich-su/ARCHIVE/ROADMAP_CU/ROADMAP_V1_ARCHIVED.md",
+      "source_git_blob": "f64afcf5af6a59134fae7e08052434b755284209"
+    },
+    {
+      "id": "DOC-027",
+      "source": "docs/decisions/ADR_001_UI_FIRST.md",
+      "target": "docs/99-lich-su/ADR/ADR_001_UI_FIRST.md",
+      "source_git_blob": "4da783c3c62ef2ac6fc6e2a602a154afcfe739bb"
+    },
+    {
+      "id": "DOC-028",
+      "source": "docs/decisions/ADR_002_NUMBERED_STORAGE_LAYOUT.md",
+      "target": "docs/99-lich-su/ADR/ADR_002_NUMBERED_STORAGE_LAYOUT.md",
+      "source_git_blob": "1e05270f79641146ea898af7563728fc2503f13d"
+    },
+    {
+      "id": "DOC-039",
+      "source": "docs/history/DEVELOPMENT_MASTER_LOG.md",
+      "target": "docs/99-lich-su/JOURNALS/DEVELOPMENT_MASTER_LOG.md",
+      "source_git_blob": "457ef8033cedcc0249c795047de02db9159fa127"
+    },
+    {
+      "id": "DOC-040",
+      "source": "docs/history/GD0/GD0_EXECUTION_JOURNAL.md",
+      "target": "docs/99-lich-su/JOURNALS/GD0_EXECUTION_JOURNAL.md",
+      "source_git_blob": "b987f48ed840630ff8a3f77348add6aea17eceaf"
+    },
+    {
+      "id": "DOC-041",
+      "source": "docs/history/GD1/GD1_EXECUTION_JOURNAL.md",
+      "target": "docs/99-lich-su/JOURNALS/GD1_EXECUTION_JOURNAL.md",
+      "source_git_blob": "43a550112885cf723203ad3012b98bd2b27263fe"
+    },
+    {
+      "id": "DOC-043",
+      "source": "docs/history/NGUON_HO_SO_CU.md",
+      "target": "docs/99-lich-su/HO_SO_CU_VA_TRUY_VET.md",
+      "source_git_blob": "d17fbee81b15963be9b9d30010e475b11d81cc29"
+    },
+    {
+      "id": "DOC-056",
+      "source": "docs/standardization/R7B_CAN_XAC_MINH.md",
+      "target": "docs/99-lich-su/STANDARDIZATION/R7B_CAN_XAC_MINH.md",
+      "source_git_blob": "bf01daf16e9cc8c064cb48f143f89e14d7257001"
+    },
+    {
+      "id": "DOC-057",
+      "source": "docs/standardization/R7C_PHAM_VI_VA_DOI_CHIEU.md",
+      "target": "docs/99-lich-su/STANDARDIZATION/R7C_PHAM_VI_VA_DOI_CHIEU.md",
+      "source_git_blob": "0bee3d193effa32dd9160e52c0183616980ff68b"
+    },
+    {
+      "id": "DOC-058",
+      "source": "docs/standardization/R7D_BAO_CAO_TINH_GON.md",
+      "target": "docs/99-lich-su/STANDARDIZATION/R7D_BAO_CAO_TINH_GON.md",
+      "source_git_blob": "48eeb030312834513d3f4521804dee0e7bec0380"
+    },
+    {
+      "id": "DOC-059",
+      "source": "docs/standardization/R8_1_BAO_CAO_VA_RUI_RO.md",
+      "target": "docs/99-lich-su/STANDARDIZATION/R8_1_BAO_CAO_VA_RUI_RO.md",
+      "source_git_blob": "00a2b13a1289aa2f73bd3ed07932d87ced985a12"
+    },
+    {
+      "id": "DOC-060",
+      "source": "docs/standardization/R8_1_MA_TRAN_97_TEP.csv",
+      "target": "docs/99-lich-su/STANDARDIZATION/R8_1_MA_TRAN_97_TEP.csv",
+      "source_git_blob": "7d48ab4ac24794c0e66014ccde0eacdcc0c89793"
+    },
+    {
+      "id": "DOC-061",
+      "source": "docs/standardization/R8_2_BAN_DO_TEST.csv",
+      "target": "docs/99-lich-su/STANDARDIZATION/R8_2_BAN_DO_TEST.csv",
+      "source_git_blob": "962b0c85d4a14ec87eb70e826a40b0757155072a"
+    },
+    {
+      "id": "DOC-062",
+      "source": "docs/standardization/R8_2_BAO_CAO_TO_CHUC_TEST.md",
+      "target": "docs/99-lich-su/STANDARDIZATION/R8_2_BAO_CAO_TO_CHUC_TEST.md",
+      "source_git_blob": "5c9b8fe650b8881a67c75c34fb925db383cf258b"
+    },
+    {
+      "id": "DOC-063",
+      "source": "docs/standardization/R8_3_HOP_DONG_FIXTURE_VA_SKIP.md",
+      "target": "docs/99-lich-su/STANDARDIZATION/R8_3_HOP_DONG_FIXTURE_VA_SKIP.md",
+      "source_git_blob": "59bbc937c1c8c50444378766ffcf50210872c041"
+    },
+    {
+      "id": "DOC-064",
+      "source": "docs/standardization/R8_4_BO_KIEM_THU_THONG_NHAT.md",
+      "target": "docs/99-lich-su/STANDARDIZATION/R8_4_BO_KIEM_THU_THONG_NHAT.md",
+      "source_git_blob": "9df517266474b53a3780a2e3b38a7ec6a97c2a8c"
+    },
+    {
+      "id": "DOC-065",
+      "source": "docs/standardization/R8_5_KIEM_KE_VA_NGHIEM_THU.md",
+      "target": "docs/99-lich-su/STANDARDIZATION/R8_5_KIEM_KE_VA_NGHIEM_THU.md",
+      "source_git_blob": "f25d73367683b466cc7afe440ec65cb6f523f159"
+    }
+  ],
+  "legacy_alias_policy": "KEEP_ALL_7_UNTIL_EXTERNAL_INBOUND_AUDIT"
+}

@@ -1,7 +1,7 @@
-"""Lazy and explicit loader for the ScanToPath pybind11 acquisition module.
+"""Nạp mô-đun thu nhận pybind11 khi được gọi rõ ràng.
 
-Importing this Python module NEVER opens a camera or requires the native extension.
-Set SCANTOPATH_ORBBEC_SDK_BIN to the SDK's Windows ``bin`` folder before loading.
+Import tệp này KHÔNG mở camera và KHÔNG bắt buộc đã có tiện ích native.
+Trên Windows, đặt SCANTOPATH_ORBBEC_SDK_BIN trỏ đến thư mục bin của SDK.
 """
 from __future__ import annotations
 
@@ -27,7 +27,7 @@ def load_native() -> Any:
                     + str(sdk_bin)
                 )
             if _DLL_DIRECTORY_HANDLE is None:
-                # Since Python 3.8, PATH alone is not sufficient for extension DLLs.
+                # Từ Python 3.8, chỉ sửa PATH không đủ để nạp DLL phụ thuộc của extension.
                 _DLL_DIRECTORY_HANDLE = os.add_dll_directory(str(sdk_bin))
     try:
         return importlib.import_module("scantopath._scantopath_native")
@@ -44,7 +44,7 @@ def load_native() -> Any:
 def _self_test(native: Any) -> None:
     source = native.OrbbecCameraSource()
     assert source.is_open() is False
-    source.close()  # Must be safe before open().
+    source.close()  # Phải an toàn ngay cả khi chưa gọi open().
     try:
         source.device()
     except (RuntimeError, ValueError):
@@ -75,7 +75,7 @@ def _one_capture(native: Any) -> None:
         assert capture.validate()
     finally:
         source.close()
-    # Both Python bytes and NumPy own their buffers after camera close.
+    # Sau khi đóng camera, bytes Python và mảng NumPy vẫn phải sở hữu bộ đệm riêng.
     color = capture.color.bytes
     depth = capture.depth_u16()
     assert len(color) > 0
