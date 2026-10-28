@@ -85,3 +85,10 @@ Kiểm tra trên chưa thay thế `scripts/verify.ps1 -Profile Full`: tài liệ
 - **History/incident:** giữ các lần FAIL, waiver và operator report cùng receipt; không thay lịch sử để khớp quyết định mới.
 - **Review:** lint Markdown/link là điều kiện cần; operator review tính dễ hiểu là điều kiện độc lập. Không điền reviewer giả, không báo `MANUAL_PASS` chỉ vì script chạy 0.
 - **Giới hạn:** tài liệu không enforce tự động mọi quy tắc naming/lint; các màn hình HMI/hardware/native fault vẫn `NOT_TESTED` nếu không có receipt operator. DOC-05 mới di chuyển alias/redirect và sửa gate phụ thuộc đường dẫn.
+## 10. Quy tắc ghi nhật ký và đính chính (DOC-04)
+
+Quy tắc này kế thừa [hồ sơ ghi nhật ký R7](../history/QUY_UOC_GHI_NHAT_KY.md); không sửa hồ sơ gốc. Mỗi mốc ghi `ID`, `as_of_commit`, ngày/môi trường, nguồn, kết quả **đúng loại phép thử**, giới hạn và bước tiếp theo. Phân loại bằng chứng: `XAC_MINH_GIT` chỉ chứng minh commit/file; `NGUOI_VAN_HANH_BAO_CAO` là log operator, không mặc nhiên remote-verified; `CHUA_KIEM_THU` khác `FAIL`; `MIEN_CO_DIEU_KIEN` cần người duyệt và residual risk, không phải `PASS`.
+
+Với incident, ghi nguyên triệu chứng, attempt FAIL, giả thuyết/`root_cause` đã xác nhận hay chưa, fix, regression, residual risk và owner; các lỗi R6 PowerShell `$args`/exit code thuộc **harness**, không phải crash app. Không ghép phiên chưa thử vào danh sách incident đã xảy ra. Nếu một snapshot cũ ghi R8 `NOT_STARTED` mà source Git đã có R8.5, ghi **ĐÍNH CHÍNH** ở hồ sơ mới cùng thời điểm/nguồn; **không hồi tố sửa** nhật ký/ADR/waiver cũ.
+
+Nguồn sống của task là [Task Register](../05-quan-ly/TASK_REGISTER.md), của trạng thái là [State Ledger](../05-quan-ly/TRANG_THAI_DU_AN.md), của receipt là [Evidence Index](../07-nghiem-thu/EVIDENCE_INDEX.md). Chỉ được chuyển task sang `DONE` sau gate và người duyệt; không sao chép bảng kết quả vào mọi module. Trong DOC-04, `R6_OVERALL_PENDING` và `GD1_OVERALL_PENDING` vẫn giữ cho tới khi 08.06.6 có quyết định độc lập.
