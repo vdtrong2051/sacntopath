@@ -5,7 +5,7 @@
 ## Quyết định được áp dụng
 
 - Di chuyển **76 tệp test** gồm 75 tệp R8.1 đã kiểm kê và 1 tệp nghiệm thu R8.1; giữ nguyên tên hàm kiểm thử, không bỏ ca nào.
-- Tổ chức vào `tests/unit/`, `tests/integration/`, `tests/contracts/`, `tests/ui/`, `tests/native/`, `tests/performance/`, mỗi nhóm chia tiếp theo chủ đề. Bản đồ cũ → mới: [CSV](../../standardization/R8_2_BAN_DO_TEST.csv).
+- Tổ chức vào `tests/unit/`, `tests/integration/`, `tests/contracts/`, `tests/ui/`, `tests/native/`, `tests/performance/`, mỗi nhóm chia tiếp theo chủ đề. Bản đồ cũ → mới: [CSV](R8_2_BAN_DO_TEST.csv).
 - Thêm `tests/support/raw_fixture.py`, `tests/support/project_seed.py`: chuyển đúng phần thân `raw`, `_seed_v1`, `_seed_numbered` từ các bài test gốc, không sinh số đo hoặc dữ liệu camera thật. Loại bỏ import test–test cho hai nhóm helper này.
 - Sửa chỉ số `Path(__file__).resolve().parents[N]` theo độ sâu mới, **giữ cùng repository root**. Cập nhật 9 đường dẫn trong script nghiệm thu R3.5.
 - Cho phép công cụ kiểm kê R8.1 đọc path mới thông qua CSV, vẫn gắn mã Git và đường dẫn lịch sử của 97 mục ban đầu.

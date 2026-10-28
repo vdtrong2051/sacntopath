@@ -31,12 +31,12 @@ REQUIRED_SOURCE_PATHS = (
     'docs/standardization/DOC02_BAN_DO_65.csv',
     'docs/standardization/DOC02_TRUY_VET_43.csv',
     'docs/standardization/DOC02_QUYET_DINH_20.csv',
-    'docs/archive/GD0/PRE/PRE_06_GD0_ACCEPTANCE.md',
-    'docs/acceptance/GD1_R6_ACCEPTANCE_STATUS.md',
-    'docs/archive/GD1/08/08_06_5_DEFECT_DISPOSITION_AND_HMI_WAIVER.md',
-    'docs/decisions/ADR_001_UI_FIRST.md',
-    'docs/decisions/ADR_002_NUMBERED_STORAGE_LAYOUT.md',
-    'docs/history/GD1/INCIDENT_REGISTER.md',
+    'docs/99-lich-su/ARCHIVE/GD0/PRE/PRE_06_GD0_ACCEPTANCE.md',
+    'docs/07-nghiem-thu/records/GD1_R6_ACCEPTANCE_STATUS.md',
+    'docs/99-lich-su/ARCHIVE/GD1/08/08_06_5_DEFECT_DISPOSITION_AND_HMI_WAIVER.md',
+    'docs/99-lich-su/ADR/ADR_001_UI_FIRST.md',
+    'docs/99-lich-su/ADR/ADR_002_NUMBERED_STORAGE_LAYOUT.md',
+    'docs/05-quan-ly/INCIDENT_REGISTER.md',
     'docs/04-phat-trien/TIEU_CHUAN_KY_THUAT.md',
     'docs/01-tong-quan/LO_TRINH_PHAT_TRIEN.md',
     'src/scantopath/storage/numbered.py',
@@ -235,11 +235,11 @@ def verify(root: Path) -> dict:
         errors.extend(mapping_errors(root))
     except (OSError, csv.Error, KeyError) as exc:
         errors.append('MAPPING_ERROR:' + repr(exc))
-    for path in ('docs/INDEX.md', 'docs/architecture/CURRENT_GD1_ARCHITECTURE.md',
-                 'docs/modules/VIEWER3D.md', 'docs/modules/PROJECT_WORKSPACE.md',
-                 'docs/development/ENGINEERING_STANDARDS.md',
-                 'docs/development/R7_DOCUMENTATION_POLICY.md',
-                 'docs/roadmap/ROADMAP_V1_ARCHIVED.md'):
+    for path in ('docs/README.md', 'docs/02-kien-truc/KIEN_TRUC_HE_THONG.md',
+                 'docs/03-modules/VIEWER_3D.md', 'docs/03-modules/PROJECT_WORKSPACE.md',
+                 'docs/04-phat-trien/TIEU_CHUAN_KY_THUAT.md',
+                 'docs/04-phat-trien/TIEU_CHUAN_KY_THUAT.md',
+                 'docs/99-lich-su/ARCHIVE/ROADMAP_CU/ROADMAP_V1_ARCHIVED.md'):
         if not (root / path).is_file():
             errors.append('R7_COMPAT_ALIAS_MISSING:' + path)
     return {

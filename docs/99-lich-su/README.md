@@ -7,12 +7,12 @@
 
 Nhóm **đang thay đổi** có một nguồn chuẩn: [trạng thái](../05-quan-ly/TRANG_THAI_DU_AN.md), [task](../05-quan-ly/TASK_REGISTER.md), [quyết định áp dụng hiện hành](../05-quan-ly/QUYET_DINH_KY_THUAT.md), [nghiệm thu GĐ1](../07-nghiem-thu/GD1_ACCEPTANCE.md). Kho này giữ **ảnh chụp lịch sử**, không được thay status dự án hiện tại. Không sử dụng hồ sơ 08.06.5 để tự xác nhận HMI 08.06.6.
 
-DOC-05 **sao chép có xác minh, không xóa nguồn**. Mỗi hồ sơ được đối chiếu Git blob nguồn và chỉ chỉnh đường dẫn Markdown tương đối ở bản xem trong thư mục mới; tệp gốc giữ nguyên byte để truy xuất. Vì các gate R7/R8 và permalink còn gọi đường cũ, tất cả bảy alias và nguồn cũ tiếp tục tồn tại. Một phần liên kết nguồn lịch sử vốn đã cũ hoặc hỏng; nên dùng bản gốc của hồ sơ để đối chiếu nội dung nếu liên kết không còn hiệu lực. Đó không phải phép xác nhận dữ liệu đo.
+DOC-05 đã lưu bản sao có truy vết; DOC-06 loại bỏ bản cũ trùng lặp sau khi chuyển liên kết và gate. Mỗi hồ sơ được đối chiếu Git blob nguồn và chỉ chỉnh đường dẫn Markdown tương đối ở bản xem trong thư mục mới; tệp gốc giữ nguyên byte để truy xuất. Vì các gate R7/R8 và permalink còn gọi đường cũ, các alias cũ đã được hợp nhất vào tuyến v2. Một phần liên kết nguồn lịch sử vốn đã cũ hoặc hỏng; nên dùng bản gốc của hồ sơ để đối chiếu nội dung nếu liên kết không còn hiệu lực. Đó không phải phép xác nhận dữ liệu đo.
 
 ## 2. ADR và quyết định lịch sử
 
-- [ADR-001 — UI-first](ADR/ADR_001_UI_FIRST.md) · [nguồn gốc](../decisions/ADR_001_UI_FIRST.md).
-- [ADR-002 — Numbered Storage](ADR/ADR_002_NUMBERED_STORAGE_LAYOUT.md) · [nguồn gốc](../decisions/ADR_002_NUMBERED_STORAGE_LAYOUT.md).
+- [ADR-001 — UI-first](ADR/ADR_001_UI_FIRST.md).
+- [ADR-002 — Numbered Storage](ADR/ADR_002_NUMBERED_STORAGE_LAYOUT.md).
 - [Trạng thái áp dụng hiện hành](../05-quan-ly/QUYET_DINH_KY_THUAT.md). ADR có mốc thời gian, không chỉnh hồi tố thành đã đạt.
 
 ## 3. Nhật ký và hồ sơ gốc
@@ -20,7 +20,10 @@ DOC-05 **sao chép có xác minh, không xóa nguồn**. Mỗi hồ sơ được
 - [DOC-039 — DEVELOPMENT_MASTER_LOG](JOURNALS/DEVELOPMENT_MASTER_LOG.md).
 - [DOC-040 — GD0_EXECUTION_JOURNAL](JOURNALS/GD0_EXECUTION_JOURNAL.md).
 - [DOC-041 — GD1_EXECUTION_JOURNAL](JOURNALS/GD1_EXECUTION_JOURNAL.md).
+- [Biên bản sự cố R6 gốc](JOURNALS/GD1_INCIDENT_REGISTER.md).
 - [DOC-043 — HO_SO_CU_VA_TRUY_VET](HO_SO_CU_VA_TRUY_VET.md).
+
+- [Biên bản R6 gốc (không phải nghiệm thu tổng thể)](ACCEPTANCE/GD1_R6_ACCEPTANCE_STATUS_ORIGINAL.md).
 
 ## 4. Archive PRE/GĐ1 — 12 hồ sơ
 

@@ -18,11 +18,11 @@
 
 ### `INC-GD1-07-ARCH`
 
-Hồ sơ [07.12 — rủi ro hợp nhất](../../archive/GD1/07/07_12_CONSOLIDATION_RISK_REGISTER.md) ghi nhận tình huống quote trong `python -c` trên Windows và ranh giới import, QObject. Nguyên nhân chi tiết của *mọi* attempt **CHƯA ĐỦ LỊCH SỬ**. Phòng ngừa: dùng script `.py` cho lệnh dài, kiểm tra import/lifecycle bằng test Windows thật.
+Hồ sơ [07.12 — rủi ro hợp nhất](../ARCHIVE/GD1/07/07_12_CONSOLIDATION_RISK_REGISTER.md) ghi nhận tình huống quote trong `python -c` trên Windows và ranh giới import, QObject. Nguyên nhân chi tiết của *mọi* attempt **CHƯA ĐỦ LỊCH SỬ**. Phòng ngừa: dùng script `.py` cho lệnh dài, kiểm tra import/lifecycle bằng test Windows thật.
 
 ### `INC-GD1-08-VTK`
 
-Xem [08.02 — sửa crash](https://github.com/vdtrong2051/sacntopath/blob/08ef856a04d61f20db1e26b2ceeb399065db902f/docs/archive/GD1/08/08_02_CRASH_REPAIR.md) và [R4.5 — quyết định kiến trúc](../../archive/GD1/R1-R5/R4_05_RENDERER_ARCHITECTURE_DECISION.md). Tách renderer khỏi GUI làm giảm khả năng một lỗi renderer giết trực tiếp Qt; **không chứng minh** mọi crash native thực đều đã được xử lý. Cần phép thử có kiểm soát ngoài tiến trình Qt.
+Xem [08.02 — sửa crash](https://github.com/vdtrong2051/sacntopath/blob/08ef856a04d61f20db1e26b2ceeb399065db902f/docs/archive/GD1/08/08_02_CRASH_REPAIR.md) và [R4.5 — quyết định kiến trúc](../ARCHIVE/GD1/R1-R5/R4_05_RENDERER_ARCHITECTURE_DECISION.md). Tách renderer khỏi GUI làm giảm khả năng một lỗi renderer giết trực tiếp Qt; **không chứng minh** mọi crash native thực đều đã được xử lý. Cần phép thử có kiểm soát ngoài tiến trình Qt.
 
 ### `INC-GD1-R5-003`
 
@@ -55,4 +55,4 @@ Bản runner tiếp theo không lấy được exit code (trống), và CTest kh
 
 ## 4. Quy tắc thêm sự cố
 
-Dùng [quy tắc ghi nhật ký](../QUY_UOC_GHI_NHAT_KY.md). Một sự cố mới cần ID, ngày/nguồn, triệu chứng, phân loại, nguyên nhân và **mức xác nhận**, từng attempt thực tế, bản sửa, kiểm thử sau sửa, giới hạn còn mở và phòng ngừa. Nếu chỉ là kế hoạch phép thử, không cấp ID *incident đã xảy ra*.
+Dùng [quy tắc ghi nhật ký](../../04-phat-trien/TIEU_CHUAN_KY_THUAT.md). Một sự cố mới cần ID, ngày/nguồn, triệu chứng, phân loại, nguyên nhân và **mức xác nhận**, từng attempt thực tế, bản sửa, kiểm thử sau sửa, giới hạn còn mở và phòng ngừa. Nếu chỉ là kế hoạch phép thử, không cấp ID *incident đã xảy ra*.

@@ -35,22 +35,22 @@ def test_r7_module_docstrings_do_not_modify_executable_ast():
 
 
 def test_r7_readme_routes_to_current_docs():
-    assert '[Tài liệu GĐ1 hiện hành](docs/INDEX.md)' in (ROOT / 'README.md').read_text('utf8')
+    assert '[Tài liệu GĐ1 hiện hành](docs/README.md)' in (ROOT / 'README.md').read_text('utf8')
 
 
 def test_r7_does_not_rewrite_historical_roadmap():
-    assert (ROOT / 'docs/roadmap/ROADMAP_V1_ARCHIVED.md').is_file()
-    assert '08.06.6' in (ROOT / 'docs/INDEX.md').read_text('utf8')
+    assert (ROOT / 'docs/99-lich-su/ARCHIVE/ROADMAP_CU/ROADMAP_V1_ARCHIVED.md').is_file()
+    assert '08.06.6' in (ROOT / 'docs/README.md').read_text('utf8')
 
 
 def test_r7_r6_automated_is_not_overall():
-    r = (ROOT / 'docs/acceptance/GD1_R6_ACCEPTANCE_STATUS.md').read_text('utf8')
+    r = (ROOT / 'docs/07-nghiem-thu/records/GD1_R6_ACCEPTANCE_STATUS.md').read_text('utf8')
     assert 'R6_AUTOMATED_PASS / R6_OVERALL_PENDING' in r
     assert 'NOT_TESTED' in r and 'OPERATOR_REPORTED' in r
 
 
 def test_r7_history_preserves_runner_failures():
-    r = (ROOT / 'docs/history/GD1/INCIDENT_REGISTER.md').read_text('utf8')
+    r = (ROOT / 'docs/99-lich-su/JOURNALS/GD1_INCIDENT_REGISTER.md').read_text('utf8')
     assert 'INC-GD1-R6-RUNNER-001' in r and 'INC-GD1-R6-RUNNER-002' in r
     assert '$args' in r and 'ExitCode' in r
 
@@ -66,7 +66,7 @@ def test_r7_doc_gate_rejects_modified_native_logic(tmp_path):
 
 
 def test_r7_history_has_stage_links():
-    master = (ROOT / 'docs/history/DEVELOPMENT_MASTER_LOG.md').read_text('utf8')
+    master = (ROOT / 'docs/99-lich-su/JOURNALS/DEVELOPMENT_MASTER_LOG.md').read_text('utf8')
     assert 'GD0_EXECUTION_JOURNAL.md' in master
     assert 'GD1_EXECUTION_JOURNAL.md' in master
     assert 'INCIDENT_REGISTER.md' in master

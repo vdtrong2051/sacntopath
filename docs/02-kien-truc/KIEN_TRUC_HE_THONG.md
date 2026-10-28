@@ -147,6 +147,6 @@ GĐ2 sẽ cần replay RAW→depth unprojection và ROI/filter/export có proven
 
 Render Host tách process được chọn **có điều kiện** tại R4.5 sau đối chiếu nhúng/tách; nguyên tắc UI-first có ADR-001. Thử tự động: `scripts/verify.ps1 -Profile Quick|Full|Acceptance`; source contract/test nằm trong `tests/contracts/`, Qt trong `tests/ui/`, renderer/native trong `tests/native/`. Evidence theo lần chạy lưu **ngoài repository**.
 
-**Không dùng `Acceptance` auto PASS làm HMI overall PASS**; nguồn lịch sử [R6](../acceptance/GD1_R6_ACCEPTANCE_STATUS.md) vẫn giữ các cổng cần đo. Sơ đồ và luồng trên được đối chiếu với source tại commit đầu tài liệu; các hành vi runtime Windows cần người vận hành xác minh mới có thể ghi `MANUAL_PASS`.
+**Không dùng `Acceptance` auto PASS làm HMI overall PASS**; nguồn lịch sử [R6](../07-nghiem-thu/records/GD1_R6_ACCEPTANCE_STATUS.md) vẫn giữ các cổng cần đo. Sơ đồ và luồng trên được đối chiếu với source tại commit đầu tài liệu; các hành vi runtime Windows cần người vận hành xác minh mới có thể ghi `MANUAL_PASS`.
 
-Đọc sâu [Hợp đồng dữ liệu và hệ tọa độ](DU_LIEU_VA_HE_TOA_DO.md) và [Công nghệ và phụ thuộc](CONG_NGHE_VA_PHU_THUOC.md). Hồ sơ nguyên thủy [R4.5](../archive/GD1/R1-R5/R4_05_RENDERER_ARCHITECTURE_DECISION.md) được giữ làm quyết định lịch sử, không phải trang kiến trúc runtime thứ hai.
+Đọc sâu [Hợp đồng dữ liệu và hệ tọa độ](DU_LIEU_VA_HE_TOA_DO.md) và [Công nghệ và phụ thuộc](CONG_NGHE_VA_PHU_THUOC.md). Hồ sơ nguyên thủy [R4.5](../99-lich-su/ARCHIVE/GD1/R1-R5/R4_05_RENDERER_ARCHITECTURE_DECISION.md) được giữ làm quyết định lịch sử, không phải trang kiến trúc runtime thứ hai.

@@ -16,18 +16,18 @@ from datetime import datetime, timezone
 
 BASELINE = 'ff45ccf87ce770e25eedf6e12df6bb5aaa958734'
 CANONICAL = (
-    'docs/INDEX.md',
-    'docs/architecture/CURRENT_GD1_ARCHITECTURE.md',
-    'docs/modules/VIEWER3D.md',
-    'docs/modules/PROJECT_WORKSPACE.md',
-    'docs/development/ENGINEERING_STANDARDS.md',
-    'docs/development/R7_DOCUMENTATION_POLICY.md',
-    'docs/decisions/DECISION_INDEX.md',
-    'docs/acceptance/GD1_R6_ACCEPTANCE_STATUS.md',
-    'docs/history/DEVELOPMENT_MASTER_LOG.md',
-    'docs/history/GD0/GD0_EXECUTION_JOURNAL.md',
-    'docs/history/GD1/GD1_EXECUTION_JOURNAL.md',
-    'docs/history/GD1/INCIDENT_REGISTER.md',
+    'docs/README.md',
+    'docs/02-kien-truc/KIEN_TRUC_HE_THONG.md',
+    'docs/03-modules/VIEWER_3D.md',
+    'docs/03-modules/PROJECT_WORKSPACE.md',
+    'docs/04-phat-trien/TIEU_CHUAN_KY_THUAT.md',
+    'docs/04-phat-trien/KIEM_THU_VA_NGHIEM_THU.md',
+    'docs/05-quan-ly/QUYET_DINH_KY_THUAT.md',
+    'docs/07-nghiem-thu/records/GD1_R6_ACCEPTANCE_STATUS.md',
+    'docs/99-lich-su/JOURNALS/DEVELOPMENT_MASTER_LOG.md',
+    'docs/99-lich-su/JOURNALS/GD0_EXECUTION_JOURNAL.md',
+    'docs/99-lich-su/JOURNALS/GD1_EXECUTION_JOURNAL.md',
+    'docs/99-lich-su/JOURNALS/GD1_INCIDENT_REGISTER.md',
 )
 # DOC-05: v1 canonical paths stay intact for legacy R7 test contracts.
 # Validate the additional v2 routes independently; never change checks length.
@@ -113,20 +113,20 @@ def audit(root: Path) -> dict:
             if not link.is_relative_to(root) or not link.is_file():
                 errors.append('V2_BROKEN_LINK:' + rel + ' -> ' + target)
             v2_checks[rel]['links'] += 1
-    summary = (root / 'docs/acceptance/GD1_R6_ACCEPTANCE_STATUS.md').read_text(encoding='utf-8')
+    summary = (root / 'docs/07-nghiem-thu/records/GD1_R6_ACCEPTANCE_STATUS.md').read_text(encoding='utf-8')
     for mark in ('14/14', '618', '3 skipped', '2/2', 'PENDING', 'NOT_TESTED', 'OPERATOR_REPORTED'):
         if mark not in summary:
             errors.append('R6_EVIDENCE_STATUS_MISSING:' + mark)
-    master = (root / 'docs/history/DEVELOPMENT_MASTER_LOG.md').read_text(encoding='utf-8')
+    master = (root / 'docs/99-lich-su/JOURNALS/DEVELOPMENT_MASTER_LOG.md').read_text(encoding='utf-8')
     for mark in ('R4.1', 'R5.1', 'R5.2', 'R5.3', 'R6', 'R7', 'R8', 'ff45ccf'):
         if mark not in master:
             errors.append('HISTORY_MILESTONE_MISSING:' + mark)
-    incident = (root / 'docs/history/GD1/INCIDENT_REGISTER.md').read_text(encoding='utf-8')
+    incident = (root / 'docs/99-lich-su/JOURNALS/GD1_INCIDENT_REGISTER.md').read_text(encoding='utf-8')
     for mark in ('INC-GD1-R6-RUNNER-001', 'INC-GD1-R6-RUNNER-002', 'INC-GD1-R5-001'):
         if mark not in incident:
             errors.append('INCIDENT_MISSING:' + mark)
     readme = (root / 'README.md').read_text(encoding='utf-8')
-    if '[Tài liệu GĐ1 hiện hành](docs/INDEX.md)' not in readme:
+    if '[Tài liệu GĐ1 hiện hành](docs/README.md)' not in readme:
         errors.append('README_CANONICAL_LINK_MISSING')
     for rel in R7_DOCSTRINGS:
         current = (root / rel).read_bytes()

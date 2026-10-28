@@ -63,4 +63,4 @@ Cảnh báo: các số thứ tự R1–R8, 06–20, GĐ0–GĐ5 được dùng c
 
 ## 6. Nguồn và cách cập nhật
 
-Kiểm tra source theo đường dẫn ở bảng; xem [Kiến trúc](../02-kien-truc/KIEN_TRUC_HE_THONG.md), [Hợp đồng dữ liệu](../02-kien-truc/DU_LIEU_VA_HE_TOA_DO.md), [Lộ trình](LO_TRINH_PHAT_TRIEN.md) và [Biên bản nghiệm thu](../acceptance/GD1_R6_ACCEPTANCE_STATUS.md). Khi DOC-04 tạo `TRANG_THAI_DU_AN`, bảng này chỉ được giữ như mô tả năng lực theo commit; trạng thái điều hành phải tra nguồn duy nhất mới. Không sửa hồi tố bằng chứng lịch sử.
+Kiểm tra source theo đường dẫn ở bảng; xem [Kiến trúc](../02-kien-truc/KIEN_TRUC_HE_THONG.md), [Hợp đồng dữ liệu](../02-kien-truc/DU_LIEU_VA_HE_TOA_DO.md), [Lộ trình](LO_TRINH_PHAT_TRIEN.md) và [Biên bản nghiệm thu](../07-nghiem-thu/records/GD1_R6_ACCEPTANCE_STATUS.md). Khi DOC-04 tạo `TRANG_THAI_DU_AN`, bảng này chỉ được giữ như mô tả năng lực theo commit; trạng thái điều hành phải tra nguồn duy nhất mới. Không sửa hồi tố bằng chứng lịch sử.

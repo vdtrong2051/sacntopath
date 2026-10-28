@@ -43,14 +43,14 @@ SOURCE_PATHS = (
     'tests/contracts/nghiem_thu/test_gd1_r8_3_skip_policy.py',
 )
 LEGACY_COMPATIBILITY = (
-    'docs/INDEX.md', 'docs/architecture/CURRENT_GD1_ARCHITECTURE.md',
-    'docs/modules/VIEWER3D.md', 'docs/modules/PROJECT_WORKSPACE.md',
-    'docs/development/HUONG_DAN_CAI_DAT.md',
-    'docs/development/QUY_TRINH_GIT.md',
-    'docs/development/QUY_TRINH_KIEM_THU.md',
-    'docs/development/ENGINEERING_STANDARDS.md',
-    'docs/development/R7_DOCUMENTATION_POLICY.md',
-    'docs/acceptance/GD1_R6_ACCEPTANCE_STATUS.md',
+    'docs/README.md', 'docs/02-kien-truc/KIEN_TRUC_HE_THONG.md',
+    'docs/03-modules/VIEWER_3D.md', 'docs/03-modules/PROJECT_WORKSPACE.md',
+    'docs/04-phat-trien/CAI_DAT_VA_CHAY.md',
+    'docs/04-phat-trien/HUONG_DAN_PHAT_TRIEN.md',
+    'docs/04-phat-trien/KIEM_THU_VA_NGHIEM_THU.md',
+    'docs/04-phat-trien/TIEU_CHUAN_KY_THUAT.md',
+    'docs/04-phat-trien/TIEU_CHUAN_KY_THUAT.md',
+    'docs/07-nghiem-thu/records/GD1_R6_ACCEPTANCE_STATUS.md',
 )
 LINK = re.compile(r'(?<!!)\[[^\]]+\]\(([^)]+)\)')
 

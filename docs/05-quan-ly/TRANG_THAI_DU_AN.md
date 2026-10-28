@@ -11,7 +11,7 @@
 
 | capability_id | implementation | automated_verification (scope và nguồn) | physical_manual_verification | Giới hạn/điều kiện còn mở |
 |---|---|---|---|---|
-| `FOUNDATION_GD0` | `IMPLEMENTED` | `PASS` — PRE-06 operator Windows report, [PRE-06](../archive/GD0/PRE/PRE_06_GD0_ACCEPTANCE.md) | `PARTIAL_EVIDENCE` — một lần chụp Gemini 2 và replay | Không phải chứng chỉ sync/pose/accuracy; merge PR #3 là Git evidence |
+| `FOUNDATION_GD0` | `IMPLEMENTED` | `PASS` — PRE-06 operator Windows report, [PRE-06](../99-lich-su/ARCHIVE/GD0/PRE/PRE_06_GD0_ACCEPTANCE.md) | `PARTIAL_EVIDENCE` — một lần chụp Gemini 2 và replay | Không phải chứng chỉ sync/pose/accuracy; merge PR #3 là Git evidence |
 | `ACQ_GEMINI2` | `IMPLEMENTED` (command one-shot/adapter) | `PASS` — test RAW/adapter trong lịch sử PRE-06, nguồn operator | `PARTIAL_EVIDENCE` — one-shot Gemini 2 tại PRE-06 | SDK/hardware chưa chạy lại tại DOC-04; không có rig quyết định hiện hành |
 | `RAW_V2` | `IMPLEMENTED` | `PASS` — PRE-06 + R6 operator, test unit/integration có source | `PARTIAL_EVIDENCE` — read-back/hash of real capture | `COMMITTED`, SHA-256; không atomic xuyên filesystem/SQLite |
 | `PROJECT_WORKSPACE` | `IMPLEMENTED` | `PASS` — R6 automated operator-reported 618/3 (toàn suite) | `NOT_TESTED` — DOC-04 không có HMI từng ca mới | Không ngầm tạo SQLite từ màn hình; CLI có thể ghi/tạo DB |

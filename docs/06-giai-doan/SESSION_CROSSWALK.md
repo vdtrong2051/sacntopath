@@ -5,7 +5,7 @@
 
 ## 1. Vì sao cần crosswalk?
 
-Roadmap đầu tiên ưu tiên 3D Core, phiên 06/07/08; ADR-001 về sau áp dụng **UI-first theo vertical slices**, đưa Qt/Projects/Viewer lên 06–08 và dịch geometry/metric sang các phiên sau. Đánh số trùng không có nghĩa phiên cũ đã được làm hoặc phạm vi từng file được rename thành hiện trạng. Bảng này kế thừa [crosswalk lịch sử](../roadmap/SESSION_CROSSWALK.md) nhưng đủ ý tại một trang giai đoạn.
+Roadmap đầu tiên ưu tiên 3D Core, phiên 06/07/08; ADR-001 về sau áp dụng **UI-first theo vertical slices**, đưa Qt/Projects/Viewer lên 06–08 và dịch geometry/metric sang các phiên sau. Đánh số trùng không có nghĩa phiên cũ đã được làm hoặc phạm vi từng file được rename thành hiện trạng. Bảng này kế thừa [crosswalk lịch sử](SESSION_CROSSWALK.md) nhưng đủ ý tại một trang giai đoạn.
 
 ## 2. Ma trận năng lực
 
@@ -40,7 +40,7 @@ Giữ mục tiêu nghiên cứu Scan Pipeline → Metric Geometry → Trusted Ge
 
 ## 4. Nơi tìm task, trạng thái và bằng chứng
 
-Khi cần ai làm/đang ở trạng thái gì: [TASK_REGISTER](../05-quan-ly/TASK_REGISTER.md). Khi cần implementation/verification: [TRANG_THAI_DU_AN](../05-quan-ly/TRANG_THAI_DU_AN.md). Khi cần cổng: [GD1 acceptance](../07-nghiem-thu/GD1_ACCEPTANCE.md). Chi tiết quyết định UI-first giữ nguyên ở [ADR-001](../decisions/ADR_001_UI_FIRST.md). Không sao chép trạng thái `DONE` vào crosswalk.
+Khi cần ai làm/đang ở trạng thái gì: [TASK_REGISTER](../05-quan-ly/TASK_REGISTER.md). Khi cần implementation/verification: [TRANG_THAI_DU_AN](../05-quan-ly/TRANG_THAI_DU_AN.md). Khi cần cổng: [GD1 acceptance](../07-nghiem-thu/GD1_ACCEPTANCE.md). Chi tiết quyết định UI-first giữ nguyên ở [ADR-001](../99-lich-su/ADR/ADR_001_UI_FIRST.md). Không sao chép trạng thái `DONE` vào crosswalk.
 
 ## 5. Giới hạn đã biết
 

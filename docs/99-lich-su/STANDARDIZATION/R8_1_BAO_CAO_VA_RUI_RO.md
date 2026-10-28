@@ -15,7 +15,7 @@
 
 **Lưu ý:** số lượng tệp, số hàm `test_` tĩnh và số test case thu thập bởi pytest là ba đại lượng khác nhau. Không dùng số hàm AST thay 635 PASS. Thống kê 635/3 là lịch sử đã báo cáo, không phải một phiên kiểm thử mới trong R8.1.
 
-Đọc [ma trận 97 tệp](../../standardization/R8_1_MA_TRAN_97_TEP.csv) để tra từng thành phần: chủ đề, hợp đồng, tầng kiểm thử dự kiến, bước xử lý và mức chắc chắn. Quy tắc R8.1: `GIU` không đồng nghĩa hoàn thiện; `CAN_DOI_CHIEU` không đồng nghĩa trùng và được phép xóa; `CAN_SUA_R8_3` chỉ là ứng viên sửa sau khi có kiểm thử thay thế. Không có file nào được kết luận “trùng hoàn toàn” chỉ từ tên hoặc số phép thử.
+Đọc [ma trận 97 tệp](R8_1_MA_TRAN_97_TEP.csv) để tra từng thành phần: chủ đề, hợp đồng, tầng kiểm thử dự kiến, bước xử lý và mức chắc chắn. Quy tắc R8.1: `GIU` không đồng nghĩa hoàn thiện; `CAN_DOI_CHIEU` không đồng nghĩa trùng và được phép xóa; `CAN_SUA_R8_3` chỉ là ứng viên sửa sau khi có kiểm thử thay thế. Không có file nào được kết luận “trùng hoàn toàn” chỉ từ tên hoặc số phép thử.
 
 ## 2. Các vấn đề đã đối chiếu với mã nguồn
 

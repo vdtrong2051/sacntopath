@@ -22,4 +22,4 @@
 ## Kiểm chứng
 
 Kiểm tra đủ 74 tệp, Git hash, liên kết nội bộ, phạm vi Git diff, các kiểm thử R7 và full regression Windows trước khi commit.
-[Tra cứu các hồ sơ đã gỡ](../../history/NGUON_HO_SO_CU.md).
+[Tra cứu các hồ sơ đã gỡ](../HO_SO_CU_VA_TRUY_VET.md).

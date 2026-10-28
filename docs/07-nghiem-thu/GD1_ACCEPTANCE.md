@@ -35,7 +35,7 @@ Quyết định final yêu cầu cả (1) Full gate tự động của baseline 
 | `GPU_VRAM_MEASURED` | Đo GPU/VRAM với method/driver/renderer workload, Qt+host | `PARTIAL_EVIDENCE` — RSS CPU là dữ liệu khác | VRAM/driver tool + peak, không thay bằng RAM ~MiB của process con |
 | `INPUT_TO_PHYSICAL_PRESENT_LATENCY` | Từ user input đến khung hình hiện vật lý, có thiết bị/cách đo | `NOT_TESTED` | Measurement method, sampling, units, thresholds; benchmark completed-render ≠ physical-present |
 
-Ngoài bảng, việc đánh giá `NOT_RUN_WAIVED_BY_OPERATOR` cho TC11/TC12 của [08.06.5](../archive/GD1/08/08_06_5_DEFECT_DISPOSITION_AND_HMI_WAIVER.md) chỉ chứng minh **quyết định operator ở phiên cũ**. Không tự thừa nhận có waiver `08.06.6`; để waive gate mới phải mở quyết định độc lập, mô tả phạm vi, rủi ro còn lại, người phê duyệt, ngày và receipt.
+Ngoài bảng, việc đánh giá `NOT_RUN_WAIVED_BY_OPERATOR` cho TC11/TC12 của [08.06.5](../99-lich-su/ARCHIVE/GD1/08/08_06_5_DEFECT_DISPOSITION_AND_HMI_WAIVER.md) chỉ chứng minh **quyết định operator ở phiên cũ**. Không tự thừa nhận có waiver `08.06.6`; để waive gate mới phải mở quyết định độc lập, mô tả phạm vi, rủi ro còn lại, người phê duyệt, ngày và receipt.
 
 ## 4. Quy trình ký 08.06.6
 

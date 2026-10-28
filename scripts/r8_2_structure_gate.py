@@ -10,7 +10,7 @@ import subprocess
 import sys
 
 BASE = '997536b8f14b95e64642be1028f8318c51efecc5'
-MAP = 'docs/standardization/R8_2_BAN_DO_TEST.csv'
+MAP = 'docs/99-lich-su/STANDARDIZATION/R8_2_BAN_DO_TEST.csv'
 
 
 def git(root:Path,*args:str)->str:
@@ -84,7 +84,7 @@ def verify(root:Path)->dict:
         if old in script:errors.append('R35_OLD_SCRIPT_PATH:'+old)
     # Tài liệu/test cũ không được thay đổi nghiệm thu R6 hoặc chính sách SKIP ở R8.2.
     for required in ['R6_AUTOMATED_PASS / R6_OVERALL_PENDING']:
-        if required not in (root/'docs/acceptance/GD1_R6_ACCEPTANCE_STATUS.md').read_text('utf-8'):
+        if required not in (root/'docs/07-nghiem-thu/records/GD1_R6_ACCEPTANCE_STATUS.md').read_text('utf-8'):
             errors.append('R6_ACCEPTANCE_CLAIM_CHANGED')
     return {'schema':'scantopath-r8-2-structure-gate-v1','status':'PASS' if not errors else 'FAIL',
             'baseline':BASE,'mapped_tests':len(rows),'test_functions_static':test_count,

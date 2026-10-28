@@ -3,7 +3,7 @@
 - **Ngày:** 2026-10-19.
 - **Trạng thái:** Accepted as **target design**, implementation pending 07.2/07.7.
 - **Phạm vi:** GĐ1 / phiên 07; giữ nguyên PRE-02/03 RAW v1/v2; không ghi đè/rename dữ liệu tồn tại.
-- **Liên kết:** [Audit 07.1](https://github.com/vdtrong2051/sacntopath/blob/08ef856a04d61f20db1e26b2ceeb399065db902f/docs/archive/GD1/07/07_01_STORAGE_AUDIT.md), [Layout contract](../../archive/GD1/07/07_01_STORAGE_LAYOUT_V2_CONTRACT.md), [UI-first ADR-001](../../decisions/ADR_001_UI_FIRST.md).
+- **Liên kết:** [Audit 07.1](https://github.com/vdtrong2051/sacntopath/blob/08ef856a04d61f20db1e26b2ceeb399065db902f/docs/archive/GD1/07/07_01_STORAGE_AUDIT.md), [Layout contract](../ARCHIVE/GD1/07/07_01_STORAGE_LAYOUT_V2_CONTRACT.md), [UI-first ADR-001](ADR_001_UI_FIRST.md).
 
 ## Bối cảnh
 

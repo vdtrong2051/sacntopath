@@ -45,7 +45,7 @@ Không suy rằng tên GĐ3 hay GĐ4 đã tồn tại thì code xử lý đó c�
 | 17–18 | Feature và bản sao số | Residual, uncertainty, as-is/nominal có căn cứ |
 | 19–20+ | AI tùy chọn và hướng dẫn đo bổ sung | Không blocking UI, không thay actual pose bằng planned |
 
-**Lưu ý về lịch sử:** roadmap cũ xếp 3D Core sớm và dùng số phiên khác. Bảng đối chiếu chính xác theo khả năng ở [SESSION_CROSSWALK](../roadmap/SESSION_CROSSWALK.md), không đổi tên lịch sử rồi coi là đã nghiệm thu.
+**Lưu ý về lịch sử:** roadmap cũ xếp 3D Core sớm và dùng số phiên khác. Bảng đối chiếu chính xác theo khả năng ở [SESSION_CROSSWALK](../06-giai-doan/SESSION_CROSSWALK.md), không đổi tên lịch sử rồi coi là đã nghiệm thu.
 
 ## 5. Các quyết định công nghệ gắn với cổng
 
@@ -60,4 +60,4 @@ Xem [Công nghệ và phụ thuộc](../02-kien-truc/CONG_NGHE_VA_PHU_THUOC.md) 
 
 Cần: chức năng đúng scope; mã nguồn/commit và test; bản đo môi trường thật nếu phạm vi có HMI/camera; chốt hạn chế còn mở và waiver có trách nhiệm. Đặc biệt, **GĐ1 không được đóng chỉ vì R8.5 đã commit**. Những phép thử DPI/native busy/GPU/render-present phải được xử lý trong 08.06.6 theo cách đo tương ứng.
 
-Lịch sử thử và lỗi được bảo toàn ở [Nhật ký GĐ1](../history/GD1/GD1_EXECUTION_JOURNAL.md); nguồn lịch sử R6 ở [Trạng thái nghiệm thu R6](../acceptance/GD1_R6_ACCEPTANCE_STATUS.md). Đây là hồ sơ chứng cứ, không phải hướng dẫn tạo task mới.
+Lịch sử thử và lỗi được bảo toàn ở [Nhật ký GĐ1](../99-lich-su/JOURNALS/GD1_EXECUTION_JOURNAL.md); nguồn lịch sử R6 ở [Trạng thái nghiệm thu R6](../07-nghiem-thu/records/GD1_R6_ACCEPTANCE_STATUS.md). Đây là hồ sơ chứng cứ, không phải hướng dẫn tạo task mới.

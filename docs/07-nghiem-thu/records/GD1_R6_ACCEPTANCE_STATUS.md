@@ -5,7 +5,7 @@
 
 ## 1. R6 được báo cáo gì?
 
-Hồ sơ [GD1_R6_ACCEPTANCE_STATUS gốc](../../acceptance/GD1_R6_ACCEPTANCE_STATUS.md) ngày **27/10/2026**, branch `feat/gd1-desktop-ui`, trước R7 tại `ff45ccf87ce770e25eedf6e12df6bb5aaa958734`, ghi operator log R6: 14/14 automated gates `PASS`, full pytest **618 passed / 3 skipped**, JUnit 621/0 fail, CTest **2/2**, Render Host geometry/transport/native/benchmark reported PASS. Đây là bằng chứng **OPERATOR_REPORTED**, không phải lần chạy mới của DOC-04.
+Hồ sơ [GD1_R6_ACCEPTANCE_STATUS gốc](../../99-lich-su/ACCEPTANCE/GD1_R6_ACCEPTANCE_STATUS_ORIGINAL.md) ngày **27/10/2026**, branch `feat/gd1-desktop-ui`, trước R7 tại `ff45ccf87ce770e25eedf6e12df6bb5aaa958734`, ghi operator log R6: 14/14 automated gates `PASS`, full pytest **618 passed / 3 skipped**, JUnit 621/0 fail, CTest **2/2**, Render Host geometry/transport/native/benchmark reported PASS. Đây là bằng chứng **OPERATOR_REPORTED**, không phải lần chạy mới của DOC-04.
 
 Ba symlink SKIP do Windows privilege được cho phép theo đúng node ID ở R8.3; chúng **không** chứng nhận các code path từ chối symlink đã chạy. Benchmark 1K/100K/1M points nói render-completed, không nói FPS thực, VRAM hoặc input-to-physical-present.
 

@@ -24,7 +24,7 @@ Một giới hạn quan trọng: `measured=True` chỉ cho biết nguồn là d�
 | PLY/OBJ Viewer, orbit/pan/zoom, point/face picking | `IMPLEMENTED` trong code | R5.3, R6 automated, test Viewer | Viewer tự sinh mesh hoặc xuất robot trajectory |
 | RAW replay → point cloud metric → filtering → fusion | **Chưa có pipeline GĐ2/GĐ3 được tích hợp** | Roadmap/khả năng tương lai | Đã chạy end-to-end |
 | Digital Replica, Active Acquisition, Zigzag/Contour thực thi trên bản desktop | **PLANNED / ngoài phạm vi build này** | Roadmap | Robot đang được điều khiển |
-| GĐ1 HMI/native thực địa tổng thể | **PENDING** | [Biên bản R6](docs/acceptance/GD1_R6_ACCEPTANCE_STATUS.md) | R8.5 commit = HMI PASS |
+| GĐ1 HMI/native thực địa tổng thể | **PENDING** | [Biên bản R6](docs/07-nghiem-thu/records/GD1_R6_ACCEPTANCE_STATUS.md) | R8.5 commit = HMI PASS |
 
 Bảng là **snapshot tại commit trên**, không phải sổ trạng thái luôn cập nhật. Khi DOC-04 hoàn thành, nguồn trạng thái vận hành sẽ chuyển sang `docs/05-quan-ly/TRANG_THAI_DU_AN.md`; không duy trì nhiều bảng trạng thái song song.
 
@@ -70,7 +70,7 @@ py -3.12 -m venv .venv
 
 Kết quả kỳ vọng: cửa sổ **ScanToPath** với bốn workspace (Dự án / Thu nhận RGB-D / Kiểm tra 3D / Xử lý). Chỉ khi người dùng chọn chức năng cần thiết mới mở nguồn dữ liệu hoặc khởi tạo Viewer; **không cần camera cắm sẵn**. Đóng cửa sổ để dừng Qt event loop. Khi chạy trên desktop thật, **không** đặt `QT_QPA_PLATFORM=offscreen`.
 
-Nếu `.venv` đã được cấu hình, bỏ qua hai lệnh tạo/cài đặt. Nếu viewer báo thiếu VTK, đối chiếu `pip show vtk PySide6` trong chính `.venv` thay vì đổi mã nguồn. Xem [Sổ tay cài đặt hiện hành](docs/development/HUONG_DAN_CAI_DAT.md) (DOC-03C sẽ viết lại đầy đủ).
+Nếu `.venv` đã được cấu hình, bỏ qua hai lệnh tạo/cài đặt. Nếu viewer báo thiếu VTK, đối chiếu `pip show vtk PySide6` trong chính `.venv` thay vì đổi mã nguồn. Xem [Sổ tay cài đặt hiện hành](docs/04-phat-trien/CAI_DAT_VA_CHAY.md) (DOC-03C sẽ viết lại đầy đủ).
 
 ## 6. Bản đồ repository
 
@@ -105,13 +105,13 @@ docs/                tài liệu chuẩn mới và hồ sơ tương thích/lịc
 - `Full`: toàn bộ pytest, JUnit policy, CTest Release và các quality gates; dùng trước commit.
 - `Acceptance`: ghi nhận các cổng tự động; **các cổng HMI/native thực địa chưa đo vẫn là `PENDING_MANUAL`**.
 
-Dữ liệu kết quả chạy được lưu tại thư mục evidence **ngoài repository**. Ba test tạo symlink có thể SKIP trên Windows nếu thiếu quyền, và phải đúng ID/lý do trong chính sách. Xem [Quy trình kiểm thử](docs/development/QUY_TRINH_KIEM_THU.md), [Trạng thái R6](docs/acceptance/GD1_R6_ACCEPTANCE_STATUS.md).
+Dữ liệu kết quả chạy được lưu tại thư mục evidence **ngoài repository**. Ba test tạo symlink có thể SKIP trên Windows nếu thiếu quyền, và phải đúng ID/lý do trong chính sách. Xem [Quy trình kiểm thử](docs/04-phat-trien/KIEM_THU_VA_NGHIEM_THU.md), [Trạng thái R6](docs/07-nghiem-thu/records/GD1_R6_ACCEPTANCE_STATUS.md).
 
 ## 8. Cổng tài liệu và lịch sử
 
 - [Bắt đầu đọc theo vai trò](docs/README.md): đường đọc từ người mới tới developer/nghiệm thu.
 - [Lộ trình phát triển](docs/01-tong-quan/LO_TRINH_PHAT_TRIEN.md): điều gì có trước và phụ thuộc nào chưa làm.
 - [Kiến trúc hệ thống](docs/02-kien-truc/KIEN_TRUC_HE_THONG.md), [hợp đồng dữ liệu](docs/02-kien-truc/DU_LIEU_VA_HE_TOA_DO.md) và [công nghệ](docs/02-kien-truc/CONG_NGHE_VA_PHU_THUOC.md).
-- [Bằng chứng nghiệm thu GĐ1](docs/acceptance/GD1.md): trạng thái và phần còn mở.
+- [Bằng chứng nghiệm thu GĐ1](docs/07-nghiem-thu/GD1_ACCEPTANCE.md): trạng thái và phần còn mở.
 
-**Đường dẫn lịch sử tương thích, không phải cổng đọc chính:** [Tài liệu GĐ1 hiện hành](docs/INDEX.md). Mục này được giữ vì gate R7 cũ đang kiểm tra liên kết chính xác; đến DOC-05 mới xem xét thay gate và redirect. Một số hồ sơ GĐ0/R4/R5 còn ở commit Git lịch sử, không nên xem các nhãn `PENDING` khi đó như trạng thái software tại commit hiện hành.
+**Đường dẫn lịch sử tương thích, không phải cổng đọc chính:** [Tài liệu GĐ1 hiện hành](docs/README.md). Mục này được giữ vì gate R7 cũ đang kiểm tra liên kết chính xác; đến DOC-05 mới xem xét thay gate và redirect. Một số hồ sơ GĐ0/R4/R5 còn ở commit Git lịch sử, không nên xem các nhãn `PENDING` khi đó như trạng thái software tại commit hiện hành.

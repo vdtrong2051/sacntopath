@@ -103,6 +103,6 @@ Khi người dùng click, `SceneSelectionRef` gồm `source_sha256`, `scene_revi
 
 ## 8. Kiểm tra và tài liệu liên quan
 
-Kiểm tra contract RAW với `tests/unit/raw/test_raw_rgbd_contract.py`, lưu trữ với `tests/unit/raw/test_raw_storage.py`, registry với `tests/integration/storage/`; scene/interaction với `tests/native/viewer/`, `tests/ui/viewer/`. Runner tự động: `scripts/verify.ps1 -Profile Full` (Windows + build CTest phù hợp). Cổng tổng thể HMI/native theo [R6 acceptance](../acceptance/GD1_R6_ACCEPTANCE_STATUS.md) vẫn có khoản `NOT_TESTED`.
+Kiểm tra contract RAW với `tests/unit/raw/test_raw_rgbd_contract.py`, lưu trữ với `tests/unit/raw/test_raw_storage.py`, registry với `tests/integration/storage/`; scene/interaction với `tests/native/viewer/`, `tests/ui/viewer/`. Runner tự động: `scripts/verify.ps1 -Profile Full` (Windows + build CTest phù hợp). Cổng tổng thể HMI/native theo [R6 acceptance](../07-nghiem-thu/records/GD1_R6_ACCEPTANCE_STATUS.md) vẫn có khoản `NOT_TESTED`.
 
 **Giới hạn chính:** công thức chiếu/chuỗi frame ở đây là tiêu chuẩn thiết kế cho GĐ2+, không phải bằng chứng thư viện geometric đã tích hợp. Thông tin version/điều kiện cơ khí ngoài Git phải được xác minh bằng quyết định kỹ thuật trước khi thay đổi hợp đồng.

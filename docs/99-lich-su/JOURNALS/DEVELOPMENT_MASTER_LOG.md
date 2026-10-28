@@ -7,7 +7,7 @@
 | Mốc | Git/bằng chứng | Nội dung chính | Tình trạng và giới hạn |
 |---|---|---|---|
 | GĐ0, PRE-01–06 | PR #3, commit merge `8bf33591389dcdff82f0fbd5bf5932a22547c984` | C++20/pybind11/Gemini 2, RAW RGB-D v2, SQLite, lưu/đọc và nghiệm thu GĐ0 | Git đã ghi nhận; thử camera theo báo cáo người vận hành; không phải kiểm định hình học metric |
-| GĐ1 các phiên 06–08 đầu tiên | [Hồ sơ 06–08](../../archive/README.md) | Qt shell, Project Workspace, VTK preview; phát sinh lỗi lifecycle và trải nghiệm người dùng | Lịch sử từng lần thử chưa tổng hợp đủ |
+| GĐ1 các phiên 06–08 đầu tiên | [Hồ sơ 06–08](../README.md) | Qt shell, Project Workspace, VTK preview; phát sinh lỗi lifecycle và trải nghiệm người dùng | Lịch sử từng lần thử chưa tổng hợp đủ |
 | R1–R3.5 | `8c295e0` và hồ sơ R1–R3 | Tái cấu trúc bố cục UI, Project, Inspector, Processing Workspace | Cần xem hồ sơ cùng lần thử; không đồng nhất với nghiệm thu Viewer native cuối |
 | R4.1–R4.5 | `46427d7f37e1de287373a5eab1ed85b1cf9f64bb` | So sánh embedded VTK với Render Host cô lập, chọn B có điều kiện | Lựa chọn kiến trúc **không** đồng nghĩa crash C++/FPS/VRAM đã kiểm chứng |
 | R5.1 | `1019127803d6eac391ed2f5ea567c254feecaf2c` | Hợp đồng đọc PLY points/mesh và OBJ, SHA nguồn | Đọc hình học ngoài, chưa tạo point cloud từ RAW |
@@ -28,7 +28,7 @@
 
 ## 3. Truy vết
 
-- [GĐ0 — PRE-01–06](../../history/GD0/GD0_EXECUTION_JOURNAL.md) · [GĐ1 — R1–R7](../../history/GD1/GD1_EXECUTION_JOURNAL.md) · [Sổ sự cố](../../history/GD1/INCIDENT_REGISTER.md).
-- [Trạng thái R6](../../acceptance/GD1_R6_ACCEPTANCE_STATUS.md) và [hồ sơ GĐ1](../../acceptance/GD1.md).
-- Hồ sơ nguồn giữ ở [kho lưu trữ](../../archive/README.md); đối chiếu đường dẫn trước–sau R7-B trong [bản đồ di chuyển](../../history/NGUON_HO_SO_CU.md).
+- [GĐ0 — PRE-01–06](GD0_EXECUTION_JOURNAL.md) · [GĐ1 — R1–R7](GD1_EXECUTION_JOURNAL.md) · [Sổ sự cố](../../05-quan-ly/INCIDENT_REGISTER.md).
+- [Trạng thái R6](../../07-nghiem-thu/records/GD1_R6_ACCEPTANCE_STATUS.md) và [hồ sơ GĐ1](../../07-nghiem-thu/GD1_ACCEPTANCE.md).
+- Hồ sơ nguồn giữ ở [kho lưu trữ](../README.md); đối chiếu đường dẫn trước–sau R7-B trong [bản đồ di chuyển](../HO_SO_CU_VA_TRUY_VET.md).
 - Evidence thô (nếu còn tại Windows) nằm trong `_setup/.../evidence`, không được sao chép sang Git hoặc coi như đã kiểm chứng từ xa.

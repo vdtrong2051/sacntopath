@@ -67,6 +67,6 @@ Ba tầng bằng chứng không thể thay thế nhau: `IMPLEMENTED_IN_GIT`, `AU
 - Muốn hiểu cách phần mềm chạy: [Kiến trúc hệ thống](../02-kien-truc/KIEN_TRUC_HE_THONG.md).
 - Muốn hiểu mét, milimét, pose, frame và nguồn gốc dữ liệu: [Dữ liệu và hệ tọa độ](../02-kien-truc/DU_LIEU_VA_HE_TOA_DO.md).
 - Muốn chạy desktop: [README gốc](../../README.md) (có lệnh Windows và điều kiện đầu vào).
-- Muốn kiểm chứng một quyết định trước đây: [ADR](../decisions/DECISION_INDEX.md) hoặc [nhật ký kỹ thuật](../history/README.md).
+- Muốn kiểm chứng một quyết định trước đây: [ADR](../05-quan-ly/QUYET_DINH_KY_THUAT.md) hoặc [nhật ký kỹ thuật](../99-lich-su/README.md).
 
 **Giới hạn:** tài liệu này là bản giải nghĩa sản phẩm tại một commit. Các module GĐ1 sẽ có tài liệu tự chứa ở DOC-03B; không dùng phần này thay hồ sơ nghiệm thu có chữ ký và evidence thực địa.

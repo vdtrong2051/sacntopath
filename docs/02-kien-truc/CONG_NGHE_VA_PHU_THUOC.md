@@ -86,6 +86,6 @@ Tại R4.5, một lần so sánh VTK nhúng trong Qt với host resident độc 
 
 Chỉ nâng SDK/PySide6/VTK/Python hoặc thêm Open3D/OpenCV/PCL khi có task, lý do kỹ thuật, phiên bản dự kiến, ảnh hưởng API/ABI, kiểm tra license, benchmark khi phù hợp và đường rollback. Với camera, đối chiếu firmware/SDK/USB profile và quyền DLL; với Qt/VTK, chạy full regression và HMI thực nếu thay interaction/native lifecycle.
 
-Dẫn nguồn để xác minh: `pyproject.toml`, `cpp/CMakeLists.txt`, `src/scantopath/ui/shell/viewer_bootstrap.py`, `src/scantopath/modules/viewer3d/infrastructure/resident_poc/`, [Kiến trúc](KIEN_TRUC_HE_THONG.md) và [Phạm vi năng lực](../01-tong-quan/PHAM_VI_VA_NANG_LUC.md). Các quyết định công nghệ từ giai đoạn cũ có tại [Technology Scope R7](../roadmap/TECHNOLOGY_SCOPE.md); văn bản đó được dùng như nguồn lịch sử và có bảng Viewer chưa cập nhật, **không** dùng làm trạng thái code ở commit này.
+Dẫn nguồn để xác minh: `pyproject.toml`, `cpp/CMakeLists.txt`, `src/scantopath/ui/shell/viewer_bootstrap.py`, `src/scantopath/modules/viewer3d/infrastructure/resident_poc/`, [Kiến trúc](KIEN_TRUC_HE_THONG.md) và [Phạm vi năng lực](../01-tong-quan/PHAM_VI_VA_NANG_LUC.md). Các quyết định công nghệ từ giai đoạn cũ có tại [Technology Scope R7](CONG_NGHE_VA_PHU_THUOC.md); văn bản đó được dùng như nguồn lịch sử và có bảng Viewer chưa cập nhật, **không** dùng làm trạng thái code ở commit này.
 
 **Giới hạn:** đây là danh mục dependency từ source, không phải output của `pip freeze`, `ctest` hoặc bản kiểm kê driver GPU trên máy người vận hành.

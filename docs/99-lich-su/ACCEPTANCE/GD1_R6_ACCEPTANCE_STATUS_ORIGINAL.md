@@ -41,4 +41,4 @@
 - `INC-GD1-R6-RUNNER-001`: tham số `$args` trùng biến tự động PowerShell → mọi subprocess không khởi chạy. Bản sửa đổi tên tham số, lưu thất bại gốc.
 - `INC-GD1-R6-RUNNER-002`: exit code rỗng khiến tool in PASS bị ghi FAIL; CTest thiếu `-C Release`. Bản sửa lấy code trực tiếp từ process và gọi CTest Release. Sau đó 14/14 PASS.
 
-Chi tiết: [Incident register](../history/GD1/INCIDENT_REGISTER.md) · [master log](../history/DEVELOPMENT_MASTER_LOG.md).
+Chi tiết: [Incident register](../../05-quan-ly/INCIDENT_REGISTER.md) · [master log](../JOURNALS/DEVELOPMENT_MASTER_LOG.md).

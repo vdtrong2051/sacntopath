@@ -76,7 +76,7 @@ def content_errors(text: dict[str, str]) -> list[str]:
         if not any(x in data.lower() for x in ('giới hạn', 'không', 'chưa')):
             errors.append('LIMITATION_MISSING:' + path)
     checks = {
-        'README.md': ('## 1.', '## 8.', '[Tài liệu GĐ1 hiện hành](docs/INDEX.md)',
+        'README.md': ('## 1.', '## 8.', '[Tài liệu GĐ1 hiện hành](docs/README.md)',
                       'scantopath.ui.main', 'Quick', 'Full', 'Acceptance'),
         'docs/README.md': ('DOC-03B', 'DOC-03C', 'DOC-04', 'DOC-05'),
         'docs/01-tong-quan/GIOI_THIEU_DU_AN.md': ('RAW', 'SQLite', 'PLY', 'OBJ', 'Zigzag'),
@@ -131,11 +131,11 @@ def verify(root: Path) -> dict:
             errors.append('SOURCE_NOT_PRESENT_AT_BASELINE:' + path)
     # Bất biến tương thích: bảy alias và hồ sơ nguyên gốc không được dời ở DOC-03A.
     for path in (
-        'docs/INDEX.md', 'docs/architecture/CURRENT_GD1_ARCHITECTURE.md',
-        'docs/modules/VIEWER3D.md', 'docs/modules/PROJECT_WORKSPACE.md',
-        'docs/development/ENGINEERING_STANDARDS.md',
-        'docs/development/R7_DOCUMENTATION_POLICY.md',
-        'docs/roadmap/ROADMAP_V1_ARCHIVED.md',
+        'docs/README.md', 'docs/02-kien-truc/KIEN_TRUC_HE_THONG.md',
+        'docs/03-modules/VIEWER_3D.md', 'docs/03-modules/PROJECT_WORKSPACE.md',
+        'docs/04-phat-trien/TIEU_CHUAN_KY_THUAT.md',
+        'docs/04-phat-trien/TIEU_CHUAN_KY_THUAT.md',
+        'docs/99-lich-su/ARCHIVE/ROADMAP_CU/ROADMAP_V1_ARCHIVED.md',
     ):
         if not (root / path).is_file():
             errors.append('R7_ALIAS_MISSING:' + path)

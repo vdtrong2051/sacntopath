@@ -11,11 +11,11 @@
 
 | evidence_id | loại | đường nguồn/locator | bao phủ | giới hạn |
 |---|---|---|---|---|
-| `E-GD0-PRE06` | `OPERATOR_REPORTED` + Git PR | [PRE-06](../archive/GD0/PRE/PRE_06_GD0_ACCEPTANCE.md), PR #3 merge `8bf33591389dcdff82f0fbd5bf5932a22547c984` | RAW/C++/SQLite/one-shot report | File receipt raw Windows không có trong repository tại lần DOC-04 |
-| `E-GD1-R6` | `OPERATOR_REPORTED` | [R6 status](../acceptance/GD1_R6_ACCEPTANCE_STATUS.md), `_setup/ScanToPath_R6_Auto_Acceptance/evidence/R6_20261027T150605Z_19408` | 14/14 automated, 618/3, CTest2/2 | Locator trên Windows, không truy cập/verify tại DOC-04; tổng thể PENDING |
-| `E-GD1-08064` | `HISTORICAL_MANUAL_PARTIAL` | [08.06.4](../archive/GD1/08/08_06_4_WINDOWS_HMI_ACCEPTANCE.md) | Session A/ảnh một số ca và normal close | Không chứng minh close-while-busy, đầy đủ HMI hoặc physical latency |
-| `E-GD1-08065` | `WAIVER_HISTORICAL` | [08.06.5](../archive/GD1/08/08_06_5_DEFECT_DISPOSITION_AND_HMI_WAIVER.md) | TC11/TC12 waived by operator tại thời điểm riêng | Không tự waive `08.06.6`, không phải HMI PASS |
-| `E-R8-5-GIT` | `GIT_VERIFIED` | Commit `493a24d2ab62cd34e5968cbcb60d5f9857c3c4b8`, [R8.5](../standardization/R8_5_KIEM_KE_VA_NGHIEM_THU.md) | Có audit/unified runner | Không có receipt Full của DOC-04 ở đây |
+| `E-GD0-PRE06` | `OPERATOR_REPORTED` + Git PR | [PRE-06](../99-lich-su/ARCHIVE/GD0/PRE/PRE_06_GD0_ACCEPTANCE.md), PR #3 merge `8bf33591389dcdff82f0fbd5bf5932a22547c984` | RAW/C++/SQLite/one-shot report | File receipt raw Windows không có trong repository tại lần DOC-04 |
+| `E-GD1-R6` | `OPERATOR_REPORTED` | [R6 status](records/GD1_R6_ACCEPTANCE_STATUS.md), `_setup/ScanToPath_R6_Auto_Acceptance/evidence/R6_20261027T150605Z_19408` | 14/14 automated, 618/3, CTest2/2 | Locator trên Windows, không truy cập/verify tại DOC-04; tổng thể PENDING |
+| `E-GD1-08064` | `HISTORICAL_MANUAL_PARTIAL` | [08.06.4](../99-lich-su/ARCHIVE/GD1/08/08_06_4_WINDOWS_HMI_ACCEPTANCE.md) | Session A/ảnh một số ca và normal close | Không chứng minh close-while-busy, đầy đủ HMI hoặc physical latency |
+| `E-GD1-08065` | `WAIVER_HISTORICAL` | [08.06.5](../99-lich-su/ARCHIVE/GD1/08/08_06_5_DEFECT_DISPOSITION_AND_HMI_WAIVER.md) | TC11/TC12 waived by operator tại thời điểm riêng | Không tự waive `08.06.6`, không phải HMI PASS |
+| `E-R8-5-GIT` | `GIT_VERIFIED` | Commit `493a24d2ab62cd34e5968cbcb60d5f9857c3c4b8`, [R8.5](../99-lich-su/STANDARDIZATION/R8_5_KIEM_KE_VA_NGHIEM_THU.md) | Có audit/unified runner | Không có receipt Full của DOC-04 ở đây |
 | `E-DOC03A` | `GIT_VERIFIED` | Commit `0557c0d4fed9a3df3b180fc9872c6d3293b5f0d5`, [handover](../standardization/DOC03A_TRUY_VET_VA_BAN_GIAO.md) | Có docs/architecture | Windows operator receipt chưa được đối chiếu trong phiên này |
 | `E-DOC03B` | `GIT_VERIFIED` | Commit `a847faebe54050cd6f8bc42cc882b3927ddabfe2`, [handover](../standardization/DOC03B_TRUY_VET_VA_BAN_GIAO.md) | Có five-module handbooks | Không tự suy FULL PASS từ Git |
 | `E-DOC03C` | `GIT_VERIFIED` | Commit `81da5d2050324b1dc4a65ffbca9a38ed1ebba10a`, [handover](../standardization/DOC03C_TRUY_VET_VA_BAN_GIAO.md) | Có developer handbooks | Không tự suy reviewer/HMI từ commit |

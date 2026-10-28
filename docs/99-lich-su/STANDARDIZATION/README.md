@@ -23,4 +23,4 @@ Những tài liệu dưới đây là **hồ sơ theo thời điểm**, không l
 - [Quyết định 20 vấn đề](../../standardization/DOC02_QUYET_DINH_20.csv).
 - [DOC-03A](../../standardization/DOC03A_TRUY_VET_VA_BAN_GIAO.md), [DOC-03B](../../standardization/DOC03B_TRUY_VET_VA_BAN_GIAO.md), [DOC-03C](../../standardization/DOC03C_TRUY_VET_VA_BAN_GIAO.md), [DOC-04](../../standardization/DOC04_TRUY_VET_VA_BAN_GIAO.md).
 
-Nguồn cũ `docs/standardization/` được giữ vì R8.1–R8.5 và DOC-02 tới DOC-04 còn dùng chúng. Không đổi đường dẫn mặc định của các gate hoặc xóa theo trùng nội dung khi chưa có chứng cứ.
+Các gate R8 đọc dữ liệu tại đường dẫn trong kho lịch sử; biên bản DOC-02 đến DOC-05 còn nguyên trong `docs/standardization/`.

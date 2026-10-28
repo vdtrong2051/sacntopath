@@ -19,7 +19,7 @@ import subprocess
 import sys
 
 BASELINE = 'f59d3f8518c52879c9b5b7fe37539ffd9061827a'
-CATALOG = 'docs/standardization/R8_1_MA_TRAN_97_TEP.csv'
+CATALOG = 'docs/99-lich-su/STANDARDIZATION/R8_1_MA_TRAN_97_TEP.csv'
 HEADERS = ('duong_dan', 'loai', 'nhom_chuc_nang', 'nhom_kiem_thu_de_xuat',
            'hop_dong_duoc_bao_ve_hoac_muc_dich', 'quyet_dinh_so_bo',
            'ly_do_can_xem_xet', 'test_chuan_de_xuat', 'do_tin_cay')
@@ -129,7 +129,7 @@ def scan(root: Path) -> dict:
     if set(registered_paths) != set(tests + scripts):
         errors.append(f'CATALOG_PATH_MISMATCH:missing={sorted(set(tests+scripts)-set(registered_paths))}:extra={sorted(set(registered_paths)-set(tests+scripts))}')
     relocation = {}
-    mapping_file = root / 'docs/standardization/R8_2_BAN_DO_TEST.csv'
+    mapping_file = root / 'docs/99-lich-su/STANDARDIZATION/R8_2_BAN_DO_TEST.csv'
     if mapping_file.is_file():
         with mapping_file.open(encoding='utf-8-sig', newline='') as f:
             relocation = {r['duong_dan_cu']: r['duong_dan_moi'] for r in csv.DictReader(f)}

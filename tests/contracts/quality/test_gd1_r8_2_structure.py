@@ -17,7 +17,7 @@ def test_r82_all_76_baseline_tests_preserved():
 
 
 def test_r82_new_paths_are_separated_by_role_and_module():
-    with (ROOT/'docs/standardization/R8_2_BAN_DO_TEST.csv').open(encoding='utf-8-sig',newline='') as f:
+    with (ROOT/'docs/99-lich-su/STANDARDIZATION/R8_2_BAN_DO_TEST.csv').open(encoding='utf-8-sig',newline='') as f:
         rows=list(csv.DictReader(f))
     assert len(rows)==76
     assert len({r['duong_dan_moi'] for r in rows})==76

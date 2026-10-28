@@ -82,7 +82,7 @@ Cổng docs tĩnh đọc file local và ghi JSON chỉ ra ngoài root. Không g�
 
 ## 7. Kiểm HMI/native thực và hồ sơ còn mở
 
-Sau `Full`, người vận hành có thể cần nghiệm thu một ma trận riêng: DPI 100/125/150; mở/đóng lại Viewer với real display; ứng dụng đóng khi C++ child đang bận; fault isolation; GPU/VRAM thực; input-to-physical-present latency. Ghi từng ca `PASS`, `FAIL`, `NOT_TESTED`, hoặc `WAIVED_WITH_APPROVAL` đúng quyền và receipt. `pytest` offscreen, native fixture hay benchmark "completed workload" không đo physical-present FPS. Tham chiếu [R6 operator status](../acceptance/GD1_R6_ACCEPTANCE_STATUS.md), hồ sơ [08.06.4](../archive/GD1/08/08_06_4_WINDOWS_HMI_ACCEPTANCE.md), [08.06.5](../archive/GD1/08/08_06_5_DEFECT_DISPOSITION_AND_HMI_WAIVER.md). Không viết đè kết quả đã có; DOC-04 sẽ xây chỉ mục nghiệm thu v2.
+Sau `Full`, người vận hành có thể cần nghiệm thu một ma trận riêng: DPI 100/125/150; mở/đóng lại Viewer với real display; ứng dụng đóng khi C++ child đang bận; fault isolation; GPU/VRAM thực; input-to-physical-present latency. Ghi từng ca `PASS`, `FAIL`, `NOT_TESTED`, hoặc `WAIVED_WITH_APPROVAL` đúng quyền và receipt. `pytest` offscreen, native fixture hay benchmark "completed workload" không đo physical-present FPS. Tham chiếu [R6 operator status](../07-nghiem-thu/records/GD1_R6_ACCEPTANCE_STATUS.md), hồ sơ [08.06.4](../99-lich-su/ARCHIVE/GD1/08/08_06_4_WINDOWS_HMI_ACCEPTANCE.md), [08.06.5](../99-lich-su/ARCHIVE/GD1/08/08_06_5_DEFECT_DISPOSITION_AND_HMI_WAIVER.md). Không viết đè kết quả đã có; DOC-04 sẽ xây chỉ mục nghiệm thu v2.
 
 ## 8. Khi FAIL: triage theo cổng, không sửa bài kiểm thử để PASS
 

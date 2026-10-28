@@ -212,7 +212,7 @@ def audit(root: Path) -> dict:
                                'decision':'REVIEW_ONLY_NOT_DELETE'})
     candidates.extend(duplicate_candidates(code_by_test))
     # Bảo vệ 6 hạng mục nghiệm thu HMI/native của R6 chưa được giải quyết.
-    original = (root/'docs/acceptance/GD1_R6_ACCEPTANCE_STATUS.md').read_text('utf-8')
+    original = (root/'docs/07-nghiem-thu/records/GD1_R6_ACCEPTANCE_STATUS.md').read_text('utf-8')
     for marker in ('R6_AUTOMATED_PASS / R6_OVERALL_PENDING', 'NOT_TESTED', 'PARTIAL_EVIDENCE'):
         if marker not in original:
             errors.append('R6_PENDING_ACCEPTANCE_MARKER_MISSING:' + marker)

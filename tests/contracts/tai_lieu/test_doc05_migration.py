@@ -23,7 +23,7 @@ def test_doc05_mirror_integrity_and_legacy_aliases():
     receipt=gate.verify(ROOT)
     assert receipt['status']=='PASS',receipt['errors']
     assert receipt['hmi_08_06_6']=='PENDING_MANUAL'
-    assert receipt['aliases_preserved']==7
+    assert receipt['aliases_preserved']==0
 
 
 def test_doc05_rebases_existing_relative_link_without_touching_source(tmp_path):

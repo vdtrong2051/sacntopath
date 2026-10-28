@@ -64,37 +64,46 @@ def safe(root: Path, rel: str) -> Path:
 def transform(root: Path, source: str, target: str, data: bytes) -> bytes:
     if not source.endswith('.md'):
         return data
-    bom = b'\xef\xbb\xbf'
-    original = data.decode('utf-8-sig')
-    source_parent = (root / source).parent
-    target_parent = (root / target).parent
-    in_fence = False
-    result = []
-    for line in original.splitlines(keepends=True):
-        stripped = line.lstrip()
-        if stripped.startswith(('```', '~~~')):
-            in_fence = not in_fence
-        if in_fence:
+    map_path=root/'docs/standardization/DOC02_BAN_DO_65.csv'
+    redirect={}
+    if map_path.is_file():
+        with map_path.open(encoding='utf-8-sig',newline='') as stream:
+            redirect={row['old_path']:row['primary_target'] for row in csv.DictReader(stream)
+                      if row['old_path'].startswith('docs/') and row['old_path'] != row['primary_target']}
+    bom=b'\xef\xbb\xbf'
+    body=data.decode('utf-8-sig')
+    result=[]
+    fence=False
+    for line in body.splitlines(keepends=True):
+        if line.lstrip().startswith(('```','~~~')):
+            fence=not fence
             result.append(line)
             continue
-        def rebase(match: re.Match[str]) -> str:
-            ref = match.group(2)
-            if (ref.startswith(('http:', 'https:', 'mailto:', '#', '/', '\\', '<')) or
-                re.match(r'^[A-Za-z]:', ref)):
+        if fence:
+            result.append(line)
+            continue
+        def change(match):
+            raw=match.group(2)
+            if (raw.startswith(('http:','https:','mailto:','#','/','\\','<')) or
+                    re.match(r'^[A-Za-z]:',raw)):
                 return match.group(0)
-            plain = ref.split(' "', 1)[0]
-            head = plain.split('#', 1)[0].split('?', 1)[0]
+            head=raw.split(' "',1)[0].split('#',1)[0].split('?',1)[0]
             if not head or '\\' in head:
                 return match.group(0)
-            resolved = (source_parent / head).resolve(strict=False)
-            if not resolved.is_relative_to(root.resolve()):
-                return match.group(0)
-            # Preserve anchor/query; point back to the source's original target.
-            rebased = Path(os.path.relpath(resolved, target_parent)).as_posix()
-            return match.group(1) + rebased + plain[len(head):] + ref[len(plain):] + match.group(3)
-        result.append(LINK.sub(rebase, line))
-    encoded = ''.join(result).encode('utf-8')
-    return (bom if data.startswith(bom) else b'') + encoded
+            parts=source.split('/')[:-1]
+            for part in head.split('/'):
+                if part in ('','.'):continue
+                if part=='..':
+                    if not parts:return match.group(0)
+                    parts.pop()
+                else:parts.append(part)
+            relative='/'.join(parts)
+            new_target=redirect.get(relative,relative)
+            new_path=Path(os.path.relpath(new_target,Path(target).parent)).as_posix()
+            if new_path=='.':new_path=Path(new_target).name
+            return match.group(1)+new_path+raw[len(head):]+match.group(3)
+        result.append(LINK.sub(change,line))
+    return (bom if data.startswith(bom) else b'')+''.join(result).encode('utf-8')
 
 
 def load_plan(root: Path) -> dict:
@@ -128,57 +137,50 @@ def verify(root: Path) -> dict:
     root=root.resolve(strict=True)
     errors=[]
     plan=load_plan(root)
-    if git(root,'rev-parse','HEAD') != BASELINE:
-        errors.append('DOC05_BASELINE_HEAD_CHANGED')
-    # Validate every migration against DOC-02, not just a self-authored plan.
+    parent=subprocess.run(['git','merge-base','--is-ancestor',BASELINE,'HEAD'],
+                          cwd=root,capture_output=True,timeout=30)
+    if parent.returncode:errors.append('DOC05_SOURCE_BASELINE_NOT_ANCESTOR')
     with (root/'docs/standardization/DOC02_BAN_DO_65.csv').open(
             encoding='utf-8-sig', newline='') as stream:
-        source_map = {r['id']:r for r in csv.DictReader(stream)}
-    ids={}
+        source_map={r['id']:r for r in csv.DictReader(stream)}
     for x in plan['mirrors']:
-        defined=source_map.get(x['id'])
-        if not defined or defined['old_path']!=x['source'] or defined['primary_target']!=x['target']:
-            errors.append('DOC02_MAPPING_DIVERGENCE:'+x['id'])
-
-        old=safe(root,x['source']); new=safe(root,x['target'])
-        ids[x['id']]=x['target']
-        if not old.is_file() or not new.is_file():
-            errors.append('DOC05_MIRROR_MISSING:'+x['id'])
-            continue
+        mapped=source_map.get(x['id'])
+        if not mapped or mapped['old_path']!=x['source'] or mapped['primary_target']!=x['target']:
+            errors.append('DOC05_MAP_MISMATCH:'+x['id'])
+        old=safe(root,x['source']);new=safe(root,x['target'])
+        if old.exists():errors.append('DOC05_DUPLICATE_SOURCE_STILL_PRESENT:'+x['id'])
+        if not new.is_file():
+            errors.append('DOC05_MIRROR_MISSING:'+x['id']);continue
         blob=git(root,'rev-parse',BASELINE+':'+x['source'])
         if blob!=x['source_git_blob']:
-            errors.append('DOC05_SOURCE_BLOB_CHANGED:'+x['id'])
-        if new.read_bytes()!=transform(root,x['source'],x['target'],old.read_bytes()):
+            errors.append('DOC05_SOURCE_BLOB_CHANGED:'+x['id']);continue
+        historical=subprocess.run(['git','show',BASELINE+':'+x['source']],cwd=root,
+                                  capture_output=True,timeout=30)
+        if historical.returncode:
+            errors.append('DOC05_SOURCE_NOT_RETRIEVABLE:'+x['id']);continue
+        expected=transform(root,x['source'],x['target'],historical.stdout)
+        check=subprocess.run(['git','hash-object','--path='+x['target'],'--stdin'],
+                             input=expected,cwd=root,capture_output=True,timeout=30)
+        clean=subprocess.run(['git','hash-object','--path='+x['target'],'--',x['target']],
+                             cwd=root,capture_output=True,timeout=30)
+        if check.returncode or clean.returncode or check.stdout!=clean.stdout:
             errors.append('DOC05_MIRROR_CONTENT_CHANGED:'+x['id'])
-    for label in ('DOC-025','DOC-045','DOC-053'):
-        if label not in source_map:
-            errors.append('DOC02_EXCEPTION_SOURCE_MISSING:'+label)
-    if (source_map['DOC-025']['primary_target']!='docs/99-lich-su/README.md' or
-        source_map['DOC-045']['primary_target']!='docs/99-lich-su/README.md' or
-        source_map['DOC-053']['primary_target']!='docs/99-lich-su/ARCHIVE/ROADMAP_CU/ROADMAP_V1_ARCHIVED.md'):
-        errors.append('DOC02_MERGE_ALIAS_EXCEPTION_CHANGED')
     for rel in ALIASES:
-        if not safe(root,rel).is_file():
-            errors.append('DOC05_LEGACY_ALIAS_MISSING:'+rel)
+        if safe(root,rel).exists():errors.append('DOC05_DUPLICATE_ALIAS_STILL_PRESENT:'+rel)
     for rel in V2:
-        if not safe(root,rel).is_file():
-            errors.append('DOC05_INDEX_MISSING:'+rel)
-        else:
-            errors.extend(link_errors(root,rel))
+        if not safe(root,rel).is_file():errors.append('DOC05_INDEX_MISSING:'+rel)
+        else:errors.extend(link_errors(root,rel))
     portal=safe(root,'docs/README.md').read_text('utf-8')
     for mark in ('DOC-03B','DOC-03C','DOC-04','DOC-05',
-                 '7a0df7c5b596ff8750bf91f47310067c53a8b204',
-                 '99-lich-su/README.md'):
-        if mark not in portal:
-            errors.append('DOC05_PORTAL_REGRESSION:'+mark)
-    # Preserve pending decisions. No HMI pass can be inferred from docs migration.
-    status=safe(root,'docs/05-quan-ly/TRANG_THAI_DU_AN.md').read_text('utf-8')
-    acceptance=safe(root,'docs/07-nghiem-thu/GD1_ACCEPTANCE.md').read_text('utf-8')
-    if 'GD1_OVERALL_PENDING' not in status or 'NOT_TESTED' not in acceptance:
+                 '7a0df7c5b596ff8750bf91f47310067c53a8b204','99-lich-su/README.md'):
+        if mark not in portal:errors.append('DOC05_PORTAL_REGRESSION:'+mark)
+    state=safe(root,'docs/05-quan-ly/TRANG_THAI_DU_AN.md').read_text('utf-8')
+    accept=safe(root,'docs/07-nghiem-thu/GD1_ACCEPTANCE.md').read_text('utf-8')
+    if 'GD1_OVERALL_PENDING' not in state or 'NOT_TESTED' not in accept:
         errors.append('DOC05_HMI_STATUS_CHANGED')
-    return {'schema':'scantopath-doc05-migration-v1', 'source_commit':BASELINE,
+    return {'schema':'scantopath-doc05-migration-v2', 'source_commit':BASELINE,
             'status':'PASS' if not errors else 'FAIL','mirrors_checked':len(plan['mirrors']),
-            'aliases_preserved':len(ALIASES),'windows_full':'NOT_RUN_BY_GATE',
+            'aliases_preserved':0,'aliases_retired':len(ALIASES),'windows_full':'NOT_RUN_BY_GATE',
             'hmi_08_06_6':'PENDING_MANUAL','errors':errors}
 
 

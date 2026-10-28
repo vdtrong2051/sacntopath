@@ -51,8 +51,8 @@ def test_doc04_detects_missing_information_and_bad_task_registry():
 
 def test_doc04_mapping_and_r7_alias_compatibility():
     assert doc.mapping_errors(ROOT) == []
-    assert (ROOT / 'docs/INDEX.md').is_file()
-    assert (ROOT / 'docs/modules/VIEWER3D.md').is_file()
+    assert (ROOT / 'docs/README.md').is_file()
+    assert (ROOT / 'docs/03-modules/VIEWER_3D.md').is_file()
     assert 'R6_OVERALL_PENDING' in (ROOT / 'docs/04-phat-trien/TIEU_CHUAN_KY_THUAT.md').read_text('utf-8')
 
 

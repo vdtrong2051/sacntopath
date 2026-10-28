@@ -139,12 +139,12 @@ def verify(root: Path) -> dict:
             errors.append('EVIDENCE_PATH_MISSING:' + p)
     # All 7 R7 redirects and canonical R6 status must survive unchanged as paths.
     for p in (
-        'docs/INDEX.md', 'docs/architecture/CURRENT_GD1_ARCHITECTURE.md',
-        'docs/modules/VIEWER3D.md', 'docs/modules/PROJECT_WORKSPACE.md',
-        'docs/development/ENGINEERING_STANDARDS.md',
-        'docs/development/R7_DOCUMENTATION_POLICY.md',
-        'docs/roadmap/ROADMAP_V1_ARCHIVED.md',
-        'docs/acceptance/GD1_R6_ACCEPTANCE_STATUS.md',
+        'docs/README.md', 'docs/02-kien-truc/KIEN_TRUC_HE_THONG.md',
+        'docs/03-modules/VIEWER_3D.md', 'docs/03-modules/PROJECT_WORKSPACE.md',
+        'docs/04-phat-trien/TIEU_CHUAN_KY_THUAT.md',
+        'docs/04-phat-trien/TIEU_CHUAN_KY_THUAT.md',
+        'docs/99-lich-su/ARCHIVE/ROADMAP_CU/ROADMAP_V1_ARCHIVED.md',
+        'docs/07-nghiem-thu/records/GD1_R6_ACCEPTANCE_STATUS.md',
     ):
         if not (root / p).is_file():
             errors.append('HISTORICAL_COMPATIBILITY_MISSING:' + p)

@@ -37,6 +37,6 @@ Ba `SKIP` quyền tạo symlink trên Windows: `tests/test_gd1_07_2_numbered_sto
 
 ## 4. Nguồn chi tiết
 
-- [Sổ sự cố](../../history/GD1/INCIDENT_REGISTER.md) · [Nghiệm thu R6](../../acceptance/GD1_R6_ACCEPTANCE_STATUS.md) · [Nhật ký tổng](../../history/DEVELOPMENT_MASTER_LOG.md).
-- [Hồ sơ R5.3](../../archive/GD1/R1-R5/R5_03_INTERACTION_INSPECTOR_UX.md) · [R4.5 bàn giao](../../archive/GD1/R1-R5/R4_05_R5_HANDOVER_GATES.md) · [Kho lưu trữ](../../archive/README.md).
+- [Sổ sự cố](../../05-quan-ly/INCIDENT_REGISTER.md) · [Nghiệm thu R6](../../07-nghiem-thu/records/GD1_R6_ACCEPTANCE_STATUS.md) · [Nhật ký tổng](DEVELOPMENT_MASTER_LOG.md).
+- [Hồ sơ R5.3](../ARCHIVE/GD1/R1-R5/R5_03_INTERACTION_INSPECTOR_UX.md) · [R4.5 bàn giao](../ARCHIVE/GD1/R1-R5/R4_05_R5_HANDOVER_GATES.md) · [Kho lưu trữ](../README.md).
 - **CHƯA ĐỦ LỊCH SỬ:** tổng số lần thay đổi và thời gian từng attempt R1–R4 nếu không có nhật ký đầy đủ; không ước đoán.

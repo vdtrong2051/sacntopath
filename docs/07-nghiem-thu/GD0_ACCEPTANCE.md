@@ -11,7 +11,7 @@ GĐ0 nghiệm thu **thu RAW và truy vết dữ liệu**, không phải nghiệm
 
 | gate_id | expected / method | result trong hồ sơ nguồn | environment / evidence / giới hạn |
 |---|---|---|---|
-| `GD0-PYTEST` | pytest RAW, metadata, negative fixtures | `PASS` theo operator ở baseline 74/1; **80 PASS / 1 SKIP** là *kỳ vọng* sau thêm 6 tests trong PRE-06, chưa có receipt cuối được DOC-04 kiểm độc lập | [PRE-06](../archive/GD0/PRE/PRE_06_GD0_ACCEPTANCE.md); 1 SKIP privilege symlink, không phải symlink guard PASS; [GD0 summary](../acceptance/GD0.md) nêu mốc 80/1 nhưng gốc PRE-06 chưa kèm log cuối |
+| `GD0-PYTEST` | pytest RAW, metadata, negative fixtures | `PASS` theo operator ở baseline 74/1; **80 PASS / 1 SKIP** là *kỳ vọng* sau thêm 6 tests trong PRE-06, chưa có receipt cuối được DOC-04 kiểm độc lập | [PRE-06](../99-lich-su/ARCHIVE/GD0/PRE/PRE_06_GD0_ACCEPTANCE.md); 1 SKIP privilege symlink, không phải symlink guard PASS; [GD0 summary](GD0_ACCEPTANCE.md) nêu mốc 80/1 nhưng gốc PRE-06 chưa kèm log cuối |
 | `GD0-CTEST` | `ctest --test-dir build-orbbec -C Release --output-on-failure` | `PASS` 2/2 (core+RGBD contract) theo operator | Không mở camera, không có độ chính xác 3D |
 | `GD0-NATIVE` | Python extension import, memory ownership self-test | `PASS` reported, no hardware access in self-test | OrbbecSDK native environment tại Windows operator |
 | `GD0-CAPTURE` | `capture_once --once`, lưu và đọc lại byte/hash | `PASS` reported 1 lần Gemini 2, exit 0; color 1920×1080 MJPEG, depth 1280×800 Y16 | `camera_pose_known=false`, `alignment_mode=disabled`, delta timestamp chẩn đoán, không chứng minh exposure sync |

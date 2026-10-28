@@ -87,7 +87,7 @@ Kiểm tra trên chưa thay thế `scripts/verify.ps1 -Profile Full`: tài liệ
 - **Giới hạn:** tài liệu không enforce tự động mọi quy tắc naming/lint; các màn hình HMI/hardware/native fault vẫn `NOT_TESTED` nếu không có receipt operator. DOC-05 mới di chuyển alias/redirect và sửa gate phụ thuộc đường dẫn.
 ## 10. Quy tắc ghi nhật ký và đính chính (DOC-04)
 
-Quy tắc này kế thừa [hồ sơ ghi nhật ký R7](../history/QUY_UOC_GHI_NHAT_KY.md); không sửa hồ sơ gốc. Mỗi mốc ghi `ID`, `as_of_commit`, ngày/môi trường, nguồn, kết quả **đúng loại phép thử**, giới hạn và bước tiếp theo. Phân loại bằng chứng: `XAC_MINH_GIT` chỉ chứng minh commit/file; `NGUOI_VAN_HANH_BAO_CAO` là log operator, không mặc nhiên remote-verified; `CHUA_KIEM_THU` khác `FAIL`; `MIEN_CO_DIEU_KIEN` cần người duyệt và residual risk, không phải `PASS`.
+Quy tắc này kế thừa [hồ sơ ghi nhật ký R7](TIEU_CHUAN_KY_THUAT.md); không sửa hồ sơ gốc. Mỗi mốc ghi `ID`, `as_of_commit`, ngày/môi trường, nguồn, kết quả **đúng loại phép thử**, giới hạn và bước tiếp theo. Phân loại bằng chứng: `XAC_MINH_GIT` chỉ chứng minh commit/file; `NGUOI_VAN_HANH_BAO_CAO` là log operator, không mặc nhiên remote-verified; `CHUA_KIEM_THU` khác `FAIL`; `MIEN_CO_DIEU_KIEN` cần người duyệt và residual risk, không phải `PASS`.
 
 Với incident, ghi nguyên triệu chứng, attempt FAIL, giả thuyết/`root_cause` đã xác nhận hay chưa, fix, regression, residual risk và owner; các lỗi R6 PowerShell `$args`/exit code thuộc **harness**, không phải crash app. Không ghép phiên chưa thử vào danh sách incident đã xảy ra. Nếu một snapshot cũ ghi R8 `NOT_STARTED` mà source Git đã có R8.5, ghi **ĐÍNH CHÍNH** ở hồ sơ mới cùng thời điểm/nguồn; **không hồi tố sửa** nhật ký/ADR/waiver cũ.
 

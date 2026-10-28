@@ -30,7 +30,7 @@ def test_doc03a_provenance_and_mandatory_technical_content():
 
 def test_doc03a_readme_keeps_legacy_r7_gate_link():
     data = (ROOT / 'README.md').read_text('utf-8')
-    assert '[Tài liệu GĐ1 hiện hành](docs/INDEX.md)' in data
+    assert '[Tài liệu GĐ1 hiện hành](docs/README.md)' in data
     assert 'docs/01-tong-quan/' in data
     assert 'pip install -e ".[ui,viewer,test]"' in data
     assert 'capture_once --once' not in data.split('## 5.')[1].split('## 6.')[0]

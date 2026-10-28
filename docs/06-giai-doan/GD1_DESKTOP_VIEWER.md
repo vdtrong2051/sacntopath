@@ -38,7 +38,7 @@ Hồ sơ R6 ngày 27/10 báo 618 pytest PASS / 3 symlink SKIP, CTest 2/2, native
 
 ## 5. Bàn giao, rủi ro và tác vụ
 
-Giai đoạn tiếp theo GĐ2 ưu tiên RAW replay/single-view geometry, không nhảy thẳng sang registration/fusion nếu pose/metric chưa được chứng minh. Tên session mới theo [Crosswalk](SESSION_CROSSWALK.md) là đối chiếu năng lực, không phải danh sách task đã hoàn thành. `task_id` liên quan `GD1-06-07`, `GD1-08-R53`, `GD1-R6-AUTO`, `GD1-R8-QUALITY`, `GD1-08-06-6` ở [Task Register](../05-quan-ly/TASK_REGISTER.md); nguồn trạng thái ở [State Ledger](../05-quan-ly/TRANG_THAI_DU_AN.md). Các incident cũ và mọi attempt FAIL lưu tại [Incident Register](../05-quan-ly/INCIDENT_REGISTER.md) và [history](../history/GD1/GD1_EXECUTION_JOURNAL.md).
+Giai đoạn tiếp theo GĐ2 ưu tiên RAW replay/single-view geometry, không nhảy thẳng sang registration/fusion nếu pose/metric chưa được chứng minh. Tên session mới theo [Crosswalk](SESSION_CROSSWALK.md) là đối chiếu năng lực, không phải danh sách task đã hoàn thành. `task_id` liên quan `GD1-06-07`, `GD1-08-R53`, `GD1-R6-AUTO`, `GD1-R8-QUALITY`, `GD1-08-06-6` ở [Task Register](../05-quan-ly/TASK_REGISTER.md); nguồn trạng thái ở [State Ledger](../05-quan-ly/TRANG_THAI_DU_AN.md). Các incident cũ và mọi attempt FAIL lưu tại [Incident Register](../05-quan-ly/INCIDENT_REGISTER.md) và [history](../99-lich-su/JOURNALS/GD1_EXECUTION_JOURNAL.md).
 
 ## 6. Giới hạn đã biết
 

@@ -44,20 +44,20 @@ def test_r7c_source_docstrings_are_vietnamese():
 
 
 def test_r7c_history_references_r7a_r7b_commits():
-    s = (ROOT / 'docs/history/DEVELOPMENT_MASTER_LOG.md').read_text('utf-8')
+    s = (ROOT / 'docs/99-lich-su/JOURNALS/DEVELOPMENT_MASTER_LOG.md').read_text('utf-8')
     assert '8e37eba' in s and 'f923d1e' in s
     assert 'R6' in s and '618' in s and '3 SKIP' in s
 
 
 def test_r7c_incident_history_preserves_both_runner_failures():
-    s = (ROOT / 'docs/history/GD1/INCIDENT_REGISTER.md').read_text('utf-8')
+    s = (ROOT / 'docs/99-lich-su/JOURNALS/GD1_INCIDENT_REGISTER.md').read_text('utf-8')
     assert 'INC-GD1-R6-RUNNER-001' in s
     assert 'INC-GD1-R6-RUNNER-002' in s
     assert '$args' in s and 'ctest -C Release' in s
 
 
 def test_r7c_does_not_claim_overall_r6_pass():
-    s = (ROOT / 'docs/history/GD1/GD1_EXECUTION_JOURNAL.md').read_text('utf-8')
+    s = (ROOT / 'docs/99-lich-su/JOURNALS/GD1_EXECUTION_JOURNAL.md').read_text('utf-8')
     assert '14/14 PASS' in s and 'PENDING' in s
     assert '100/125/150%' in s and 'C++' in s
 
@@ -73,11 +73,11 @@ def test_r7c_inventory_tool_is_standard_library_only():
 
 
 def test_r7c_history_entry_is_linked_from_index():
-    entry = (ROOT / 'docs/history/README.md').read_text('utf-8')
-    assert 'DEVELOPMENT_MASTER_LOG.md' in entry
-    assert 'QUY_UOC_GHI_NHAT_KY.md' in entry
+    entry = (ROOT / 'docs/99-lich-su/README.md').read_text('utf-8')
+    assert 'JOURNALS/DEVELOPMENT_MASTER_LOG.md' in entry
+    assert 'STANDARDIZATION/README.md' in entry
 
 
 def test_r7c_change_scope_is_documentation_only():
-    s = (ROOT / 'docs/standardization/R7C_PHAM_VI_VA_DOI_CHIEU.md').read_text('utf-8')
+    s = (ROOT / 'docs/99-lich-su/STANDARDIZATION/R7C_PHAM_VI_VA_DOI_CHIEU.md').read_text('utf-8')
     assert 'AST' in s and 'R6' in s

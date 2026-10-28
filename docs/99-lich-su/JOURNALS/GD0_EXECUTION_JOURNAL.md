@@ -14,9 +14,9 @@
 
 ## Điểm có thể truy xuất lại
 
-- [PRE-02 — hợp đồng RAW](../../archive/GD0/PRE/PRE_02_RAW_RGBD_CONTRACT.md), [PRE-03 — lưu RAW](https://github.com/vdtrong2051/sacntopath/blob/08ef856a04d61f20db1e26b2ceeb399065db902f/docs/archive/GD0/PRE/PRE_03_RAW_STORAGE.md), [PRE-04 — thu nhận Gemini 2](https://github.com/vdtrong2051/sacntopath/blob/08ef856a04d61f20db1e26b2ceeb399065db902f/docs/archive/GD0/PRE/PRE_04_GEMINI2_STORAGE_INTEGRATION.md).
-- [PRE-05 — metadata](https://github.com/vdtrong2051/sacntopath/blob/08ef856a04d61f20db1e26b2ceeb399065db902f/docs/archive/GD0/PRE/PRE_05_GD0_METADATA_PERSISTENCE.md), [PRE-06 — nghiệm thu](../../archive/GD0/PRE/PRE_06_GD0_ACCEPTANCE.md).
-- [Bài học chung](../../history/QUY_UOC_GHI_NHAT_KY.md): nếu không có số lần thử hoặc ngày riêng, đánh dấu **CHƯA ĐỦ LỊCH SỬ**, không tự bổ sung.
+- [PRE-02 — hợp đồng RAW](../ARCHIVE/GD0/PRE/PRE_02_RAW_RGBD_CONTRACT.md), [PRE-03 — lưu RAW](https://github.com/vdtrong2051/sacntopath/blob/08ef856a04d61f20db1e26b2ceeb399065db902f/docs/archive/GD0/PRE/PRE_03_RAW_STORAGE.md), [PRE-04 — thu nhận Gemini 2](https://github.com/vdtrong2051/sacntopath/blob/08ef856a04d61f20db1e26b2ceeb399065db902f/docs/archive/GD0/PRE/PRE_04_GEMINI2_STORAGE_INTEGRATION.md).
+- [PRE-05 — metadata](https://github.com/vdtrong2051/sacntopath/blob/08ef856a04d61f20db1e26b2ceeb399065db902f/docs/archive/GD0/PRE/PRE_05_GD0_METADATA_PERSISTENCE.md), [PRE-06 — nghiệm thu](../ARCHIVE/GD0/PRE/PRE_06_GD0_ACCEPTANCE.md).
+- [Bài học chung](../../04-phat-trien/TIEU_CHUAN_KY_THUAT.md): nếu không có số lần thử hoặc ngày riêng, đánh dấu **CHƯA ĐỦ LỊCH SỬ**, không tự bổ sung.
 
 ## Rủi ro chuyển sang GĐ1
 

@@ -7,7 +7,7 @@
 - [Duyệt toàn bộ hồ sơ cũ trên GitHub](https://github.com/vdtrong2051/sacntopath/tree/08ef856a04d61f20db1e26b2ceeb399065db902f/docs/archive)
 - [Danh mục R7-A trước khi chuyển](https://github.com/vdtrong2051/sacntopath/blob/08ef856a04d61f20db1e26b2ceeb399065db902f/docs/standardization/R7A_DANH_MUC_91_TAI_LIEU.csv)
 - [Bản đồ R7-B của 80 tài liệu](https://github.com/vdtrong2051/sacntopath/blob/08ef856a04d61f20db1e26b2ceeb399065db902f/docs/standardization/R7B_BAN_DO_DI_CHUYEN.csv)
-- [Những hồ sơ quan trọng giữ tại chỗ](../archive/README.md)
+- [Những hồ sơ quan trọng giữ tại chỗ](README.md)
 
 ## Chính sách tra cứu
 
