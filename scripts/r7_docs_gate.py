@@ -29,6 +29,16 @@ CANONICAL = (
     'docs/history/GD1/GD1_EXECUTION_JOURNAL.md',
     'docs/history/GD1/INCIDENT_REGISTER.md',
 )
+# DOC-05: v1 canonical paths stay intact for legacy R7 test contracts.
+# Validate the additional v2 routes independently; never change checks length.
+CANONICAL_V2 = (
+    'docs/README.md',
+    'docs/99-lich-su/README.md',
+    'docs/99-lich-su/STANDARDIZATION/README.md',
+    'docs/99-lich-su/ADR/ADR_001_UI_FIRST.md',
+    'docs/05-quan-ly/TRANG_THAI_DU_AN.md',
+    'docs/07-nghiem-thu/GD1_ACCEPTANCE.md',
+)
 R7_DOCSTRINGS = (
     'src/scantopath/ui/shell/main_window.py',
     'src/scantopath/modules/viewer3d/presentation/interactive_controller.py',
@@ -83,6 +93,26 @@ def audit(root: Path) -> dict:
             if not link.is_relative_to(root) or not link.is_file():
                 errors.append('BROKEN_LINK:' + rel + ' -> ' + target)
             checks[rel]['links'] += 1
+    v2_checks = {}
+    for rel in CANONICAL_V2:
+        path = root / rel
+        if not path.is_file() or path.is_symlink():
+            errors.append('V2_MISSING_OR_SYMLINK:' + rel)
+            continue
+        body = path.read_text(encoding='utf-8-sig')
+        v2_checks[rel] = {'bytes': len(path.read_bytes()), 'links': 0}
+        if not body.startswith('# ') or '\ufffd' in body:
+            errors.append('V2_MARKDOWN_ENCODING_OR_TITLE:' + rel)
+        for target in LINK_RE.findall(body):
+            if target.startswith(('http:', 'https:', 'mailto:', '#')):
+                continue
+            target_path = target.split('#', 1)[0].split('?', 1)[0]
+            if not target_path:
+                continue
+            link = (path.parent / target_path).resolve()
+            if not link.is_relative_to(root) or not link.is_file():
+                errors.append('V2_BROKEN_LINK:' + rel + ' -> ' + target)
+            v2_checks[rel]['links'] += 1
     summary = (root / 'docs/acceptance/GD1_R6_ACCEPTANCE_STATUS.md').read_text(encoding='utf-8')
     for mark in ('14/14', '618', '3 skipped', '2/2', 'PENDING', 'NOT_TESTED', 'OPERATOR_REPORTED'):
         if mark not in summary:
@@ -107,7 +137,7 @@ def audit(root: Path) -> dict:
             errors.append('R7_DOCSTRING_NOT_UPDATED:' + rel)
     return {'schema': 'scantopath-r7-documentation-gate-v1', 'baseline_sha': BASELINE,
             'timestamp_utc': datetime.now(timezone.utc).isoformat(),
-            'status': 'PASS' if not errors else 'FAIL', 'checks': checks,
+            'status': 'PASS' if not errors else 'FAIL', 'checks': checks, 'v2_checks': v2_checks,
             'ast_docstring_only': not any(x.startswith('EXECUTABLE_AST_CHANGED') for x in errors),
             'errors': errors, 'limitations': 'Static metadata and AST gate only; no Windows HMI, source audit completeness or external evidence verification.'}
 

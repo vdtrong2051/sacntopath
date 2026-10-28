@@ -1,7 +1,7 @@
 # Cổng tài liệu ScanToPath — đọc đúng nội dung, không phải ghép ghi chú
 
 > `owner: DOCUMENTATION_OWNER` · `as_of_commit: 7a0df7c5b596ff8750bf91f47310067c53a8b204` · `verified_at: 2026-10-28`  
-> **Trạng thái cập nhật DOC-03B (source baseline `0557c0d4fed9a3df3b180fc9872c6d3293b5f0d5`, 2026-10-28):** bộ 5 module v2 đã được bổ sung. Metadata `as_of_commit` phía trên là mốc nội dung DOC-03A và vẫn giữ để bảo toàn hợp đồng kiểm tra DOC-03A; đây **không** phải tuyên bố DOC-03B đã được nghiệm thu Windows. Sổ tay phát triển DOC-03C đã commit trên Git; DOC-04 đã soạn bộ quản trị/giai đoạn/nghiệm thu (chỉ có hiệu lực khi operator áp gói và nghiệm thu Windows). DOC-05 di chuyển đường dẫn chưa thực hiện.
+> **Trạng thái cập nhật DOC-03B (source baseline `0557c0d4fed9a3df3b180fc9872c6d3293b5f0d5`, 2026-10-28):** bộ 5 module v2 đã được bổ sung. Metadata `as_of_commit` phía trên là mốc nội dung DOC-03A và vẫn giữ để bảo toàn hợp đồng kiểm tra DOC-03A; đây **không** phải tuyên bố DOC-03B đã được nghiệm thu Windows. Sổ tay phát triển DOC-03C đã commit trên Git; DOC-04 đã soạn bộ quản trị/giai đoạn/nghiệm thu (chỉ có hiệu lực khi operator áp gói và nghiệm thu Windows). DOC-05 đã chuẩn bị bản sao lịch sử có truy vết Git tại `99-lich-su/` và giữ alias cũ; chỉ hoàn tất sau khi operator nghiệm thu Windows và commit.
 
 ## Bạn cần hiểu gì trước tiên?
 
@@ -14,6 +14,8 @@
 | Developer: sửa một module cụ thể? | [Project Workspace](03-modules/PROJECT_WORKSPACE.md), [Viewer 3D](03-modules/VIEWER_3D.md), [RAW Storage](03-modules/RAW_STORAGE.md), [RGB-D Acquisition](03-modules/RGBD_ACQUISITION.md), [Desktop UI](03-modules/DESKTOP_UI.md) | Bộ DOC-03B trình bày trực tiếp API, flow, lỗi và test; bản `modules/` R7 vẫn giữ nguyên chờ DOC-05 |
 | Phát triển/kiểm thử trên Windows? | [Cài đặt, build, chạy](04-phat-trien/CAI_DAT_VA_CHAY.md), [Phát triển, debug, Git](04-phat-trien/HUONG_DAN_PHAT_TRIEN.md), [Tiêu chuẩn kỹ thuật](04-phat-trien/TIEU_CHUAN_KY_THUAT.md), [Kiểm thử, nghiệm thu](04-phat-trien/KIEM_THU_VA_NGHIEM_THU.md) | DOC-03C đã viết nội dung; kết quả Windows cần receipt operator. Các trang `development/` vẫn ở chỗ cũ cho đến DOC-05 |
 | Điều phối/đánh giá dự án? | [Task Register](05-quan-ly/TASK_REGISTER.md), [Trạng thái dự án](05-quan-ly/TRANG_THAI_DU_AN.md), [Hồ sơ GĐ1](06-giai-doan/GD1_DESKTOP_VIEWER.md), [Nghiệm thu GĐ1](07-nghiem-thu/GD1_ACCEPTANCE.md) | [ADR hiện hành](05-quan-ly/QUYET_DINH_KY_THUAT.md), [Incident Register](05-quan-ly/INCIDENT_REGISTER.md), [Evidence Index](07-nghiem-thu/EVIDENCE_INDEX.md), [GĐ0](06-giai-doan/GD0_SOFTWARE_FOUNDATION.md), [Crosswalk](06-giai-doan/SESSION_CROSSWALK.md) |
+
+**Kho lịch sử:** [Chỉ mục ADR, nhật ký, R7/R8 và archive](99-lich-su/README.md) — bản lưu lịch sử, không dùng thay ledger trạng thái hoặc nghiệm thu hiện hành.
 
 ## Ba tầng thông tin không được trộn
 
@@ -33,7 +35,7 @@
 | Build/Git/kiểm thử đầy đủ | `04-phat-trien/` | **DOC-03C đã biên soạn**; chưa tuyên bố Full Windows PASS; giữ `development/` tương thích đến DOC-05 |
 | Task và trạng thái sống | `05-quan-ly/` | **DOC-04 đã biên soạn** Task Register/State Ledger với nguồn và `NOT_TESTED` rõ ràng; Windows operator chưa duyệt pack |
 | Hồ sơ giai đoạn và nghiệm thu | `06-giai-doan/`, `07-nghiem-thu/` | **DOC-04 đã biên soạn** GĐ0/GĐ1, Evidence Index và HMI gate; `acceptance/` cũ còn giữ nguyên tới DOC-05 |
-| Hồ sơ R7/R8, ADR và tài liệu gốc | `99-lich-su/` | **Chưa di chuyển**; dùng `archive/`, `history/`, `standardization/` |
+| Hồ sơ R7/R8, ADR và tài liệu gốc | `99-lich-su/` | **DOC-05:** kho lịch sử bản sao có đối chiếu Git; đường dẫn gốc và 7 alias tiếp tục giữ để tương thích; Windows verification pending |
 
 ## Cách duy trì khi có thay đổi mã nguồn
 
