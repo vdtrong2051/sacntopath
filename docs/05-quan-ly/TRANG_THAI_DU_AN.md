@@ -48,3 +48,7 @@
 ## 5. Giới hạn đã biết
 
 Git xác nhận file và lịch sử, không xác nhận mọi lượt thử Windows/physical. Cấu hình Gemini 2 cố định/handheld/rig có các phương án theo thời điểm: thiếu ADR vật lý mới, trạng thái `HW-CURRENT-BASELINE` vẫn `BLOCKED`. Không tự thay `PARTIAL_EVIDENCE` thành `PASS` từ các lần thử ảnh fixture, GPU benchmark hay câu chữ ở hồ sơ 08.06.5.
+
+## 6. Quyết định trạng thái mới nhất — 28/10/2026
+
+`GD1_08_06_6_FINAL_CLOSURE_20261028`: **`GD1_STAGE_CLOSED_ACCEPTED_WITH_EXPLICIT_WAIVERS`**. Đây là quyết định kết thúc GĐ1 của chủ dự án, thay `GD1_OVERALL_PENDING` tại snapshot DOC-04 trước đó. HMI DPI/reopen và Full Regression PASS theo operator; NT-02 controlled native fail-fast PASS theo Windows Event 1000; NT-01 BUSY, GPU/VRAM measured, physical-present latency **WAIVED, NOT_MEASURED**, không ghi PASS. Xem [quyết định và giới hạn](../07-nghiem-thu/GD1_ACCEPTANCE.md#7-quyết-định-đóng-gđ1-ngày-28102026). Trạng thái GĐ2 vẫn `NOT_STARTED`.

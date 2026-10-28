@@ -60,3 +60,23 @@ Lưu ý: PowerShell script dùng `throw` khi lỗi, vì vậy nếu gọi từ a
 ## 6. Giới hạn đã biết
 
 DOC-04 không đo DPI/native fault/GPU/physical-present, không xác minh độc lập evidence ngoài Git, và không tự tạo waiver mới. Source có `R8.5` nghĩa có **công cụ kiểm chứng** chứ không đồng nghĩa mọi gate đã chạy ở HEAD hiện tại. Mọi claim final PASS cần sign-off ở 08.06.6.
+
+## 7. Quyết định đóng GĐ1 ngày 28/10/2026
+
+**Marker:** `GD1_08_06_6_FINAL_CLOSURE_20261028`.
+**Quyết định cuối cùng:** `CLOSED_ACCEPTED_WITH_EXPLICIT_OPERATOR_WAIVERS`. Chủ dự án yêu cầu dừng kiểm thử GĐ1, đóng mốc phát triển và merge `feat/gd1-desktop-ui` vào `main` trong hội thoại ngày 28/10/2026. Đây là quyết định **chấp nhận phạm vi phát triển có giới hạn**, không phải kết quả `PHYSICAL_ALL_PASS`; không có chữ ký kiểm toán độc lập.
+
+| Gate | Trạng thái khi đóng | Căn cứ và rủi ro còn lại |
+|---|---|---|
+| R8.4 Full regression | `OPERATOR_REPORTED_PASS` | Operator báo Full 10/10 sau sửa Zoom; evidence tại `E:\1_BigProject\scantopath\_setup\GD1_08_06_6\zoom_fix_full_v3\` trên Windows, chưa được GitHub connector đọc độc lập. |
+| `HMI_DPI_100_125_150` | `OPERATOR_ACCEPTED_PASS` | Đã thao tác Qt thật và chụp hình 3 mức DPI theo operator. |
+| `HMI_REOPEN_CLOSE_REAL` | `OPERATOR_ACCEPTED_PASS` | Operator xác nhận 5 vòng đóng/mở, UI không treo; chưa đối chiếu độc lập trace PID mỗi vòng. |
+| `CPP_NATIVE_BUSY_CLOSE` / NT-01 | **`WAIVED_BY_OPERATOR`** | File 1,4 triệu điểm tải quá nhanh, chưa chứng minh native BUSY tại thời điểm đóng; chấp nhận rủi ro cleanup race chưa thử. Không ghi PASS. |
+| `CPP_NATIVE_FAULT_ISOLATION` / NT-02 | `PASS_CONTROLLED_FAIL_FAST` | C++ fail-fast test-only trong Render Host; Windows Application Error Event ID 1000 (28/10/2026 23:36:21), PID `0x8958`/35160, exception `0xC0000602`; Qt vẫn hoạt động, UI báo lỗi, operator mở lại PLY được. Không chứng minh mọi lỗi VTK hay tự phát hiện lúc idle. |
+| `GPU_VRAM_MEASURED` / NT-03 | **`WAIVED_BY_OPERATOR`** | PLY 1.400.000 điểm và tương tác hoạt động; CPU tối đa 2,8% theo operator. Task Manager nhóm Python RAM ~73,0 → 299,6 → 264,7 MB; **không đo GPU utilization, dedicated/shared VRAM hay VRAM peak**. Không cam kết VRAM. |
+| `INPUT_TO_PHYSICAL_PRESENT_LATENCY` / NT-04 | **`WAIVED_BY_OPERATOR`** | Không có phép đo input-to-photon, P95/P99 hoặc cam kết FPS vật lý. |
+| Zoom toolbar | `OPERATOR_ACCEPTED_PASS` | Đã sửa và kiểm thử trên UI Windows; regression test PASS, commit `92a7e7a`. |
+
+**Dữ liệu và môi trường:** Qt/PySide6 và VTK trên Windows, PLY tổng hợp 1,4 triệu điểm; Windows Event Log và ảnh trong hội thoại; evidence gốc ngoài Git ở `E:\1_BigProject\scantopath\_setup\GD1_08_06_6\`. Không đưa fault-injection DLL, dữ liệu RAW, SQLite, PLY cá nhân hoặc secrets vào Git.
+
+**Giới hạn:** Không coi Viewer GĐ1 là hệ thống realtime 60 FPS, không chứng nhận GPU budget/VRAM peak, không suy ra metric calibration, fusion, RAW→mesh/path, robot trajectory hay điều khiển cơ cấu. Các nhận định `NOT_MEASURED` vẫn giữ nguyên. Các mục 1–6 phía trên là snapshot trước ngày chốt; mục 7 là quyết định mới nhất. Bắt đầu GĐ2 bằng baseline/phạm vi riêng, không mở lại R7/R8 để tiếp tục dọn nợ GĐ1.

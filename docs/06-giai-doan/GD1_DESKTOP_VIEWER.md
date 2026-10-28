@@ -43,3 +43,7 @@ Giai đoạn tiếp theo GĐ2 ưu tiên RAW replay/single-view geometry, không 
 ## 6. Giới hạn đã biết
 
 GĐ1 có code và các kết quả operator-reported; DOC-04 không thực hiện phép HMI/camera mới, không có native C++ busy/fault physical receipt ở baseline được đọc. Không dùng một hình chụp Viewer để khẳng định độ chính xác hình học; mesh ngoài không có bảo đảm đơn vị.
+
+## 7. Kết thúc triển khai GĐ1 — 28/10/2026
+
+`GD1_08_06_6_FINAL_CLOSURE_20261028`: phạm vi Desktop/Project/Viewer R5.3 cùng các phiên R7/R8/DOC-06 đã **đóng để chuyển sang GĐ2** theo chỉ đạo chủ dự án. Nghiệm thu cuối là `ACCEPTED_WITH_EXPLICIT_OPERATOR_WAIVERS` như [hồ sơ 08.06.6](../07-nghiem-thu/GD1_ACCEPTANCE.md#7-quyết-định-đóng-gđ1-ngày-28102026), không phải tất cả bài đo vật lý đã đạt.

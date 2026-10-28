@@ -27,7 +27,7 @@ Các trạng thái hợp lệ: `BACKLOG` (chưa lên lịch), `READY`, `IN_PROGR
 | `DOC-03C` | Docs v2 / content | Bốn sổ tay kỹ thuật/Windows | `ENGINEERING_OWNER` | P0 | `IN_REVIEW` | DOC-03B | `81da5d2050324b1dc4a65ffbca9a38ed1ebba10a` | [Handover](../standardization/DOC03C_TRUY_VET_VA_BAN_GIAO.md); Windows receipt không hiện diện trong Git |
 | `DOC-04` | Docs v2 / management | Task, trạng thái, ADR, GĐ0/1, nghiệm thu và incident | `PROJECT_COORDINATOR` | P0 | `IN_PROGRESS` | DOC-03C | chưa có commit DOC-04 | [Handover DOC-04](../standardization/DOC04_TRUY_VET_VA_BAN_GIAO.md); PACK_PREPARED |
 | `DOC-05` | Docs v2 / migration | Điều hướng, archive, redirects và khóa Documentation Baseline v2 | `DOCUMENTATION_OWNER` | P0 | `BACKLOG` | DOC-04 | chưa có | [DOC-02](../standardization/DOC02_KIEN_TRUC_TAI_LIEU.md); không được xóa alias trước kiểm chứng |
-| `GD1-08-06-6` | GĐ1 / final acceptance | Chốt bằng chứng HMI/native thực hoặc waiver theo từng gate | `ACCEPTANCE_OWNER` | P0 | `BLOCKED` | GD1-R8-QUALITY | chưa có quyết định final có nguồn | [GD1 acceptance](../07-nghiem-thu/GD1_ACCEPTANCE.md); **blocker:** thiếu receipt và quyết định manual/fault/GPU/present |
+| `GD1-08-06-6` | GĐ1 / final acceptance | Đóng phạm vi GĐ1 theo quyết định operator, ghi rõ waiver vật lý | `ACCEPTANCE_OWNER` | P0 | `DONE` | GD1-R8-QUALITY | `92a7e7a` + merge final | [GĐ1 final closure](../07-nghiem-thu/GD1_ACCEPTANCE.md#7-quyết-định-đóng-gđ1-ngày-28102026); NT-01/GPU-VRAM/present WAIVED, không phải PASS |
 | `HW-CURRENT-BASELINE` | GĐ1→GĐ2 / hardware | Chốt cấu hình vật lý hiện hành bằng quyết định có nguồn | `ARCHITECTURE_OWNER` | P0 | `BLOCKED` | external evidence | chưa có ADR/baseline hợp lệ trong Git | [Decision index](QUYET_DINH_KY_THUAT.md); **blocker:** khác biệt lịch sử handheld/rig chưa được chứng thực bằng hồ sơ mới |
 | `GD2-09` | GĐ2 / replay | RAW replay có provenance, không phá raw bytes | `STAGE_OWNER` | P1 | `BACKLOG` | GD1-08-06-6; HW-CURRENT-BASELINE nếu tích hợp cơ cấu | chưa có | [Roadmap](../01-tong-quan/LO_TRINH_PHAT_TRIEN.md); không gọi feature đã triển khai |
 
@@ -49,3 +49,7 @@ Các trạng thái hợp lệ: `BACKLOG` (chưa lên lịch), `READY`, `IN_PROGR
 ## 5. Giới hạn đã biết
 
 Đây là seed register có nguồn tại một commit, **không giả định bao phủ mọi task vi mô hoặc toàn bộ 20 phiên bằng 20 dòng**. Task tương lai được thêm khi được giao. Các receipt Windows, danh tính người phê duyệt và cấu hình cơ khí hiện hành chưa được cung cấp cho DOC-04; không được suy diễn từ việc xuất hiện branch/commit. `BLOCKED` không có nghĩa source GĐ1 đã hỏng, chỉ có nghĩa **thiếu điều kiện để chốt nghiệm thu**.
+
+## 6. Quyết định cuối GĐ1 ngày 28/10/2026
+
+`GD1_08_06_6_FINAL_CLOSURE_20261028`: task `GD1-08-06-6` chuyển **DONE theo operator acceptance with explicit waivers**. Các gate đã miễn không được khai thành PASS; đánh giá rủi ro của ba gate đã ghi trong [biên bản](../07-nghiem-thu/GD1_ACCEPTANCE.md#7-quyết-định-đóng-gđ1-ngày-28102026). Các mục hướng dẫn `BLOCKED` phía trên là snapshot trước quyết định đóng. Không tự động mở GĐ2.

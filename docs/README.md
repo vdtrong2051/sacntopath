@@ -46,3 +46,7 @@
 5. Khi đổi đường dẫn tài liệu, cập nhật Markdown, gate và test cùng một thay đổi; giữ bản gốc trong Git.
 
 **Đặc tả thiết kế:** [Kiến trúc tài liệu DOC-02](standardization/DOC02_KIEN_TRUC_TAI_LIEU.md). Đây là tài liệu quy định cách viết và chuyển đổi, **không** phải nơi đọc kiến trúc runtime ScanToPath.
+
+## Cập nhật cuối 28/10/2026: GĐ1 đã đóng
+
+`GD1_08_06_6_FINAL_CLOSURE_20261028`: các dòng trạng thái “GĐ1 pending” phía trên phản ánh snapshot DOC-04/DOC-06 trước buổi nghiệm thu. Chủ dự án chốt **GĐ1 CLOSED_ACCEPTED_WITH_EXPLICIT_WAIVERS**; NT-01, GPU/VRAM measured và input-to-physical-present latency không có PASS đo thực. Chi tiết tại [GD1 acceptance](07-nghiem-thu/GD1_ACCEPTANCE.md#7-quyết-định-đóng-gđ1-ngày-28102026). Không khởi động GĐ2 hoặc công bố tính năng mới chỉ vì merge.

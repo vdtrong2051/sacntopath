@@ -20,7 +20,7 @@
 | `E-DOC03B` | `GIT_VERIFIED` | Commit `a847faebe54050cd6f8bc42cc882b3927ddabfe2`, [handover](../standardization/DOC03B_TRUY_VET_VA_BAN_GIAO.md) | Có five-module handbooks | Không tự suy FULL PASS từ Git |
 | `E-DOC03C` | `GIT_VERIFIED` | Commit `81da5d2050324b1dc4a65ffbca9a38ed1ebba10a`, [handover](../standardization/DOC03C_TRUY_VET_VA_BAN_GIAO.md) | Có developer handbooks | Không tự suy reviewer/HMI từ commit |
 | `E-DOC04` | `NOT_TESTED` | Pack DOC-04 ngoài repository, receipt **chưa tạo** | Nội dung quản trị/stage/acceptance | Chỉ thêm nguồn sau Windows verify/commit, không đặt URL giả |
-| `E-GD1-08066` | `NOT_TESTED` | chưa có 08.06.6 final sign-off | GĐ1 physical HMI final | **GD1_OVERALL_PENDING** |
+| `E-GD1-08066` | `OPERATOR_ACCEPTED_WITH_EXPLICIT_WAIVERS` | [Biên bản đóng GĐ1](GD1_ACCEPTANCE.md#7-quyết-định-đóng-gđ1-ngày-28102026); operator Windows `_setup/GD1_08_06_6/` | HMI DPI/reopen: operator PASS; NT-02 fail-fast Event 1000 PASS; Full 10/10 operator-reported | NT-01 BUSY, GPU/VRAM measured, input-to-present latency: WAIVED_NOT_MEASURED; external evidence chưa được connector đọc độc lập |
 
 **Vị trí evidence sau Full:** script `scripts/verify.ps1 -Profile Full` ghi `SUMMARY.json` trong thư mục run ở `_setup/ScanToPath_R8_Verification/evidence/R84_<timestamp>_<pid>` hoặc `-EvidenceDir` chỉ định **ngoài repository**. Không đưa RAW, SQLite thật, `.pyd`, DLL SDK, ảnh riêng tư hay log có secrets vào Git.
 
@@ -46,3 +46,7 @@ Mở receipt và so exit code/`SUMMARY.json` + JUnit + CTest, xác thực test c
 ## 5. Giới hạn đã biết
 
 Index chưa có đường dẫn một receipt Windows đã được kiểm độc lập cho DOC-04 hoặc final 08.06.6. Đường `_setup` chỉ là locator do người vận hành báo, không có nghĩa file đó đã được mở tại môi trường biên tập. Không tự khẳng định `PASS_REVIEWED` từ metadata tồn tại.
+
+## 6. Cập nhật mới nhất — 08.06.6 đóng GĐ1
+
+`GD1_08_06_6_FINAL_CLOSURE_20261028`: [quyết định đóng tại hồ sơ nghiệm thu](GD1_ACCEPTANCE.md#7-quyết-định-đóng-gđ1-ngày-28102026) dựa trên operator reports/Windows Event Log. Evidence tự động gốc ngoài repository, không có lời xác nhận GitHub CI mới. 3 gate được miễn được ghi `WAIVED_BY_OPERATOR`, không chuyển thành measured PASS.
