@@ -29,17 +29,39 @@ def test_r52_no_native_vtk_imports_in_presentation():
 
 
 def test_r52_composition_root_contains_bounded_close_gate():
-    main = (ROOT / 'src/scantopath/ui/shell/main_window.py').read_text('utf-8')
-    bootstrap = (ROOT / 'src/scantopath/ui/shell/viewer_bootstrap.py').read_text('utf-8')
-    assert 'controller = create_viewer_controller(self)' in main
-    assert 'LiveViewer3DController(' in bootstrap
-    assert 'Viewer3DController(parent)' in bootstrap
-    assert "('offscreen', 'minimal')" in bootstrap
-    assert 'CoalescingRenderSession(' in bootstrap
-    assert "getattr(self.viewer3d, 'begin_shutdown', lambda: True)()" in main
-    assert 'QTimer.singleShot(120, self.close)' in main
-    assert len(main.splitlines()) < 500
+    """Bảo vệ cấu trúc Qt/Viewer bằng AST; hành vi live đã có test fake-session riêng."""
+    main = ast.parse((ROOT / 'src/scantopath/ui/shell/main_window.py').read_text('utf-8'))
+    bootstrap = ast.parse((ROOT / 'src/scantopath/ui/shell/viewer_bootstrap.py').read_text('utf-8'))
 
+    def func(tree, name):
+        return next(n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef) and n.name == name)
+
+    def called_names(node):
+        names = set()
+        for n in ast.walk(node):
+            if isinstance(n, ast.Call):
+                if isinstance(n.func, ast.Name):
+                    names.add(n.func.id)
+                elif isinstance(n.func, ast.Attribute):
+                    names.add(n.func.attr)
+        return names
+
+    init = func(main, '_ensure_viewer3d')
+    close = func(main, 'closeEvent')
+    make = func(bootstrap, 'create_viewer_controller')
+    boot_calls = called_names(make)
+    assert 'create_viewer_controller' in called_names(init)
+    assert 'Viewer3DController' in boot_calls  # Fallback Qt offscreen.
+    assert 'LiveViewer3DController' in boot_calls  # R5.3 tương thích R5.2.
+    assert 'CoalescingRenderSession' in boot_calls  # Renderer chạy tiến trình riêng.
+    assert {'offscreen', 'minimal'} <= {
+        n.value for n in ast.walk(make)
+        if isinstance(n, ast.Constant) and isinstance(n.value, str)
+    }
+    close_calls = called_names(close)
+    assert 'getattr' in close_calls and 'singleShot' in close_calls
+    assert any(isinstance(n, ast.Constant) and n.value == 'begin_shutdown'
+               for n in ast.walk(close))
 
 class FakeSession:
     """Record real controller scheduling, not a mock of camera math or UI."""

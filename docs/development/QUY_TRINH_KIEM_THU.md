@@ -27,3 +27,7 @@ Chi tiết: [Bảng nghiệm thu](../acceptance/GD1.md).
 ## R8.2 — Phân nhóm test theo chức năng
 
 Các ca kiểm thử được phân theo nhóm và giữ nguyên tên hàm pytest. Dùng `python -m pytest -q tests` để chạy tất cả. Đường dẫn trước/sau xem [bản đồ R8.2](../standardization/R8_2_BAN_DO_TEST.csv). Fixture RAW và Project dùng chung nằm trong `tests/support/`. Không tự xóa test trong R8.2; R8.3 mới xử lý chất lượng hợp đồng.
+
+## R8.3 — Hợp đồng fixture và SKIP Windows
+
+Fixture RAW/SQLite tổng hợp giữ nguyên thân hàm sau R8.2; kiểm tra tính bất biến ở `tests/contracts/quality/test_gd1_r8_3_contracts.py`. JUnit chỉ chấp nhận ba SKIP do quyền symlink trên Windows theo **đúng test ID**, các SKIP khác là FAIL; Qt bắt buộc không được SKIP. Tài liệu: [R8.3](../standardization/R8_3_HOP_DONG_FIXTURE_VA_SKIP.md). Chạy full pytest với `--junitxml=<evidence>/R83_full.xml` rồi dùng `scripts/check_qt_acceptance_xml.py --junit <evidence>/R83_full.xml` trên Windows. Qt offscreen không thay thế HMI/native trên thiết bị thật.
