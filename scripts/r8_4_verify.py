@@ -26,6 +26,7 @@ QUICK_TESTS = (
     'tests/contracts/quality/test_gd1_r8_2_structure.py',
     'tests/contracts/quality/test_gd1_r8_3_contracts.py',
     'tests/contracts/quality/test_gd1_r8_4_runner.py',
+    'tests/contracts/quality/test_gd1_r8_5_audit.py',
 )
 MANUAL_GATES = (
     'HMI_DPI_100_125_150',
@@ -81,7 +82,7 @@ def make_plan(profile: str, *, native_probe: bool = False, benchmark: bool = Fal
     if profile != 'Acceptance' and (native_probe or benchmark):
         raise ValueError('NATIVE_OPTIONS_REQUIRE_ACCEPTANCE_PROFILE')
     shared = ['R7_DOCS', 'R8_1_INVENTORY', 'R8_2_STRUCTURE',
-              'R8_3_CONTRACTS', 'ARCHITECTURE', 'QUALITY']
+              'R8_3_CONTRACTS', 'R8_5_AUDIT', 'ARCHITECTURE', 'QUALITY']
     plan = shared + (['PYTEST_QUICK'] if profile == 'Quick' else
                      ['PYTEST_FULL', 'JUNIT_POLICY', 'CTEST_RELEASE'])
     if native_probe:
@@ -135,6 +136,8 @@ def _step_command(name: str, root: Path, run_dir: Path) -> list[str]:
                               '--project-root', str(root), '--out-dir', str(run_dir)],
             'R8_3_CONTRACTS': [py, '-X', 'utf8', 'scripts/r8_3_contracts_gate.py',
                               '--project-root', str(root), '--out-dir', str(run_dir)],
+            'R8_5_AUDIT': [py, '-X', 'utf8', 'scripts/r8_5_audit.py',
+                             '--project-root', str(root), '--out-dir', str(run_dir)],
             'ARCHITECTURE': [py, '-X', 'utf8', 'scripts/check_architecture_boundaries.py',
                              '--project-root', str(root)],
             'QUALITY': [py, '-X', 'utf8', 'scripts/check_07_12_quality.py',

@@ -35,3 +35,6 @@ Fixture RAW/SQLite tổng hợp giữ nguyên thân hàm sau R8.2; kiểm tra t�
 ## R8.4 — Bộ kiểm thử thống nhất
 
 Sử dụng `scripts/verify.ps1 -Profile Quick|Full|Acceptance` để chạy một pipeline duy nhất, ghi JUnit/JSON bên ngoài repository. `Quick` không thay `Full`; `Acceptance` vẫn ghi `PENDING_MANUAL` nếu thiếu xác nhận HMI/native thực tế. Có thể chủ động bật `-RunNativeProbe` và `-RunBenchmark` riêng trong `Acceptance`. Xem [hướng dẫn R8.4](../standardization/R8_4_BO_KIEM_THU_THONG_NHAT.md).
+## R8.5 — Kiểm toán và khóa hệ thống kiểm thử
+
+`Quick`, `Full`, `Acceptance` đều chạy thêm `R8_5_AUDIT` qua `scripts/r8_5_audit.py`. Công cụ so sánh 80 file test, 27 script của mốc R8.4 và xuất các ứng viên trùng AST hoặc thiếu tham chiếu tĩnh vào `evidence` ngoài repository. **Không có file lịch sử nào bị tự động xóa**, không chuyển SKIP sang PASS. Báo cáo: [R8.5](../standardization/R8_5_KIEM_KE_VA_NGHIEM_THU.md). `Full` PASS khóa riêng hệ thống regression; nghiệm thu GĐ1 vẫn phải xử lý các cổng HMI/native còn mở tại 08.06.6.
