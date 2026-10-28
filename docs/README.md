@@ -1,29 +1,46 @@
-# Tài liệu kỹ thuật ScanToPath — Điểm bắt đầu
+# Cổng tài liệu ScanToPath — đọc đúng nội dung, không phải ghép ghi chú
 
-**Mốc nguồn:** `feat/gd1-desktop-ui` tại R7-A `8e37eba2d270974b0dc61dde52c62ebc92d24a98`. **Ngôn ngữ tài liệu hiện hành:** tiếng Việt. **Vai trò:** cổng tra cứu, không phải báo cáo nghiệm thu.
+> `owner: DOCUMENTATION_OWNER` · `as_of_commit: 7a0df7c5b596ff8750bf91f47310067c53a8b204` · `verified_at: 2026-10-28`  
+> **Trạng thái:** DOC-03A mới bổ sung lớp Tổng quan/Kiến trúc v2; các module và sổ tay phát triển cũ **chưa** được viết lại (DOC-03B/C). Tài liệu DOC-04 về task/state và DOC-05 về di chuyển thư mục cũng chưa triển khai tại mốc nguồn.
 
-## Tôi cần đọc tài liệu nào?
+## Bạn cần hiểu gì trước tiên?
 
-| Nhu cầu | Đọc trước | Đọc tiếp |
+Đọc [README gốc](../README.md) để biết ứng dụng đang chạy được gì, sau đó chọn **một trong bốn tuyến** dưới đây. Khi vào tài liệu chuyên môn, các khái niệm cốt lõi và luồng xử lý sẽ được giải thích ngay trong trang, không bắt buộc tìm hồ sơ R4/R5 để ghép ý.
+
+| Bạn là ai / bạn muốn gì? | Bắt đầu ở đâu? | Đọc tiếp nếu cần |
 |---|---|---|
-| Hiểu kiến trúc | [Tổng quan kiến trúc](architecture/TONG_QUAN_KIEN_TRUC.md) | [Cấu trúc nguồn](architecture/CAU_TRUC_SOURCE.md), [Ranh giới mô-đun](architecture/RANH_GIOI_MODULE.md) |
-| Hiểu các luồng dữ liệu | [Luồng dữ liệu](architecture/LUONG_DU_LIEU.md) | [Thu nhận RGB-D](modules/THU_NHAN_RGBD.md), [Lưu trữ RAW](modules/LUU_TRU_RAW.md) |
-| Sửa giao diện | [Giao diện desktop](modules/GIAO_DIEN_DESKTOP.md) | [Viewer 3D](modules/KIEM_TRA_3D.md) |
-| Quản lý dự án và tệp quét | [Quản lý dự án](modules/QUAN_LY_DU_AN.md) | [Lưu trữ RAW](modules/LUU_TRU_RAW.md) |
-| Cài đặt, phát triển | [Cài đặt](development/HUONG_DAN_CAI_DAT.md) | [Phát triển](development/HUONG_DAN_PHAT_TRIEN.md) và [Git](development/QUY_TRINH_GIT.md) |
-| Viết mã và tài liệu | [Quy chuẩn mã](development/QUY_CHUAN_CODE.md) | [Quy tắc tài liệu](development/QUY_TAC_TAI_LIEU.md) |
-| Kiểm thử và nghiệm thu | [Quy trình kiểm thử](development/QUY_TRINH_KIEM_THU.md) | [Tổng hợp nghiệm thu](acceptance/TONG_HOP_NGHIEM_THU.md) |
-| Tìm quyết định thiết kế | [Chỉ mục quyết định](decisions/DECISION_INDEX.md) | [Nhật ký phát triển](history/DEVELOPMENT_MASTER_LOG.md) |
-| Tìm tài liệu từng phiên cũ | [Kho lưu trữ](archive/README.md) | [Bảng đối chiếu đường dẫn R7-B](history/NGUON_HO_SO_CU.md) |
-| Xem lộ trình nghiên cứu | [Lộ trình hiện hành](ROADMAP.md) | [Ánh xạ phiên](roadmap/SESSION_CROSSWALK.md) |
+| Người mới: ScanToPath giải quyết việc gì? | [Giới thiệu dự án](01-tong-quan/GIOI_THIEU_DU_AN.md) | [Khả năng và giới hạn](01-tong-quan/PHAM_VI_VA_NANG_LUC.md) |
+| Developer: phần mềm được chia lớp thế nào? | [Kiến trúc hệ thống](02-kien-truc/KIEN_TRUC_HE_THONG.md) | [Dữ liệu và tọa độ](02-kien-truc/DU_LIEU_VA_HE_TOA_DO.md), [công nghệ](02-kien-truc/CONG_NGHE_VA_PHU_THUOC.md) |
+| Developer: sửa một module cụ thể? | [Project](modules/QUAN_LY_DU_AN.md), [Viewer](modules/KIEM_TRA_3D.md), [RAW](modules/LUU_TRU_RAW.md), [RGB-D](modules/THU_NHAN_RGBD.md), [Desktop](modules/GIAO_DIEN_DESKTOP.md) | **Lưu ý:** các trang module hiện tại là bản R7, sẽ được thay bằng bản đầy đủ ở DOC-03B |
+| Phát triển/kiểm thử trên Windows? | [Cài đặt](development/HUONG_DAN_CAI_DAT.md), [Kiểm thử](development/QUY_TRINH_KIEM_THU.md) | Các sổ tay phát triển sẽ được biên tập đầy đủ ở DOC-03C |
+| Điều phối/đánh giá dự án? | [Lộ trình](01-tong-quan/LO_TRINH_PHAT_TRIEN.md), [GĐ1](acceptance/GD1.md) | [R6](acceptance/GD1_R6_ACCEPTANCE_STATUS.md), [ADR](decisions/DECISION_INDEX.md), [nhật ký](history/README.md) |
 
-## Phân biệt đúng phạm vi
+## Ba tầng thông tin không được trộn
 
-- **Đã có:** Ứng dụng desktop Qt/PySide6, quản lý Project/SQLite/RAW, mở PLY/OBJ trong Viewer VTK thường trú ở tiến trình riêng; chọn điểm/mặt, bảng thuộc tính và công cụ tương tác 3D.
-- **Chưa có trong Viewer hiện hành:** Quy trình tự động quét → tái tạo point cloud → lọc → tạo mesh → sinh Zigzag/Contour. Mở PLY/OBJ là đọc và kiểm tra hình học, **không phải chạy pipeline scan-to-path**.
-- **R6:** 14/14 cổng *tự động* PASS theo log người vận hành (618 Python PASS, ba trường hợp SKIP có giải thích, CTest 2/2); **R6 tổng thể vẫn PENDING** vì các cổng HMI/native chưa đủ bằng chứng. Xem [trạng thái GĐ1](acceptance/GD1.md).
-- **Giả định cơ cấu quét:** Các hồ sơ trước đây có những giả định phần cứng theo thời điểm. Không dùng một ghi chú cũ để tự xác định tư thế máy, đơn vị đo hay chuyển động cơ cấu. Xem [điểm cần xác minh](standardization/R7B_CAN_XAC_MINH.md).
+**Phần mềm đang chạy:** chỉ khẳng định những hành vi đã có source/kiểm thử ở baseline. Ví dụ Viewer có thể xem PLY/OBJ do nơi khác tạo, **chưa** biến RAW thành point cloud/mesh/đường robot.
 
-## Quy tắc đọc
+**Định hướng:** lộ trình GĐ2–GĐ5 đề ra năng lực và điều kiện chứng minh. Dự định sử dụng Open3D/OpenCV hoặc có cơ cấu hai trục **không** mặc định là chức năng đã tích hợp.
 
-Tài liệu trong `architecture/`, `modules/`, `development/`, `acceptance/` là lớp tra cứu hiện hành; `decisions/` lưu quyết định, `history/` ghi diễn tiến, `archive/` giữ hồ sơ theo thời điểm. Tên hàm, class, API, đường dẫn mã nguồn được giữ nguyên để có thể tra cứu trong repository. Kết luận chưa có chứng cứ phải ghi rõ **CHƯA XÁC MINH**.
+**Bằng chứng và lịch sử:** commit xác nhận file đã được đưa vào Git; pytest/CTest xác nhận hợp đồng được thử trong môi trường cụ thể; HMI/native/GPU thực tế là phép thử khác. Trạng thái tổng thể GĐ1 vẫn cần cổng 08.06.6 và không tự được nâng thành PASS vì R8.5 đã commit.
+
+## Ai sở hữu thông tin nào?
+
+| Điều cần biết | Nguồn chuẩn theo thiết kế DOC-02 | Hiện tại ở DOC-03A |
+|---|---|---|
+| Kiến trúc và luồng kỹ thuật | `02-kien-truc/` | **Đã viết bản v2** theo commit đối chiếu |
+| Phạm vi năng lực và roadmap | `01-tong-quan/` | **Đã viết bản v2**; snapshot, không phải task ledger |
+| Hướng dẫn module chi tiết | `03-modules/` | **DOC-03B chưa thực hiện**; dùng `modules/` cũ có ghi phạm vi |
+| Build/Git/kiểm thử đầy đủ | `04-phat-trien/` | **DOC-03C chưa thực hiện**; dùng `development/` hiện tại |
+| Task và trạng thái sống | `05-quan-ly/` | **DOC-04 chưa thực hiện**; chưa tự tạo trạng thái giả |
+| Hồ sơ giai đoạn và nghiệm thu | `06-giai-doan/`, `07-nghiem-thu/` | **DOC-04/05 chưa thực hiện**; dùng `acceptance/` hiện hành |
+| Hồ sơ R7/R8, ADR và tài liệu gốc | `99-lich-su/` | **Chưa di chuyển**; dùng `archive/`, `history/`, `standardization/` |
+
+## Cách duy trì khi có thay đổi mã nguồn
+
+1. Xác định tài liệu chuẩn thuộc module/layer nào; mô tả lại đầu vào, đầu ra, lỗi và đường test thực.
+2. Ghi `as_of_commit` và thời điểm đối chiếu; không sửa hồi tố tài liệu lịch sử thành “đã hoàn thành”.
+3. Nếu thay đổi giao thức/đơn vị/nguồn dữ liệu, cập nhật tài liệu hợp đồng và kiểm thử cùng PR.
+4. Nếu có kết quả HMI/native mới, ghi vào hồ sơ nghiệm thu có đường dẫn receipt thật; không sửa README thành “PASS tổng thể” trước khi duyệt.
+5. DOC-05 mới cập nhật các gate R7/R8 đang trỏ vào đường cũ; không xóa redirect giữa chừng.
+
+**Đặc tả thiết kế:** [Kiến trúc tài liệu DOC-02](standardization/DOC02_KIEN_TRUC_TAI_LIEU.md). Đây là tài liệu quy định cách viết và chuyển đổi, **không** phải nơi đọc kiến trúc runtime ScanToPath.

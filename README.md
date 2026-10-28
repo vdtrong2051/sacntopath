@@ -1,58 +1,117 @@
-# ScanToPath 2026 — Engineering 3D Reconstruction Desktop
+# ScanToPath — Ứng dụng desktop quản lý dữ liệu quét và kiểm tra hình học 3D
 
-> **Tài liệu kỹ thuật tiếng Việt hiện hành:** [Bắt đầu với tài liệu tiếng Việt](docs/README.md). Các hồ sơ phiên cũ đã được phân loại trong `docs/archive/`.
+> **Bản mô tả phần mềm hiện hành:** `feat/gd1-desktop-ui@7a0df7c5b596ff8750bf91f47310067c53a8b204` (sau DOC-02), đối chiếu ngày **28/10/2026**.  
+> **Phạm vi:** bản đã có trên Git ở GĐ0/GĐ1; không phải tuyên bố hoàn thành toàn bộ thuật toán Scan-to-Path.  
+> **Chủ sở hữu tài liệu:** `DOCUMENTATION_OWNER`. **Bằng chứng:** source/pyproject/CTest và hồ sơ nghiệm thu GĐ0/GĐ1; các phép thử Windows mới của DOC-03A chỉ có hiệu lực sau khi người vận hành chạy xác minh.
 
-**GĐ1 hiện hành (R7, 27/10/2026):** [Tài liệu GĐ1 hiện hành](docs/INDEX.md) ghi kiến trúc Viewer/Project sau R5.3, lịch sử sửa lỗi, và ma trận R6. R6 tự động 14/14 PASS theo log người vận hành; R6 tổng thể vẫn PENDING. Các mục GĐ0 và kế hoạch bên dưới là mốc lịch sử theo thời điểm soạn README.
+## 1. ScanToPath là gì — và chưa phải là gì?
 
-**Trạng thái:** GĐ0 (Software Skeleton + Gemini 2 RAW/metadata) đã merge vào `main` qua [PR #3](https://github.com/vdtrong2051/sacntopath/pull/3), commit `8bf33591389dcdff82f0fbd5bf5932a22547c984`. Sau GĐ0 phát triển theo **UI-first + vertical slices**, roadmap mới có đối chiếu và kho lưu bản cũ.
+ScanToPath hướng tới chuyển dữ liệu cảm biến RGB-D của vật thể thật thành **hình học có thể truy vết, đánh giá độ tin cậy**, rồi phục vụ các tác vụ kỹ thuật: kiểm tra, thiết kế ngược, chế tạo và về sau là tham chiếu đường đi cho robot. Đích nghiên cứu lâu dài gồm tái tạo bề mặt và tạo đường tham chiếu; **bản desktop đang mô tả ở đây chưa có quy trình tự động nối từ camera tới mesh hay Zigzag/Contour**.
 
-**Tài liệu bắt đầu:** [ROADMAP](docs/ROADMAP.md) · [Kiến trúc hiện hành](docs/architecture/TONG_QUAN_KIEN_TRUC.md) · [Công nghệ](docs/roadmap/TECHNOLOGY_SCOPE.md) · [Ánh xạ phiên cũ/mới](docs/roadmap/SESSION_CROSSWALK.md) · [ADR-001 UI-first](docs/decisions/ADR_001_UI_FIRST.md) · [Bản cũ](docs/archive/ROADMAP_CU/ROADMAP_V1_ARCHIVED.md).
+Bản phần mềm trên Git hiện cung cấp ba năng lực có source và test: (1) giao tiếp Gemini 2 theo lệnh, ghi/đọc RAW và metadata; (2) quản lý Project, vật mẫu, phiên quét, Capture, ProcessingRun qua SQLite; (3) mở **tệp PLY/OBJ từ bên ngoài** để xem, điều hướng và chọn điểm/mặt trên Viewer 3D. Ba năng lực này **chưa phải một pipeline end-to-end**. Việc Viewer đọc được một mesh không chứng minh phần mềm đã tái tạo mesh đó từ RAW.
 
-## Mục tiêu
+Một giới hạn quan trọng: `measured=True` chỉ cho biết nguồn là dữ liệu cảm biến thật; **không** đồng nghĩa đã kiểm định sai số kích thước (`metric_validated`). Các tệp PLY/OBJ ngoài chưa xác minh có `units=unknown` và `coordinate_frame=unknown`; lưới tọa độ hiển thị không phải hệ tọa độ robot. Các bài kiểm thử tự động PASS không chứng minh HMI ở DPI thật, GPU/VRAM, lỗi native C++ khi bận hoặc độ trễ hình ảnh thực tế.
 
-**Vật thể thật → RAW có nguồn gốc → hình học theo kích thước thật → chất lượng/độ tin cậy → đặc trưng và quan hệ → bản sao số kỹ thuật → dữ liệu phục vụ thiết kế ngược, kiểm tra hoặc chế tạo.** Về sau cho phép yêu cầu đo bổ sung theo nhiệm vụ. Không đồng nhất mesh đẹp với phép đo chuẩn, AI prediction với dữ liệu measured hoặc planned trajectory với pose thực.
+Đọc đầy đủ hơn tại [Giới thiệu dự án](docs/01-tong-quan/GIOI_THIEU_DU_AN.md) và [Phạm vi năng lực](docs/01-tong-quan/PHAM_VI_VA_NANG_LUC.md).
 
-## Đã hoàn thành (GĐ0)
+## 2. Năng lực tại mốc đối chiếu
 
-- Gemini 2 **cầm tay** qua OrbbecSDK v2.10.6, C++20 và pybind11; raw color MJPEG và depth Y16 lưu độc lập, chưa align; timestamp, calibration và scale được giữ theo nguồn.
-- `RawRgbdCaptureMetadataV2`, `SessionStore.commit_raw`/`read_raw`, manifest SHA-256, marker `COMMITTED`, hỗ trợ đọc dữ liệu v1 synthetic.
-- Project/Specimen/ScanSession/Capture Registry/ProcessingRun và audit events trong SQLite/SQLAlchemy.
-- Một shot thu nhận/ghi/đọc lại với Gemini 2 thật đã nghiệm thu trên Windows, lỗi checksum/thiếu tệp bị từ chối.
-- Hồi quy PRE-06 Windows: **80 passed / 1 skipped** (symlink test bị giới hạn quyền), CTest **2/2**, native self-test exit **0**. Đây là bằng chứng GĐ0; **không** suy ra metric accuracy/pose/sync được kiểm chứng.
-- PySide6 mới ở mức giao diện shell đơn giản, **chưa** có VTK viewer/3D import/workflow UI.
+| Năng lực | Triển khai trong Git | Bằng chứng phù hợp | Không được suy ra |
+|---|---|---|---|
+| Qt/PySide6 desktop, 4 workspace | `IMPLEMENTED` | Source UI và các Qt regression | Đã đạt HMI DPI thực tế |
+| Project Workspace / SQLite / mã thư mục | `IMPLEMENTED` trong các đường thao tác được kiểm thử | Metadata, Project services, storage tests | Mọi tình huống mất điện đã được bảo đảm |
+| Gemini 2 one-shot RAW MJPEG/Y16 | `IMPLEMENTED` theo lệnh riêng | Hồ sơ PRE-06, adapter/native, bài test RAW | Pose/world frame hoặc metric accuracy |
+| PLY/OBJ Viewer, orbit/pan/zoom, point/face picking | `IMPLEMENTED` trong code | R5.3, R6 automated, test Viewer | Viewer tự sinh mesh hoặc xuất robot trajectory |
+| RAW replay → point cloud metric → filtering → fusion | **Chưa có pipeline GĐ2/GĐ3 được tích hợp** | Roadmap/khả năng tương lai | Đã chạy end-to-end |
+| Digital Replica, Active Acquisition, Zigzag/Contour thực thi trên bản desktop | **PLANNED / ngoài phạm vi build này** | Roadmap | Robot đang được điều khiển |
+| GĐ1 HMI/native thực địa tổng thể | **PENDING** | [Biên bản R6](docs/acceptance/GD1_R6_ACCEPTANCE_STATUS.md) | R8.5 commit = HMI PASS |
 
-## Sắp triển khai
+Bảng là **snapshot tại commit trên**, không phải sổ trạng thái luôn cập nhật. Khi DOC-04 hoàn thành, nguồn trạng thái vận hành sẽ chuyển sang `docs/05-quan-ly/TRANG_THAI_DU_AN.md`; không duy trì nhiều bảng trạng thái song song.
 
-**GĐ1 (06–08):** Desktop UI Foundation → Project Workspace trên SQLite → VTK 3D Viewer. GĐ2 (09–13): RAW Replay → single-view cloud → tương tác/filter/export. Các giai đoạn sau mới metric validation, pose/multi-view registration, trust, feature/replica và AI-assisted handheld scanning.
+## 3. Cách các phần kết nối
 
-**Không có** bàn quay, motor, encoder, Pi/ESP32, fixed world pose hay camera motion-control trong build đã nghiệm thu. Plan dẫn hướng bằng tay và object detection/tracking là mục tiêu tương lai.
+```text
+                      ỨNG DỤNG DESKTOP (Python 3.12 + Qt/PySide6)
+        ┌──────────────────────────────────────────────────────────┐
+        │ Qt Shell + Project Workspace + màn hình kiểm tra 3D      │
+        │  ├─ lệnh người dùng → Project services → SQLite metadata│
+        │  │                                 ↘ RAW files + manifest│
+        │  └─ Viewer controller → IPC → Render Host VTK (process khác)
+        │                                  ← RGB shared memory + ACK│
+        └──────────────────────────────────────────────────────────┘
 
-## Windows developer checks
-
-Tại thư mục gốc repo, dùng `.venv` Python 3.12 đã cài project:
-
-```powershell
-$pyExe = (Resolve-Path '.\.venv\Scripts\python.exe').Path
-& $pyExe -m pytest -q -rs .\tests
-ctest --test-dir .\build-orbbec -C Release --output-on-failure
-$env:SCANTOPATH_ORBBEC_SDK_BIN = 'E:\1_BigProject\scantopath\_sdk\OrbbecSDK_v2.10.6\bin'
-& $pyExe -u -X faulthandler -m scantopath.acquisition.native --self-test
+   Gemini 2 (mở theo lệnh) → OrbbecSDK/C++20 → pybind11 → RAW MJPEG/Y16
+                        [không tự cấp point cloud/mesh cho Viewer]
+   PLY/OBJ bên ngoài ────────────────────────────────→ Viewer controller
 ```
 
-CLI hiện có (không tự mở camera trừ `--once`):
+Giải thích ranh giới, vòng đời và xử lý lỗi ở [Kiến trúc hệ thống](docs/02-kien-truc/KIEN_TRUC_HE_THONG.md) và [Dữ liệu/hệ tọa độ](docs/02-kien-truc/DU_LIEU_VA_HE_TOA_DO.md).
+
+## 4. Yêu cầu môi trường
+
+- **Hệ điều hành phát triển/kiểm thử chính:** Windows; Python **3.12** khuyến nghị (package yêu cầu `>=3.12`).
+- **Desktop:** Qt 6/PySide6; **Viewer 3D:** VTK. Đây là **optional dependencies** của `pyproject.toml`, phải cài khi cần chạy giao diện/Viewer.
+- **C++:** CMake + MSVC có hỗ trợ C++20; `CTest` có hai smoke test không phụ thuộc camera khi build mặc định.
+- **Camera thật:** Orbbec Gemini 2, OrbbecSDK và native extension là **bước cấu hình riêng**; không bắt buộc cho tài liệu, pytest cơ bản hoặc mở tệp PLY/OBJ.
+- **Lưu trữ:** SQLite qua SQLAlchemy; RAW để trên filesystem, không đưa ảnh trực tiếp vào DB.
+
+Danh sách trách nhiệm và phân biệt *đang dùng/định hướng* ở [Công nghệ và phụ thuộc](docs/02-kien-truc/CONG_NGHE_VA_PHU_THUOC.md).
+
+## 5. Bắt đầu nhanh trên Windows (không mở camera)
+
+Chạy **tại gốc repository** bằng PowerShell. Các lệnh sau tạo `.venv` và cài các phụ thuộc vào môi trường của dự án; **không tự thu ảnh** hoặc migrate SQLite. Cần Python 3.12 và kết nối tới package index khi cài lần đầu.
 
 ```powershell
-& $pyExe -m scantopath.metadata.cli list-projects
-& $pyExe -m scantopath.metadata.cli tree --project project-001
-& $pyExe -m scantopath.metadata.cli events --limit 20
-# Khi có một Capture v2 đã lưu thật, đường dẫn phải trỏ vào đúng root:
-# & $pyExe -m scantopath.acquisition.capture_once --verify '<CAPTURE_DIR>' --output '.\scantopath-data'
+py -3.12 -m venv .venv
+& .\.venv\Scripts\python.exe -m pip install --upgrade pip
+& .\.venv\Scripts\python.exe -m pip install -e ".[ui,viewer,test]"
+& .\.venv\Scripts\python.exe -X utf8 -m scantopath.ui.main
 ```
 
-**Không commit** `.venv`, dữ liệu `scantopath-data`, log runtime, camera identifiers hoặc RAW thật lên repository công khai. Đường dẫn SDK ví dụ là của máy Windows đã thử, không portable.
+Kết quả kỳ vọng: cửa sổ **ScanToPath** với bốn workspace (Dự án / Thu nhận RGB-D / Kiểm tra 3D / Xử lý). Chỉ khi người dùng chọn chức năng cần thiết mới mở nguồn dữ liệu hoặc khởi tạo Viewer; **không cần camera cắm sẵn**. Đóng cửa sổ để dừng Qt event loop. Khi chạy trên desktop thật, **không** đặt `QT_QPA_PLATFORM=offscreen`.
 
-## Hồ sơ và lịch sử
+Nếu `.venv` đã được cấu hình, bỏ qua hai lệnh tạo/cài đặt. Nếu viewer báo thiếu VTK, đối chiếu `pip show vtk PySide6` trong chính `.venv` thay vì đổi mã nguồn. Xem [Sổ tay cài đặt hiện hành](docs/development/HUONG_DAN_CAI_DAT.md) (DOC-03C sẽ viết lại đầy đủ).
 
-- [`docs/PRE_06_GD0_ACCEPTANCE.md`](docs/archive/GD0/PRE/PRE_06_GD0_ACCEPTANCE.md) là hồ sơ được viết **trước lúc merge** (trạng thái pending/checkbox trong file giữ nguyên làm lịch sử); PR #3/commit nói trên xác nhận đã merge sau đó.
-- [`docs/PRE_01_BASELINE.md`](docs/archive/GD0/PRE/PRE_01_BASELINE.md) … [`docs/PRE_05_GD0_METADATA_PERSISTENCE.md`](docs/archive/GD0/PRE/PRE_05_GD0_METADATA_PERSISTENCE.md) là hồ sơ các bước nền tảng.
-- [`docs/roadmap/ROADMAP_V1_ARCHIVED.md`](docs/archive/ROADMAP_CU/ROADMAP_V1_ARCHIVED.md) giữ nguyên phiên bản roadmap lịch sử, không viết lại Git history.
+## 6. Bản đồ repository
+
+```text
+src/scantopath/
+  ui/                 Qt shell, dock, workspace, app entry
+  modules/
+    project_workspace/  presentation/application/infrastructure quản lý Project
+    viewer3d/           controller, contracts và Render Host VTK tách tiến trình
+  acquisition/       Gemini 2 adapter và lệnh thu nhận RAW
+  storage/           RAW v1/v2, numbered layout và migration opt-in
+  metadata/          SQLite schema/repository/audit
+  domain/            hợp đồng dữ liệu và nguồn đo
+  application/       DTO/command/task contract dùng chung
+cpp/                 C++20, Orbbec source, native bindings, CTest
+scripts/             unified regression, probes, quality gates
+tests/               unit / integration / contracts / ui / native / performance
+docs/                tài liệu chuẩn mới và hồ sơ tương thích/lịch sử
+```
+
+Điểm chạy UI là `src/scantopath/ui/main.py`; composition root là `src/scantopath/ui/shell/main_window.py`; điểm lắp Viewer là `src/scantopath/ui/shell/viewer_bootstrap.py`. **Không gọi `capture_once --once` như bước kiểm thử mặc định**: lệnh đó truy cập camera và ghi RAW mới.
+
+## 7. Kiểm thử và cách hiểu kết quả
+
+```powershell
+.\scripts\verify.ps1 -Profile Quick
+.\scripts\verify.ps1 -Profile Full
+.\scripts\verify.ps1 -Profile Acceptance
+```
+
+- `Quick`: các kiểm tra tài liệu/kiến trúc/quality và pytest tập trung; dùng khi phát triển.
+- `Full`: toàn bộ pytest, JUnit policy, CTest Release và các quality gates; dùng trước commit.
+- `Acceptance`: ghi nhận các cổng tự động; **các cổng HMI/native thực địa chưa đo vẫn là `PENDING_MANUAL`**.
+
+Dữ liệu kết quả chạy được lưu tại thư mục evidence **ngoài repository**. Ba test tạo symlink có thể SKIP trên Windows nếu thiếu quyền, và phải đúng ID/lý do trong chính sách. Xem [Quy trình kiểm thử](docs/development/QUY_TRINH_KIEM_THU.md), [Trạng thái R6](docs/acceptance/GD1_R6_ACCEPTANCE_STATUS.md).
+
+## 8. Cổng tài liệu và lịch sử
+
+- [Bắt đầu đọc theo vai trò](docs/README.md): đường đọc từ người mới tới developer/nghiệm thu.
+- [Lộ trình phát triển](docs/01-tong-quan/LO_TRINH_PHAT_TRIEN.md): điều gì có trước và phụ thuộc nào chưa làm.
+- [Kiến trúc hệ thống](docs/02-kien-truc/KIEN_TRUC_HE_THONG.md), [hợp đồng dữ liệu](docs/02-kien-truc/DU_LIEU_VA_HE_TOA_DO.md) và [công nghệ](docs/02-kien-truc/CONG_NGHE_VA_PHU_THUOC.md).
+- [Bằng chứng nghiệm thu GĐ1](docs/acceptance/GD1.md): trạng thái và phần còn mở.
+
+**Đường dẫn lịch sử tương thích, không phải cổng đọc chính:** [Tài liệu GĐ1 hiện hành](docs/INDEX.md). Mục này được giữ vì gate R7 cũ đang kiểm tra liên kết chính xác; đến DOC-05 mới xem xét thay gate và redirect. Một số hồ sơ GĐ0/R4/R5 còn ở commit Git lịch sử, không nên xem các nhãn `PENDING` khi đó như trạng thái software tại commit hiện hành.
