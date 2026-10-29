@@ -77,3 +77,17 @@ Các gate trên mặc định **NOT_TESTED**; không tự nhận PASS chỉ vì 
 4. Tới 09.02–09.09: code mới theo roadmap, test nhỏ, commit, ledger; không chạy Full Regression liên tục.
 5. Cuối 09.09: acceptance/regression liên quan + manual Windows/Gemini 2; chỉ khi gate đạt mới chốt 09 DONE.
 6. Vẫn giữ một branch dài hạn tới MVP-B; **PR main chỉ khi hoàn tất MVP-B**, không phải khi xong 09.
+
+## Phụ lục điều chỉnh phạm vi 09.07 (29/10/2026)
+
+Theo quyết định triển khai, 09.07 được gộp thành ba checkpoint nội bộ:
+09.07.1 Depth Detection & Tracking; 09.07.2 Qt Overlay + Manual ROI
++ Live Preview tối thiểu trong Capture Workspace hiện có; và 09.07.3
+Integration/Hardware Acceptance. 09.08 vẫn là Keyframe RAW Persistence.
+09.09 giữ trách nhiệm HMI hoàn chỉnh, handoff Project/Session và
+nghiệm thu gate toàn phiên. Phụ lục này làm rõ phạm vi các dòng
+09.07 và 09.09 trong bảng roadmap; không đổi các mốc trước 09.07.
+
+Kết quả 09.07 được operator chấp nhận **với giới hạn được ghi nhận**;
+không đồng nghĩa với gate G2-09-A/B/C, LIFE-09 hoặc REG-09 đã PASS.
+Xem `docs/07-nghiem-thu/GD2_09_07_ACCEPTANCE_WITH_LIMITATIONS.md`.

@@ -18,6 +18,7 @@ from scantopath.modules.project_workspace.presentation.controller import Project
 from scantopath.modules.capture.presentation.preview_controller import (
     CapturePreviewController,
 )
+from scantopath.modules.capture.presentation.live_ui_controller import LiveCaptureUiController
 from scantopath.ui.components import ExplorerNode, ProjectExplorer, PropertyInspector, TaskAndEventPanel
 from scantopath.ui.viewmodels.navigation import NavigationViewModel
 from scantopath.ui.theme import load_hmi_qss
@@ -46,6 +47,20 @@ def _create_capture_replay_services():
     )
 
     return replay_service, decoder
+
+def _create_live_camera_worker():
+    """GD2-09.07.2: worker construction; lazy native SDK acquisition."""
+    from scantopath.modules.capture.presentation.live_worker import LiveStreamWorker
+
+    def make_service():
+        # Called inside QThread.run(), never when the UI is instantiated.
+        from scantopath.modules.capture.application.live_stream import LiveCaptureService
+        from scantopath.modules.capture.infrastructure.process_camera import ProcessIsolatedCameraAdapter
+        from scantopath.modules.capture.infrastructure.jpeg_codec import PillowMjpegDecoder
+        return LiveCaptureService(ProcessIsolatedCameraAdapter(), PillowMjpegDecoder())
+
+    return LiveStreamWorker(service_factory=make_service)
+
 
 class ScanToPathMainWindow(QMainWindow):
     """Một cửa sổ, bốn workspace; command xử lý ở lớp 06.2."""
@@ -77,6 +92,11 @@ class ScanToPathMainWindow(QMainWindow):
         self.capture_preview = CapturePreviewController(
             self,
             service_factory=_create_capture_replay_services,
+        )
+        # 09.07.2: dedicated live panel, independent from immutable RAW Replay.
+        self.capture_live = LiveCaptureUiController(
+            self,
+            worker_factory=_create_live_camera_worker,
         )
 
         self._install_task_controller()
@@ -359,6 +379,7 @@ class ScanToPathMainWindow(QMainWindow):
         check_stopped = self.capture_checker.begin_shutdown()
         viewer_stopped = self.viewer3d is None or getattr(self.viewer3d, 'begin_shutdown', lambda: True)()
         capture_stopped = self.capture_preview.begin_shutdown()
+        live_stopped = self.capture_live.begin_shutdown()
         if (
             tasks_stopped
             and project_stopped
@@ -366,6 +387,7 @@ class ScanToPathMainWindow(QMainWindow):
             and check_stopped
             and viewer_stopped
             and capture_stopped
+            and live_stopped
         ):
             if self.viewer3d is not None:
                 self.viewer3d.dispose()
@@ -429,6 +451,9 @@ class ScanToPathMainWindow(QMainWindow):
             return
         if previous != self.navigation.workspace:
             going_to_capture = self.navigation.workspace is WorkspaceId.CAPTURE
+
+            if previous is WorkspaceId.CAPTURE and not going_to_capture:
+                self.capture_live.begin_navigation_away()
 
             if going_to_capture:
                 self.capture_preview.begin_navigation_handoff()

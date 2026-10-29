@@ -140,6 +140,9 @@ class LiveStreamWorker(QThread):
             if service is not None:
                 try:
                     service.close()
+                except LiveCameraError as exc:
+                    if error is None or exc.code == "DEVICE_PROCESS_CRASH":
+                        error = exc.code
                 except Exception:
                     if error is None:
                         error = "CLOSE_FAILED"
