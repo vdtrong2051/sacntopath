@@ -1,6 +1,6 @@
 # GD2-09 — Checkpoint & Evidence Ledger
 
-> Trạng thái checkpoint: 09.01, 09.02 và 09.03 đã nghiệm thu; 09.04–09.09 chưa triển khai. Các gate toàn phiên G2-09-A/B/C vẫn `NOT_TESTED`.
+> Trạng thái checkpoint: 09.01–09.04 đã nghiệm thu; 09.05–09.09 chưa triển khai. Các gate toàn phiên G2-09-A/B/C vẫn `NOT_TESTED`.
 
 | Step | Trạng thái | Commit SHA | Small test + kết quả | Những file đã review | Blocker/evidence |
 |---|---|---|---|---|---|
@@ -8,7 +8,7 @@
 | 09.01 | SMALL_TEST_PASS | See Git checkpoint 09.01 | 48 passed; architecture 0 violations | contracts.py, ports.py, models.py, test_gd2_09_01_contracts.py, module skeleton | Windows; G2-09-A/B/C NOT_TESTED |
 | 09.02 | ACCEPTED / SMALL_TEST_PASS | See Git checkpoint 09.02 | 35 passed; related regression 86 passed, 1 skipped (Windows symlink privilege); architecture 0 violations | replay.py, raw_reader.py, unit + integration tests | Synthetic RAW/SQLite; real Gemini 2 and G2-09-A/B/C NOT_TESTED |
 | 09.03 | ACCEPTED / SMALL_TEST_PASS | See Git checkpoint 09.03 | Unit 13 passed; integration 3 passed; related regression 99 passed + 1 skipped (Windows symlink privilege); project regression PASS; architecture 0 violations | decoding.py, jpeg_codec.py, unit/integration tests, pyproject.toml | Pillow 12.3.0; synthetic RGB-D; Gemini 2 real device NOT_TESTED |
-| 09.04 | NOT_STARTED | — | NOT_RUN | — | — |
+| 09.04 | ACCEPTED / AUTOMATED_PASS / WINDOWS_VISUAL_PASS | This checkpoint commit | 20 Qt preview/integration passed; 57 GD1 UI regression passed; 99 Capture regression passed; architecture 0 violations | preview_widget.py, preview_controller.py, replay_worker.py, main_window.py, 2 Qt test files | Windows visual PASS 2026-10-29; synthetic RAW v2 Capture c1; RGB 24x16; Depth 3x2; scale 0.001 m/unit; Gemini 2 live NOT_TESTED |
 | 09.05 | NOT_STARTED | — | NOT_RUN | — | — |
 | 09.06 | NOT_STARTED | — | NOT_RUN | — | — |
 | 09.07 | NOT_STARTED | — | NOT_RUN | — | — |
