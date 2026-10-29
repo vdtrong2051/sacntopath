@@ -53,3 +53,10 @@ Các trạng thái hợp lệ: `BACKLOG` (chưa lên lịch), `READY`, `IN_PROGR
 ## 6. Quyết định cuối GĐ1 ngày 28/10/2026
 
 `GD1_08_06_6_FINAL_CLOSURE_20261028`: task `GD1-08-06-6` chuyển **DONE theo operator acceptance with explicit waivers**. Các gate đã miễn không được khai thành PASS; đánh giá rủi ro của ba gate đã ghi trong [biên bản](../07-nghiem-thu/GD1_ACCEPTANCE.md#7-quyết-định-đóng-gđ1-ngày-28102026). Các mục hướng dẫn `BLOCKED` phía trên là snapshot trước quyết định đóng. Không tự động mở GĐ2.
+
+
+<!-- SCANTOPATH_GD2_GD3_PLANNING_20261029_BEGIN -->
+## Phụ lục phạm vi task dự kiến GĐ2/GĐ3 — 29/10/2026
+
+Các task 09–16/MVP-B đã được **đặc tả phạm vi**, nhưng **chưa được kickoff**, không chuyển `BACKLOG` sang `READY/IN_PROGRESS/DONE` chỉ vì gói tài liệu được áp dụng. Task `GD2-09` lịch sử giữ ID gốc; danh sách subtask/gate và P0/P1/P2 nằm trong [Backlog đề xuất](GD2_GD3_BACKLOG_AND_RISK_GATE.md). Mục tiêu onboarding 04/11 bắt buộc theo yêu cầu nhưng rủi ro cao, không có quyền miễn nghiệm thu. [Kế hoạch](../06-giai-doan/GD2_GD3_KE_HOACH_THUC_THI_20261029.md).
+<!-- SCANTOPATH_GD2_GD3_PLANNING_20261029_END -->

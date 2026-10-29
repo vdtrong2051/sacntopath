@@ -61,3 +61,12 @@ Xem [Công nghệ và phụ thuộc](../02-kien-truc/CONG_NGHE_VA_PHU_THUOC.md) 
 Cần: chức năng đúng scope; mã nguồn/commit và test; bản đo môi trường thật nếu phạm vi có HMI/camera; chốt hạn chế còn mở và waiver có trách nhiệm. Đặc biệt, **GĐ1 không được đóng chỉ vì R8.5 đã commit**. Những phép thử DPI/native busy/GPU/render-present phải được xử lý trong 08.06.6 theo cách đo tương ứng.
 
 Lịch sử thử và lỗi được bảo toàn ở [Nhật ký GĐ1](../99-lich-su/JOURNALS/GD1_EXECUTION_JOURNAL.md); nguồn lịch sử R6 ở [Trạng thái nghiệm thu R6](../07-nghiem-thu/records/GD1_R6_ACCEPTANCE_STATUS.md). Đây là hồ sơ chứng cứ, không phải hướng dẫn tạo task mới.
+
+
+<!-- SCANTOPATH_GD2_GD3_PLANNING_20261029_BEGIN -->
+## Phụ lục quyết định 29/10/2026 — Không đổi roadmap, bổ sung mục tiêu demo
+
+Roadmap giữ nguyên **GĐ2=09–13 single-view**, **GĐ3=14–16 metric/registration/fusion**, GĐ4 feature/digital replica và GĐ5 active acquisition. Chủ dự án bổ sung **MVP-B trước 04/11/2026**, kết hợp GĐ2 + phần GĐ3 cần thiết + mesh để demo. Đây là một **vertical slice liên giai đoạn**, không được dùng làm chứng cứ GĐ3 Done.
+
+Điều kiện vận hành hiện tại: Gemini 2 **cầm tay**, chưa có rig hai trục; camera cố định là ý tưởng tương lai, không suy pose đo thực. [Hồ sơ quyết định](../05-quan-ly/DEC_GD2_GD3_POST_GD1_20261029.md), [MVP-B](../06-giai-doan/MVP_B_ONBOARDING_20261104.md), [Kế hoạch](../06-giai-doan/GD2_GD3_KE_HOACH_THUC_THI_20261029.md).
+<!-- SCANTOPATH_GD2_GD3_PLANNING_20261029_END -->

@@ -50,3 +50,10 @@ Index chưa có đường dẫn một receipt Windows đã được kiểm độ
 ## 6. Cập nhật mới nhất — 08.06.6 đóng GĐ1
 
 `GD1_08_06_6_FINAL_CLOSURE_20261028`: [quyết định đóng tại hồ sơ nghiệm thu](GD1_ACCEPTANCE.md#7-quyết-định-đóng-gđ1-ngày-28102026) dựa trên operator reports/Windows Event Log. Evidence tự động gốc ngoài repository, không có lời xác nhận GitHub CI mới. 3 gate được miễn được ghi `WAIVED_BY_OPERATOR`, không chuyển thành measured PASS.
+
+
+<!-- SCANTOPATH_GD2_GD3_PLANNING_20261029_BEGIN -->
+## Phụ lục gate lập kế hoạch — GĐ2/GĐ3/MVP-B 29/10/2026
+
+[Ma trận gate GĐ2/GĐ3/MVP-B](GD2_GD3_MVPB_ACCEPTANCE_MATRIX.md) chỉ là tiêu chí **NOT_TESTED**, **chưa có receipt thực thi**. Không chuyển GĐ1 waiver thành GĐ2 PASS, không dùng mesh demo để chứng nhận metric/registration/coverage toàn hệ. Khi chạy, lưu receipt ngoài repo với commit/time/device/profile/source hashes và reviewer, rồi dẫn liên kết chính xác tại đây. [Quyết định](../05-quan-ly/DEC_GD2_GD3_POST_GD1_20261029.md).
+<!-- SCANTOPATH_GD2_GD3_PLANNING_20261029_END -->

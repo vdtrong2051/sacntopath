@@ -52,3 +52,12 @@ Git xác nhận file và lịch sử, không xác nhận mọi lượt thử Win
 ## 6. Quyết định trạng thái mới nhất — 28/10/2026
 
 `GD1_08_06_6_FINAL_CLOSURE_20261028`: **`GD1_STAGE_CLOSED_ACCEPTED_WITH_EXPLICIT_WAIVERS`**. Đây là quyết định kết thúc GĐ1 của chủ dự án, thay `GD1_OVERALL_PENDING` tại snapshot DOC-04 trước đó. HMI DPI/reopen và Full Regression PASS theo operator; NT-02 controlled native fail-fast PASS theo Windows Event 1000; NT-01 BUSY, GPU/VRAM measured, physical-present latency **WAIVED, NOT_MEASURED**, không ghi PASS. Xem [quyết định và giới hạn](../07-nghiem-thu/GD1_ACCEPTANCE.md#7-quyết-định-đóng-gđ1-ngày-28102026). Trạng thái GĐ2 vẫn `NOT_STARTED`.
+
+
+<!-- SCANTOPATH_GD2_GD3_PLANNING_20261029_BEGIN -->
+## Phụ lục trạng thái sau GĐ1 — 29/10/2026
+
+`as_of_commit: 9e32dafc747dab52fd5b58a54c42d37a9a7a8652`. **GĐ1:** `GD1_STAGE_CLOSED_ACCEPTED_WITH_EXPLICIT_WAIVERS` theo hồ sơ nghiệm thu, không tự nâng ba waiver thành PASS. **GĐ2:** `NOT_STARTED`; **GĐ3:** `NOT_STARTED`; **MVP-B onboarding 04/11:** `PLANNED_HIGH_RISK`, mọi gate `NOT_TESTED`. **Thiết bị trong tay người vận hành:** Gemini 2 cầm tay; chưa có cơ cấu hai trục; còn thiếu physical receipt để đóng `HW-CURRENT-BASELINE` theo điều kiện cũ.
+
+Đây là addendum điều chỉnh thông tin sau snapshot DOC-04; không xóa số liệu/hồ sơ lịch sử. [Decision](DEC_GD2_GD3_POST_GD1_20261029.md), [Acceptance Matrix](../07-nghiem-thu/GD2_GD3_MVPB_ACCEPTANCE_MATRIX.md).
+<!-- SCANTOPATH_GD2_GD3_PLANNING_20261029_END -->

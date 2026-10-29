@@ -45,3 +45,10 @@ Khi cần ai làm/đang ở trạng thái gì: [TASK_REGISTER](../05-quan-ly/TAS
 ## 5. Giới hạn đã biết
 
 Mapping theo **năng lực**, không phải bằng chứng completion hoặc baseline phần cứng cố định. Phần cứng hiện hành chưa có hồ sơ ký riêng trong Git và nằm tại task `HW-CURRENT-BASELINE`; không suy diễn stage từ lịch sử handheld.
+
+
+<!-- SCANTOPATH_GD2_GD3_PLANNING_20261029_BEGIN -->
+## Phụ lục crosswalk sau GĐ1 — 29/10/2026
+
+Phiên 09–13 tương ứng RAW replay, single-view XYZRGB, segmentation/filter, normals, export; phiên 14–16 tương ứng metric, handheld pose/registration, fusion/trust. **MVP-B 04/11** lấy khả năng từ cả hai giai đoạn và thêm surface mesh, nhưng không nhập mesh hoặc multi-view vào điều kiện Done của GĐ2. [GĐ2](GD2_RAW_REPLAY_SINGLE_VIEW_GEOMETRY.md), [GĐ3](GD3_METRIC_RECONSTRUCTION_TRUST.md), [MVP-B](MVP_B_ONBOARDING_20261104.md).
+<!-- SCANTOPATH_GD2_GD3_PLANNING_20261029_END -->

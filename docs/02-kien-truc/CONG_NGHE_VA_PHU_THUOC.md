@@ -89,3 +89,10 @@ Chỉ nâng SDK/PySide6/VTK/Python hoặc thêm Open3D/OpenCV/PCL khi có task, 
 Dẫn nguồn để xác minh: `pyproject.toml`, `cpp/CMakeLists.txt`, `src/scantopath/ui/shell/viewer_bootstrap.py`, `src/scantopath/modules/viewer3d/infrastructure/resident_poc/`, [Kiến trúc](KIEN_TRUC_HE_THONG.md) và [Phạm vi năng lực](../01-tong-quan/PHAM_VI_VA_NANG_LUC.md). Các quyết định công nghệ từ giai đoạn cũ có tại [Technology Scope R7](CONG_NGHE_VA_PHU_THUOC.md); văn bản đó được dùng như nguồn lịch sử và có bảng Viewer chưa cập nhật, **không** dùng làm trạng thái code ở commit này.
 
 **Giới hạn:** đây là danh mục dependency từ source, không phải output của `pip freeze`, `ctest` hoặc bản kiểm kê driver GPU trên máy người vận hành.
+
+
+<!-- SCANTOPATH_GD2_GD3_PLANNING_20261029_BEGIN -->
+## Phụ lục tài liệu tham khảo mới — 29/10/2026
+
+[Danh mục nguồn NCKH, V1 và repo tham khảo](../05-quan-ly/TAI_LIEU_VA_REPO_THAM_KHAO_GD2_GD3.md) phân biệt thư viện có source trong dự án, công nghệ target và tài liệu nghiên cứu. `robovision_ros2` (ROS2 image tutorial), HELIOS++ (LiDAR simulation), `best-of-ml-python` (catalog), WorldEngine (autonomous-driving simulation/AI) chỉ là **REFERENCE_ONLY / R&D_LATER**. **Không** thêm chúng vào `pyproject.toml`/vcpkg hoặc đổi stack Qt/Python/C++ khi chưa có gate/benchmark/license approval.
+<!-- SCANTOPATH_GD2_GD3_PLANNING_20261029_END -->
