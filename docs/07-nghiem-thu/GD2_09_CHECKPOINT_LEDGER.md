@@ -6,7 +6,7 @@
 |---|---|---|---|---|---|
 | 09.00 | SOURCE_AUDIT_COMPLETE / DESIGN_LOCKED | Documentation only | Windows UI **NOT_RUN** | `GD2_09_00_UI_AUDIT_LOCK.md` | Verify on actual Windows when UI integrated |
 | 09.01 | SMALL_TEST_PASS | See Git checkpoint 09.01 | 48 passed; architecture 0 violations | contracts.py, ports.py, models.py, test_gd2_09_01_contracts.py, module skeleton | Windows; G2-09-A/B/C NOT_TESTED |
-| 09.02 | NOT_STARTED | — | NOT_RUN | — | — |
+| 09.02 | ACCEPTED / SMALL_TEST_PASS | See Git checkpoint 09.02 | 35 passed; related regression 86 passed, 1 skipped (Windows symlink privilege); architecture 0 violations | replay.py, raw_reader.py, unit + integration tests | Synthetic RAW/SQLite; real Gemini 2 and G2-09-A/B/C NOT_TESTED |
 | 09.03 | NOT_STARTED | — | NOT_RUN | — | — |
 | 09.04 | NOT_STARTED | — | NOT_RUN | — | — |
 | 09.05 | NOT_STARTED | — | NOT_RUN | — | — |
