@@ -50,3 +50,19 @@
 ## Cập nhật cuối 28/10/2026: GĐ1 đã đóng
 
 `GD1_08_06_6_FINAL_CLOSURE_20261028`: các dòng trạng thái “GĐ1 pending” phía trên phản ánh snapshot DOC-04/DOC-06 trước buổi nghiệm thu. Chủ dự án chốt **GĐ1 CLOSED_ACCEPTED_WITH_EXPLICIT_WAIVERS**; NT-01, GPU/VRAM measured và input-to-physical-present latency không có PASS đo thực. Chi tiết tại [GD1 acceptance](07-nghiem-thu/GD1_ACCEPTANCE.md#7-quyết-định-đóng-gđ1-ngày-28102026). Không khởi động GĐ2 hoặc công bố tính năng mới chỉ vì merge.
+
+
+<!-- SCANTOPATH_GD2_GD3_PLANNING_20261029_BEGIN -->
+## Bổ sung kế hoạch sau khi đóng GĐ1 (29/10/2026)
+
+GĐ1 đã **đóng với waiver đích danh**, `main@9e32daf`; GĐ2/GĐ3 hiện **NOT_STARTED**. Tài liệu sau là **thiết kế và điều kiện nghiệm thu tương lai**, không phải bằng chứng đã có pipeline trong source.
+
+- [Quyết định sau GĐ1 và baseline Gemini 2 cầm tay](05-quan-ly/DEC_GD2_GD3_POST_GD1_20261029.md)
+- [Kế hoạch GĐ2 phiên 09–13](06-giai-doan/GD2_RAW_REPLAY_SINGLE_VIEW_GEOMETRY.md), [kế hoạch GĐ3 phiên 14–16](06-giai-doan/GD3_METRIC_RECONSTRUCTION_TRUST.md)
+- [Mục tiêu demo MVP-B ngày 04/11/2026](06-giai-doan/MVP_B_ONBOARDING_20261104.md) và [kế hoạch triển khai](06-giai-doan/GD2_GD3_KE_HOACH_THUC_THI_20261029.md)
+- [Hợp đồng RAW→XYZRGB](02-kien-truc/HOP_DONG_GD2_RAW_XYZRGB_V1.md), [live/ROI/object](02-kien-truc/HOP_DONG_GD2_LIVE_OBJECT_V1.md), [pose/fusion/mesh](02-kien-truc/HOP_DONG_GD3_POSE_FUSION_MESH_V1.md), [ProcessingRun/artifact](02-kien-truc/HOP_DONG_PROCESSING_ARTIFACT_V1.md)
+- [Ma trận nghiệm thu GĐ2/GĐ3/MVP-B](07-nghiem-thu/GD2_GD3_MVPB_ACCEPTANCE_MATRIX.md), [backlog/rủi ro](05-quan-ly/GD2_GD3_BACKLOG_AND_RISK_GATE.md)
+- [Nguồn nghiên cứu NCKH, V1 và 4 repo mới](05-quan-ly/TAI_LIEU_VA_REPO_THAM_KHAO_GD2_GD3.md)
+
+**Đọc đúng trạng thái:** các đoạn cũ trong tài liệu trước 28/10 có thể còn ghi GĐ1 `PENDING` như snapshot lịch sử; quyết định đóng được ghi ở [hồ sơ GĐ1](07-nghiem-thu/GD1_ACCEPTANCE.md). Không coi các yêu cầu mới thành DONE cho đến khi có code/test/receipt.
+<!-- SCANTOPATH_GD2_GD3_PLANNING_20261029_END -->

@@ -31,3 +31,10 @@ ADR là biên bản tại **2026-10-19** khi 07.2/07.7 còn pending. Từ code `
 ## 5. Giới hạn đã biết
 
 Không có quyết định mới nào được ký trong DOC-04. Chỉ mục là đối chiếu tại commit, không làm thay đổi cổng HMI của 08.06.6; mọi waiver mới phải do owner phê duyệt có receipt, tuyệt đối không xem một test skip là ngoại lệ đã được duyệt.
+
+
+<!-- SCANTOPATH_GD2_GD3_PLANNING_20261029_BEGIN -->
+## Phụ lục quyết định sau GĐ1 — 29/10/2026
+
+Quyết định `DEC-21`–`DEC-33` về GĐ2/GĐ3/MVP-B, cách vận hành **Gemini 2 cầm tay** và phạm vi 04/11 đã được người dùng xác nhận trong hội thoại. Xem [Decision Record](DEC_GD2_GD3_POST_GD1_20261029.md). Thông tin `CURRENT_PHYSICAL` ở đây dựa trên xác nhận của người vận hành; task `HW-CURRENT-BASELINE` vẫn cần receipt/hồ sơ phần cứng để chuyển `DONE` theo gate cũ. Không sửa hồi tố ADR gốc. GĐ2/GĐ3 chưa khởi động.
+<!-- SCANTOPATH_GD2_GD3_PLANNING_20261029_END -->
