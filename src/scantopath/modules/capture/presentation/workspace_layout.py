@@ -41,8 +41,8 @@ class CaptureWorkspaceLayout:
             if heading is not None:
                 heading.hide()
 
-        outer.setContentsMargins(12, 8, 12, 10)
-        outer.setSpacing(5)
+        outer.setContentsMargins(24, 10, 24, 16)
+        outer.setSpacing(6)
 
         self.workflow_bar = QFrame(host)
         self.workflow_bar.setObjectName("captureWorkflowBar")

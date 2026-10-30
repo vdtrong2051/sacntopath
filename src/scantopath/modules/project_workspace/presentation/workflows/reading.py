@@ -37,7 +37,10 @@ class _ProjectReadCoordinator(_Coordinator):
             # 09.09.1 may already target a newly committed Capture. Keep that
             # explicit request; otherwise restore the currently selected node.
             if self._pending_selection is None:
-                self._pending_selection = self.view.project_explorer.selection
+                selected = self.view.project_explorer.selection
+                if (selected is not None and
+                        getattr(selected, "entity_type", None) == "capture"):
+                    self._pending_selection = selected
             self._begin_project_load(self._project_root)
 
     def _begin_project_load(self, root: str) -> None:
