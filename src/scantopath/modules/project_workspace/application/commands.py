@@ -103,6 +103,16 @@ class ProjectCommands:
             store.close_scan_session(session_id)
         return self._session_from_store(specimen_id, session_id)
 
+    def delete_empty_entity(self, entity_type: str, internal_id: str,
+                            parent_id: str | None = None) -> str:
+        """Remove only an empty, non-materialized Project/Specimen/Session.
+
+        Never delete Captures, ProcessingRuns, RAW paths or audit history.
+        """
+        return self.context.require_numbered().delete_empty_entity(
+            entity_type, internal_id, parent_id
+        )
+
     def _project_for_specimen(self, store: MetadataStore, specimen_id: str) -> str:
         # GĐ0 intentionally has no direct get_specimen(); explicit trees only.
         for project in store.list_projects():

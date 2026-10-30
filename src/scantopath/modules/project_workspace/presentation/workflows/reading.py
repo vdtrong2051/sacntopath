@@ -34,12 +34,22 @@ class _ProjectReadCoordinator(_Coordinator):
     def _reload_project_store(self) -> None:
         if (self._project_root is not None and not self.project_writer.busy
                 and not self.capture_checker.busy):
+            # 09.09.1 may already target a newly committed Capture. Keep that
+            # explicit request; otherwise restore the currently selected node.
+            if self._pending_selection is None:
+                selected = self.view.project_explorer.selection
+                if (selected is not None and
+                        getattr(selected, "entity_type", None) == "capture"):
+                    self._pending_selection = selected
             self._begin_project_load(self._project_root)
 
     def _begin_project_load(self, root: str) -> None:
         if (self.project_loader.busy or self.project_writer.busy or
                 self.capture_checker.busy or self._project_closing):
             return
+        # Do not carry a Capture selection across DIFFERENT stores.
+        if self._project_root is not None and root != self._project_root:
+            self._pending_selection = None
         # Do not display stale objects from a previously selected data root.
         self.view.project_explorer.set_nodes(())
         self._project_fields.clear()

@@ -16,6 +16,7 @@ class _ProjectWriteCoordinator(_Coordinator):
         self.view.project_explorer.create_project_requested.connect(self._create_project)
         self.view.project_explorer.create_specimen_requested.connect(self._create_specimen)
         self.view.project_explorer.create_session_requested.connect(self._create_session)
+        self.view.project_explorer.delete_empty_requested.connect(self._delete_selected_empty)
         self.view.property_inspector.edit_requested.connect(self._edit_selected_metadata)
         self.view.property_inspector.close_session_requested.connect(self._close_selected_session)
 
@@ -111,6 +112,26 @@ class _ProjectWriteCoordinator(_Coordinator):
             parent_id=self._project_owners[selection],
         ))
 
+    def _delete_selected_empty(self) -> None:
+        selection = self.view.project_explorer.selection
+        if not self._can_write_project() or selection not in self._project_entities:
+            return
+        kind = selection.entity_type
+        if kind not in ("project", "specimen", "scan_session"):
+            return
+        if QMessageBox.question(
+            self.view, "Xóa đối tượng trống",
+            "Chỉ xóa metadata của đối tượng KHÔNG có dữ liệu con và không có thư mục vật lý. "
+            "Không xóa Capture/RAW. Bạn có muốn tiếp tục?",
+            QMessageBox.Yes | QMessageBox.No, QMessageBox.No,
+        ) != QMessageBox.Yes:
+            return
+        self._submit_project_write(ProjectEditCommand(
+            action=("session.delete" if kind == "scan_session" else kind + ".delete"),
+            target_id=selection.entity_id,
+            parent_id=self._project_owners.get(selection),
+        ))
+
     def _submit_project_write(self, command: ProjectEditCommand) -> None:
         if not self._can_write_project():
             self.view._set_status("Kho chưa sẵn sàng ghi dữ liệu.")
@@ -120,7 +141,8 @@ class _ProjectWriteCoordinator(_Coordinator):
 
     def _on_project_written(self, result: object) -> None:
         from scantopath.application.contracts import SelectionRef
-        self._pending_selection = SelectionRef(result.entity_type, result.entity_id)
+        self._pending_selection = (None if result.action.endswith(".delete")
+                                   else SelectionRef(result.entity_type, result.entity_id))
         self._write_refresh_pending = True
         if result.numbering_pending:
             self.view._set_status(
@@ -129,8 +151,14 @@ class _ProjectWriteCoordinator(_Coordinator):
             )
             self.view.task_event_panel.add_ui_event("Lưu metadata thành công nhưng cấp mã đang chờ khôi phục.")
         else:
-            self.view._set_status(f"Đã lưu metadata: {result.public_code or result.entity_id}")
-            self.view.task_event_panel.add_ui_event("Đã cập nhật metadata của kho dự án.")
+            self.view._set_status(
+                f"Đã xóa metadata trống: {result.entity_id}" if result.action.endswith(".delete")
+                else f"Đã lưu metadata: {result.public_code or result.entity_id}"
+            )
+            self.view.task_event_panel.add_ui_event(
+                "Đã xóa đối tượng trống có kiểm soát." if result.action.endswith(".delete")
+                else "Đã cập nhật metadata của kho dự án."
+            )
 
     def _on_project_write_failed(self, message: str) -> None:
         self._write_refresh_pending = True  # May have committed a partial state.

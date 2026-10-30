@@ -93,6 +93,11 @@ class NumberedStorageRegistry:
     def pending_reservations(self) -> tuple[CaptureReservation, ...]:
         return self._capturing.pending_reservations()
 
+    def delete_empty_entity(self, entity_type: str, internal_id: str, parent_id: str | None = None) -> str:
+        """Explicit metadata-only delete; refuses dependent entities and physical paths."""
+        from .numbered_ops.empty_delete import delete_empty_numbered
+        return delete_empty_numbered(self, entity_type, internal_id, parent_id)
+
     @staticmethod
     def _safe_cell(value: object) -> str:
         return _CatalogExport._safe_cell(value)

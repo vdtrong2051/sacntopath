@@ -15,14 +15,65 @@ from PySide6.QtWidgets import (
 
 from scantopath.application.contracts import CommandStatus, WorkspaceId
 from scantopath.modules.project_workspace.presentation.controller import ProjectWorkspaceController
+from scantopath.modules.capture.presentation.preview_controller import (
+    CapturePreviewController,
+)
+from scantopath.modules.capture.presentation.live_ui_controller import LiveCaptureUiController
 from scantopath.ui.components import ExplorerNode, ProjectExplorer, PropertyInspector, TaskAndEventPanel
 from scantopath.ui.viewmodels.navigation import NavigationViewModel
 from scantopath.ui.theme import load_hmi_qss
 from scantopath.ui.tasks import QtTaskController
 from scantopath.ui.workspaces import WORKSPACE_PRESENTATION, create_workspace_page
+from .shell_composition import ShellCompositionMixin
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .task_dock_chrome import TaskDockChrome
 
 
-class ScanToPathMainWindow(QMainWindow):
+def _create_capture_replay_services():
+    """GD2-09.04 composition root for offline RAW Replay.
+
+    Called inside ReplayThread.run(), never during MainWindow startup.
+    Only this boundary wires application services to infrastructure adapters.
+    """
+    from scantopath.modules.capture.application.replay import RawReplayService
+    from scantopath.modules.capture.application.decoding import RgbdDecoder
+
+    from scantopath.modules.capture.infrastructure.raw_reader import RawReaderAdapter
+    from scantopath.modules.capture.infrastructure.jpeg_codec import PillowMjpegDecoder
+
+    replay_service = RawReplayService(
+        RawReaderAdapter()
+    )
+
+    decoder = RgbdDecoder(
+        PillowMjpegDecoder()
+    )
+
+    return replay_service, decoder
+
+def _capture_storage_adapter():
+    """Explicit worker-thread factory; no SQLite opened during UI construction."""
+    from scantopath.modules.capture.infrastructure.capture_writer import NumberedCapturePersistenceAdapter
+    return NumberedCapturePersistenceAdapter()
+
+
+def _create_live_camera_worker():
+    """GD2-09.07.2: worker construction; lazy native SDK acquisition."""
+    from scantopath.modules.capture.presentation.live_worker import LiveStreamWorker
+
+    def make_service():
+        # Called inside QThread.run(), never when the UI is instantiated.
+        from scantopath.modules.capture.application.live_stream import LiveCaptureService
+        from scantopath.modules.capture.infrastructure.process_camera import ProcessIsolatedCameraAdapter
+        from scantopath.modules.capture.infrastructure.jpeg_codec import PillowMjpegDecoder
+        return LiveCaptureService(ProcessIsolatedCameraAdapter(), PillowMjpegDecoder())
+
+    return LiveStreamWorker(service_factory=make_service)
+
+
+class ScanToPathMainWindow(ShellCompositionMixin, QMainWindow):
     """Một cửa sổ, bốn workspace; command xử lý ở lớp 06.2."""
 
     WINDOW_TITLE = "ScanToPath — Không gian làm việc kỹ thuật 3D"
@@ -32,8 +83,7 @@ class ScanToPathMainWindow(QMainWindow):
         self.navigation = navigation if navigation is not None else NavigationViewModel()
         self.setObjectName("ScanToPathMainWindow")
         self.setWindowTitle(self.WINDOW_TITLE)
-        # Kích thước dựa trên vùng màn hình thực dùng được (đã trừ taskbar,
-        # Windows DPI scaling); không giả định laptop 14 inch là một độ phân giải.
+
         self._fit_initial_screen()
 
         self._pages: dict[WorkspaceId, QWidget] = {}
@@ -42,17 +92,52 @@ class ScanToPathMainWindow(QMainWindow):
         self.workspace_actions: dict[WorkspaceId, QAction] = {}
         self._create_shell()
         self._create_docks()
+        self.task_dock_chrome: TaskDockChrome  # Instantiated by ShellCompositionMixin.
+        self._apply_shell_constraints()
         self._create_menus()
+
         self.project_workspace = ProjectWorkspaceController(self)
-        # Explicit legacy handles: tests and public Qt consumers of 07.4-07.8.
         self.project_loader = self.project_workspace.project_loader
         self.project_writer = self.project_workspace.project_writer
         self.capture_checker = self.project_workspace.capture_checker
+
+        # GD2-09.04: wire Replay only after GĐ1 controller aliases exist.
+        self.capture_preview = CapturePreviewController(
+            self,
+            service_factory=_create_capture_replay_services,
+        )
+        # 09.07.2: dedicated live panel, independent from immutable RAW Replay.
+        self.capture_live = LiveCaptureUiController(
+            self,
+            worker_factory=_create_live_camera_worker,
+        )
+        from scantopath.modules.capture.presentation.capture_action import CaptureActionCoordinator
+        self.capture_action = CaptureActionCoordinator(self, store_factory=_capture_storage_adapter)
+        self.capture_action.stopped.connect(self.close)
+        # 09.09.3: place existing Live and Replay panels in a compact UI.
+        # The layout owns neither camera nor SQLite/RAW lifecycle.
+        from scantopath.modules.capture.presentation.workspace_layout import CaptureWorkspaceLayout
+        self.capture_workspace_layout = CaptureWorkspaceLayout(self)
+        # 09.09.4: controller signals -> real operational timeline.
+        from scantopath.ui.tasks.operation_bridge import OperationActivityBridge
+        self.operation_activity = OperationActivityBridge(self)
+
         self._install_task_controller()
         self._connect_workspace_actions()
         self._apply_style()
         self._show_workspace(self.navigation.workspace)
         QTimer.singleShot(0, self._initialize_dock_layout)
+
+    def _apply_shell_constraints(self) -> None:
+        """Qt shell layout constraints owned by the host MainWindow.
+
+        The inherited mixin constructs the widgets. This is the single
+        place applying their app-level width and sizing contracts.
+        """
+        self.explorer_dock.setMinimumWidth(205)
+        self.inspector_dock.setMinimumWidth(215)
+        self.workspace_toolbar.setToolButtonStyle(Qt.ToolButtonTextOnly)
+        self.status_message.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
 
     @property
     def active_workspace(self) -> WorkspaceId:
@@ -61,89 +146,6 @@ class ScanToPathMainWindow(QMainWindow):
     def page_for(self, workspace: WorkspaceId) -> QWidget:
         return self._pages[WorkspaceId(workspace)]
 
-    def _create_shell(self) -> None:
-        """One global navigation strip above docks; no redundant side rail.
-
-        This is deliberately native QMainWindow/QToolBar. Existing dock state,
-        screen sizing, shortcuts and UI controller contracts remain unchanged.
-        """
-        from PySide6.QtWidgets import QSizePolicy
-
-        self.workspace_toolbar = QToolBar("Điều hướng workspace", self)
-        self.workspace_toolbar.setObjectName("workspaceToolbar")
-        self.workspace_toolbar.setMovable(False)
-        self.workspace_toolbar.setFloatable(False)
-        self.workspace_toolbar.setContextMenuPolicy(Qt.PreventContextMenu)
-        self.workspace_toolbar.setToolButtonStyle(Qt.ToolButtonTextOnly)
-
-        brand = QLabel("ScanToPath", self.workspace_toolbar)
-        brand.setObjectName("toolbarBrand")
-        # Native QLabel uses its compact natural text width; never reserves 126 px.
-        brand.setMinimumWidth(0)
-        self.workspace_toolbar.addWidget(brand)
-
-        divider = QFrame(self.workspace_toolbar)
-        divider.setObjectName("toolbarDivider")
-        divider.setFixedSize(1, 20)
-        self.workspace_toolbar.addWidget(divider)
-
-        short_labels = {
-            WorkspaceId.PROJECTS: "Dự án",
-            WorkspaceId.CAPTURE: "Thu nhận RGB-D",
-            WorkspaceId.INSPECT3D: "Kiểm tra 3D",
-            WorkspaceId.PROCESSING: "Xử lý",
-        }
-        for workspace in WorkspaceId:
-            label = WORKSPACE_PRESENTATION[workspace].title
-            button = QPushButton(short_labels[workspace], self.workspace_toolbar)
-            button.setObjectName(f"nav_{workspace.value}")
-            button.setCheckable(True)
-            button.setAutoExclusive(True)
-            button.setMinimumHeight(28)
-            button.setToolTip(label)
-            button.setAccessibleName(f"Mở không gian: {label}")
-            button.setCursor(Qt.PointingHandCursor)
-            button.clicked.connect(lambda checked=False, key=workspace: self._navigate(key))
-            self.nav_buttons[workspace] = button
-            self.workspace_toolbar.addWidget(button)
-
-        spacer = QWidget(self.workspace_toolbar)
-        spacer.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
-        self.workspace_toolbar.addWidget(spacer)
-        self.toolbar_context = QLabel("GĐ1 · Desktop", self.workspace_toolbar)
-        self.toolbar_context.setObjectName("toolbarContext")
-        # Reserve all horizontal space for actual workspace commands.
-        # Keep the compatibility attribute, but do not install it as toolbar action.
-        self.toolbar_context.hide()
-        self.addToolBar(Qt.TopToolBarArea, self.workspace_toolbar)
-
-        root = QWidget(self)
-        root.setObjectName("desktopRoot")
-        layout = QVBoxLayout(root)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(0)
-        self.workspace_stack = QStackedWidget(root)
-        self.workspace_stack.setObjectName("workspaceStack")
-        for key in WorkspaceId:
-            page = create_workspace_page(key)
-            self._pages[key] = page
-            self.workspace_stack.addWidget(page)
-        layout.addWidget(self.workspace_stack, stretch=1)
-        self.setCentralWidget(root)
-
-        status = QStatusBar(self)
-        status.setObjectName("applicationStatus")
-        status.setSizeGripEnabled(True)
-        status.setMaximumHeight(28)
-        self.status_message = QLabel("Sẵn sàng")
-        self.status_message.setMinimumWidth(0)
-        self.status_message.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
-        self.status_message.setObjectName("statusMessage")
-        status.addWidget(self.status_message, 1)
-        self.data_status = QLabel("Dữ liệu: Chưa tải")
-        self.data_status.setObjectName("dataStatus")
-        status.addPermanentWidget(self.data_status)
-        self.setStatusBar(status)
 
     def _connect_workspace_actions(self) -> None:
         """Thin UI wiring: actionable central empty states reuse 07 controllers."""
@@ -159,39 +161,6 @@ class ScanToPathMainWindow(QMainWindow):
     def _open_audit_panel(self) -> None:
         self.task_dock_chrome.open_audit()
 
-    def _create_docks(self) -> None:
-        """06.4: các bảng chung không tự khởi tạo SQLite hay thiết bị."""
-        self.setDockNestingEnabled(True)
-        self.project_explorer = ProjectExplorer(self)
-        self.property_inspector = PropertyInspector(self)
-        self.task_event_panel = TaskAndEventPanel(self)
-        self.project_explorer.selection_changed.connect(self._on_explorer_selection)
-
-        self.explorer_dock = QDockWidget("Cây dự án", self)
-        self.explorer_dock.setObjectName("explorerDock")
-        self.explorer_dock.setAllowedAreas(Qt.LeftDockWidgetArea | Qt.RightDockWidgetArea)
-        self.explorer_dock.setWidget(self.project_explorer)
-        self.explorer_dock.setMinimumWidth(205)
-        self.addDockWidget(Qt.LeftDockWidgetArea, self.explorer_dock)
-
-        self.inspector_dock = QDockWidget("Thuộc tính", self)
-        self.inspector_dock.setObjectName("inspectorDock")
-        self.inspector_dock.setAllowedAreas(Qt.LeftDockWidgetArea | Qt.RightDockWidgetArea)
-        self.inspector_dock.setWidget(self.property_inspector)
-        self.inspector_dock.setMinimumWidth(215)
-        self.addDockWidget(Qt.RightDockWidgetArea, self.inspector_dock)
-
-        self.task_dock = QDockWidget("Tác vụ và thông báo", self)
-        self.task_dock.setObjectName("taskDock")
-        self.task_dock.setAllowedAreas(Qt.BottomDockWidgetArea | Qt.TopDockWidgetArea)
-        self.task_dock.setWidget(self.task_event_panel)
-        self.task_dock.setMinimumHeight(0)
-        self.addDockWidget(Qt.BottomDockWidgetArea, self.task_dock)
-        from .task_dock_chrome import TaskDockChrome
-        self.task_dock_chrome = TaskDockChrome(self.task_dock, self.task_event_panel)
-        self.task_event_panel.expanded_changed.connect(self._resize_task_panel)
-        self.task_event_panel.set_demo_tools_visible(False)
-        self.task_event_panel.set_expanded(False)
 
     # 07.10 compatibility delegates for pre-existing test/UI calls.
     # All project state and workflow logic live in ProjectWorkspaceController.
@@ -301,7 +270,6 @@ class ScanToPathMainWindow(QMainWindow):
         self.project_workspace._project_closing = bool(value)
 
     def _select_project_store(self, last_root):
-        # Keep patchable dialog entrypoint from 07.4 Qt tests.
         return QFileDialog.getExistingDirectory(
             self, "Chọn thư mục kho ScanToPath", last_root or "")
 
@@ -324,15 +292,27 @@ class ScanToPathMainWindow(QMainWindow):
         Cancellation is cooperative; if the task cannot stop promptly, keep
         the window alive rather than freezing Qt or terminating the thread.
         """
-        # Evaluate both independently so a running loader cannot be orphaned
-        # when the pre-existing task worker has already stopped.
         self._project_closing = True
         tasks_stopped = self.task_controller.begin_shutdown(grace_seconds=3.0)
         project_stopped = self.project_loader.begin_shutdown()
         write_stopped = self.project_writer.begin_shutdown()
         check_stopped = self.capture_checker.begin_shutdown()
         viewer_stopped = self.viewer3d is None or getattr(self.viewer3d, 'begin_shutdown', lambda: True)()
-        if tasks_stopped and project_stopped and write_stopped and check_stopped and viewer_stopped:
+        capture_stopped = self.capture_preview.begin_shutdown()
+        live_stopped = self.capture_live.begin_shutdown()
+        store_init_stopped = self.project_workspace.store_initializer.begin_shutdown()
+        capture_action_stopped = self.capture_action.begin_shutdown()
+        if (
+            tasks_stopped
+            and project_stopped
+            and write_stopped
+            and check_stopped
+            and viewer_stopped
+            and capture_stopped
+            and live_stopped
+            and store_init_stopped
+            and capture_action_stopped
+        ):
             if self.viewer3d is not None:
                 self.viewer3d.dispose()
             return super().closeEvent(event)
@@ -394,11 +374,26 @@ class ScanToPathMainWindow(QMainWindow):
             self._set_status(message)
             return
         if previous != self.navigation.workspace:
-            self.project_explorer.clear_selection()
+            going_to_capture = self.navigation.workspace is WorkspaceId.CAPTURE
+
+            if previous is WorkspaceId.CAPTURE and not going_to_capture:
+                self.capture_live.begin_navigation_away()
+
+            if going_to_capture:
+                self.capture_preview.begin_navigation_handoff()
+
+            try:
+                # Preserve GĐ1 behavior: Explorer selection is always cleared.
+                self.project_explorer.clear_selection()
+            finally:
+                if going_to_capture:
+                    self.capture_preview.end_navigation_handoff()
+
             self.property_inspector.set_selection(None)
             self.task_event_panel.add_ui_event(
                 f"Đã chuyển đến: {WORKSPACE_PRESENTATION[self.navigation.workspace].title}"
             )
+
         self._show_workspace(self.navigation.workspace)
 
     def _ensure_viewer3d(self) -> None:
@@ -467,8 +462,6 @@ class ScanToPathMainWindow(QMainWindow):
         """
         width = self.width()
         height = self.height()
-        # Automated Qt offscreen tests have a synthetic screen; don't hide docks
-        # implicitly there. The compact behavior is exercised in dedicated tests.
         app = QApplication.instance()
         offscreen = app is not None and app.platformName().lower() in ("offscreen", "minimal")
         if not offscreen:
@@ -490,9 +483,6 @@ class ScanToPathMainWindow(QMainWindow):
     def _apply_style(self) -> None:
         """Isolate HMI appearance from UI behavior and all worker contracts."""
         self.setStyleSheet(load_hmi_qss())
-        # After QSS/font resolution, prevent Qt from squeezing a visible
-        # QPushButton below its complete Vietnamese text width. Qt still
-        # owns the QToolBar layout; no custom overflow/click handling.
         for button in self.nav_buttons.values():
             button.ensurePolished()
             text_width = button.fontMetrics().horizontalAdvance(button.text())
