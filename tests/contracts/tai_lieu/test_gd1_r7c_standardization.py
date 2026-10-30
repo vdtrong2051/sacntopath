@@ -30,10 +30,39 @@ def _normalized(data: bytes) -> str:
     return ast.dump(tree, include_attributes=False)
 
 
+# R7C was a documentation-only checkpoint. GD2-09.09.1 subsequently added
+# precisely one safe-delete facade method. Preserve the entire historical AST
+# invariant after removing ONLY that exact, explicitly approved method.
+def _normalized_post_r7c_service(data: bytes) -> str:
+    tree = ast.parse(data.decode('utf-8-sig'))
+    service = [node for node in tree.body
+               if isinstance(node, ast.ClassDef) and node.name == 'ProjectWorkspaceService']
+    assert len(service) == 1, 'ProjectWorkspaceService must remain unique'
+    additions = [node for node in service[0].body
+                 if isinstance(node, ast.FunctionDef) and node.name == 'delete_empty_entity']
+    assert len(additions) == 1, 'Expected the approved GD2 safe-delete facade'
+    expected = ast.parse(
+        'def delete_empty_entity(self, entity_type: str, internal_id: str, '
+        'parent_id: str | None = None) -> str:\n'
+        '    return self._commands.delete_empty_entity(entity_type, internal_id, parent_id)\n'
+    ).body[0]
+    assert ast.dump(additions[0], include_attributes=False) == ast.dump(
+        expected, include_attributes=False
+    ), 'Unexpected change to GD2 safe-delete facade'
+    service[0].body.remove(additions[0])
+    return _normalized(ast.unparse(tree).encode('utf-8'))
+
+
 def test_r7c_logic_ast_unchanged():
     for f in FILES:
         original = subprocess.check_output(['git', 'show', f'{BASE}:{f}'], cwd=ROOT)
-        assert _normalized(original) == _normalized((ROOT / f).read_bytes()), f
+        current = (ROOT / f).read_bytes()
+        if f == 'src/scantopath/modules/project_workspace/application/service.py':
+            # Strictly permit only the later, verified GD2-09.09.1 extension.
+            observed = _normalized_post_r7c_service(current)
+        else:
+            observed = _normalized(current)
+        assert _normalized(original) == observed, f
 
 
 def test_r7c_source_docstrings_are_vietnamese():
