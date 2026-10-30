@@ -85,6 +85,8 @@ class CapturePreviewController(QObject):
         self._request_id = 0
         self._closing = False
         self._handoff = False
+        # Latest selection wins. Never queue frame payloads on the GUI thread.
+        self._auto_replay_pending = False
 
         self.panel.replay_button.clicked.connect(self.replay)
 
@@ -115,6 +117,7 @@ class CapturePreviewController(QObject):
 
     def invalidate(self) -> None:
         """Discard stale context and reject previously started results."""
+        self._auto_replay_pending = False
         self._request_id += 1
         self._contexts.clear()
         self._context = None
@@ -126,6 +129,9 @@ class CapturePreviewController(QObject):
     def _on_store_busy(self, busy: bool) -> None:
         if busy:
             self.invalidate()
+        else:
+            # Loaded/selection signals may precede QThread.finished.
+            QTimer.singleShot(0, self._maybe_auto_replay)
 
     @Slot(bool)
     def _on_write_busy(self, busy: bool) -> None:
@@ -186,6 +192,26 @@ class CapturePreviewController(QObject):
         self.panel.set_context(new_context)
         self.panel.set_busy(self.busy)
 
+        # Preserve 09.04's explicit replay when navigating from Projects.
+        # Only a NEW tree selection inside Capture workspace auto-replays.
+        self._auto_replay_pending = (
+            new_context is not None
+            and self.view.active_workspace is WorkspaceId.CAPTURE
+        )
+        if self._auto_replay_pending:
+            QTimer.singleShot(0, self._maybe_auto_replay)
+
+    def _maybe_auto_replay(self) -> None:
+        """Queue no second ReplayThread; latest selected Capture wins."""
+        if (not self._auto_replay_pending or self._closing
+                or self._context is None or self.busy
+                or self.view.active_workspace is not WorkspaceId.CAPTURE
+                or self.view.project_loader.busy
+                or self.view.project_writer.busy
+                or self.view.capture_checker.busy):
+            return
+        self.replay()
+
     def replay(self) -> bool:
         if (
             self._closing
@@ -203,6 +229,7 @@ class CapturePreviewController(QObject):
             self.invalidate()
             return False
 
+        self._auto_replay_pending = False
         self._request_id += 1
         request_id = self._request_id
 
@@ -268,11 +295,15 @@ class CapturePreviewController(QObject):
         self._thread = None
         self.panel.set_busy(False)
 
+        if not self._closing and self._auto_replay_pending:
+            QTimer.singleShot(0, self._maybe_auto_replay)
+
         if self._closing:
             QTimer.singleShot(0, self.view.close)
 
     def begin_shutdown(self) -> bool:
         """Do not destroy or terminate an active Replay QThread."""
         self._closing = True
+        self._auto_replay_pending = False
         self._request_id += 1
         return not self.busy
