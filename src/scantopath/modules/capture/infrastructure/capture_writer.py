@@ -67,6 +67,16 @@ class NumberedCapturePersistenceAdapter:
             raise CaptureCommitError("SESSION_NOT_OPEN")
         return root.resolve(strict=True)
 
+    def validate_context(self, context: CaptureContext) -> None:
+        """Read-only preflight for 09.08.3; reject bad session before camera acquisition.
+
+        Registration still re-checks live session state inside its transaction;
+        preflight alone does not reserve a Capture slot or claim atomicity.
+        """
+        if not isinstance(context, CaptureContext):
+            raise TypeError("context must be CaptureContext")
+        self._preflight(context)
+
     def _registry(self, root: Path):
         if self._registry_factory is not None:
             return self._registry_factory(root)
