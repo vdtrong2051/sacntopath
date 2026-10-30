@@ -11,6 +11,7 @@ from math import isfinite
 import numpy as np
 
 from .ports import NativeCameraPort
+from scantopath.acquisition.raw_rgbd import RawRgbdCapture
 from .decoding import MjpegDecoderPort, RgbdDecodeError
 
 
@@ -210,6 +211,20 @@ class LiveCaptureService:
             raise LiveCameraError(
                 "INVALID_NATIVE_FRAME"
             ) from exc
+
+    def capture_keyframe(self, *, session_id: str, specimen_id: str) -> RawRgbdCapture:
+        """A fresh RAW frameset, NOT a frame taken from decoded live preview."""
+        if not self._opened:
+            raise LiveCameraError("NOT_OPEN")
+        capture = self._camera.capture_next_raw(
+            session_id=session_id, specimen_id=specimen_id
+        )
+        if not isinstance(capture, RawRgbdCapture):
+            raise LiveCameraError("INVALID_KEYFRAME")
+        if (capture.metadata.session_id != session_id or
+                capture.metadata.specimen_id != specimen_id):
+            raise LiveCameraError("INVALID_KEYFRAME")
+        return capture
 
     def close(self) -> None:
         self._opened = False

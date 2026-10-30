@@ -168,12 +168,12 @@ class LiveCapturePanel(QFrame):
         self._show_roi()
 
     def set_state(self, state: CameraState, error: str | None = None) -> None:
-        self._live = state is CameraState.STREAMING
+        self._live = state in (CameraState.STREAMING, CameraState.CAPTURING)
         self.start_button.setEnabled(state in (CameraState.IDLE, CameraState.CLOSED))
-        self.stop_button.setEnabled(state in (CameraState.OPENING, CameraState.STREAMING))
+        self.stop_button.setEnabled(state in (CameraState.OPENING, CameraState.STREAMING, CameraState.CAPTURING))
         self.retry_button.setEnabled(state is CameraState.FAILED)
-        self.manual_button.setEnabled(self._live)
-        self.auto_button.setEnabled(self._live)
+        self.manual_button.setEnabled(state is CameraState.STREAMING)
+        self.auto_button.setEnabled(state is CameraState.STREAMING)
         self.state_label.setText(
             f"Camera: {state.value.upper()}" + (f" · Lỗi: {error}" if error else "")
         )

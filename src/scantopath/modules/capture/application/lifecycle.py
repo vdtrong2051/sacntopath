@@ -1,7 +1,7 @@
 """GD2-09.06: pure camera lifecycle state machine, no Qt or SDK.
 
 A failure is terminal only after the worker has exited and native cleanup
-has had a chance to finish. CAPTURING is reserved for GD2-09.08.
+has had a chance to finish. CAPTURING is an exclusive in-memory RAW acquisition.
 """
 from __future__ import annotations
 
@@ -37,8 +37,20 @@ class CameraLifecycle:
         self._state = CameraState.STREAMING
         return True
 
+    def begin_capture(self) -> bool:
+        if self._state is not CameraState.STREAMING or self._error_code is not None:
+            return False
+        self._state = CameraState.CAPTURING
+        return True
+
+    def capture_finished(self) -> bool:
+        if self._state is not CameraState.CAPTURING or self._error_code is not None:
+            return False
+        self._state = CameraState.STREAMING
+        return True
+
     def stop(self) -> bool:
-        if self._state not in (CameraState.OPENING, CameraState.STREAMING):
+        if self._state not in (CameraState.OPENING, CameraState.STREAMING, CameraState.CAPTURING):
             return False
         self._state = CameraState.STOPPING
         return True
@@ -49,7 +61,7 @@ class CameraLifecycle:
         ):
             raise ValueError("failure must be an uppercase ASCII error code")
         if self._state not in (
-            CameraState.OPENING, CameraState.STREAMING, CameraState.STOPPING
+            CameraState.OPENING, CameraState.STREAMING, CameraState.CAPTURING, CameraState.STOPPING
         ):
             raise RuntimeError("cannot fail without an active camera session")
         # First failure is authoritative: later cleanup warnings do not overwrite it.
@@ -59,7 +71,7 @@ class CameraLifecycle:
     def finished(self) -> CameraState:
         """Only call AFTER QThread is no longer running and wait(0) succeeds."""
         old = self._state
-        if old not in (CameraState.OPENING, CameraState.STREAMING, CameraState.STOPPING):
+        if old not in (CameraState.OPENING, CameraState.STREAMING, CameraState.CAPTURING, CameraState.STOPPING):
             raise RuntimeError("no active worker to finalize")
         if self._error_code is None and old is not CameraState.STOPPING:
             self._error_code = "WORKER_UNEXPECTED_EXIT"

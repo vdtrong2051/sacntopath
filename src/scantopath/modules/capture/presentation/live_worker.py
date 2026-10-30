@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from threading import Event, Lock
+from re import fullmatch
 
 from PySide6.QtCore import QThread, Signal
 
@@ -25,6 +26,8 @@ class LiveStreamWorker(QThread):
 
     # Stable code, no raw SDK paths/details.
     failed = Signal(str)
+    keyframe_ready = Signal(object)  # RawRgbdCapture v2, owned bytes
+    keyframe_failed = Signal(str)
 
     MAX_TIMEOUTS = 8
 
@@ -48,10 +51,35 @@ class LiveStreamWorker(QThread):
 
         self._published = 0
         self._dropped = 0
+        self._capture_request: tuple[str, str] | None = None
+        self._capture_in_flight = False
 
     def request_stop(self) -> None:
         """Thread-safe; native close happens only in run()'s finally block."""
         self._stop_event.set()
+
+    def request_keyframe(self, *, session_id: str, specimen_id: str) -> bool:
+        """Queue ONE capture for the owner worker, never use the preview mailbox."""
+        if any(not isinstance(v, str) or fullmatch(r"[A-Za-z0-9_-]+", v) is None
+               for v in (session_id, specimen_id)):
+            return False
+        with self._lock:
+            if (self._stop_event.is_set() or not self.isRunning() or
+                    self._capture_request is not None or self._capture_in_flight):
+                return False
+            self._capture_request = (session_id, specimen_id)
+            return True
+
+    def _take_capture_request(self) -> tuple[str, str] | None:
+        with self._lock:
+            request = self._capture_request
+            self._capture_request = None
+            self._capture_in_flight = request is not None
+            return request
+
+    def _complete_capture_request(self) -> None:
+        with self._lock:
+            self._capture_in_flight = False
 
     def take_latest(self) -> LiveRgbdFrame | None:
         """Transfer the current newest frame only."""
@@ -106,6 +134,31 @@ class LiveStreamWorker(QThread):
             consecutive_timeouts = 0
 
             while not self._stop_event.is_set():
+                request = self._take_capture_request()
+                if request is not None:
+                    try:
+                        if self._stop_event.is_set():
+                            break
+                        packet = service.capture_keyframe(
+                            session_id=request[0], specimen_id=request[1]
+                        )
+                        if not self._stop_event.is_set():
+                            self.keyframe_ready.emit(packet)
+                    except TimeoutError:
+                        if not self._stop_event.is_set():
+                            self.keyframe_failed.emit("CAPTURE_TIMEOUT")
+                    except LiveCameraError as exc:
+                        if exc.code in ("DEVICE_PROCESS_CRASH", "DEVICE_PROCESS_TIMEOUT",
+                                        "READ_FAILED", "NOT_OPEN"):
+                            raise
+                        if not self._stop_event.is_set():
+                            self.keyframe_failed.emit(exc.code)
+                    except Exception:
+                        if not self._stop_event.is_set():
+                            self.keyframe_failed.emit("CAPTURE_FAILED")
+                    finally:
+                        self._complete_capture_request()
+                    continue
                 try:
                     frame = service.read_next(
                         per_attempt_timeout_ms=300
@@ -137,6 +190,9 @@ class LiveStreamWorker(QThread):
                 error = "LIVE_UNEXPECTED_ERROR"
 
         finally:
+            with self._lock:
+                self._capture_request = None
+                self._capture_in_flight = False
             if service is not None:
                 try:
                     service.close()

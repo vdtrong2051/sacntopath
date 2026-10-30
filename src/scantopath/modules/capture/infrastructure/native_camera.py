@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from threading import get_ident
+from re import fullmatch
 from typing import Any
 
 from scantopath.modules.capture.application.live_stream import (
@@ -23,6 +24,7 @@ class Gemini2NativeCameraAdapter:
         self._native_loader = native_loader
         self._source: Any = None
         self._owner: int | None = None
+        self._last_indices: tuple[int, int] | None = None
 
     def _assert_owner(self) -> None:
         if (
@@ -59,6 +61,7 @@ class Gemini2NativeCameraAdapter:
 
         self._source = source
         self._owner = get_ident()
+        self._last_indices = None
 
     def read_next(
         self,
@@ -118,6 +121,7 @@ class Gemini2NativeCameraAdapter:
 
             # pybind11 .bytes returns Python-owned copies.
             # No SDK frame pointer escapes this boundary.
+            self._last_indices = (int(packet.color.frame_index), int(packet.depth.frame_index))
             return LiveNativeFrame(
                 color_mjpeg=packet.color.bytes,
                 depth_y16_le=packet.depth.bytes,
@@ -149,12 +153,51 @@ class Gemini2NativeCameraAdapter:
                 "INVALID_NATIVE_FRAME"
             ) from exc
 
+    def capture_next_raw(self, *, session_id: str, specimen_id: str):
+        """Read a NEW native frameset on the same camera owner; keep full calibration.
+
+        The preview mailbox is never consulted. The RAW translator owns its bytes.
+        """
+        self._assert_owner()
+        if self._source is None:
+            raise LiveCameraError("NOT_OPEN")
+        for value in (session_id, specimen_id):
+            if not isinstance(value, str) or fullmatch(r"[A-Za-z0-9_-]+", value) is None:
+                raise LiveCameraError("INVALID_CAPTURE_CONTEXT")
+
+        try:
+            packet = self._source.read_next(per_attempt_timeout_ms=300, max_attempts=1)
+        except RuntimeError as exc:
+            if "No complete RGB-D frameset received within bounded timeout" in str(exc):
+                raise TimeoutError("bounded camera capture timeout") from exc
+            raise LiveCameraError("READ_FAILED") from exc
+        except Exception as exc:
+            raise LiveCameraError("READ_FAILED") from exc
+
+        try:
+            if packet.validate() is not True or packet.align_disabled is not True:
+                raise ValueError("invalid native capture")
+            if packet.device.name != "Orbbec Gemini 2":
+                raise ValueError("unexpected device")
+            indices = (int(packet.color.frame_index), int(packet.depth.frame_index))
+            if self._last_indices is not None and indices == self._last_indices:
+                raise ValueError("stale native frameset")
+            from scantopath.acquisition.orbbec_adapter import raw_capture_from_native
+            result = raw_capture_from_native(
+                packet, session_id=session_id, specimen_id=specimen_id
+            )
+            self._last_indices = indices
+            return result
+        except Exception as exc:
+            raise LiveCameraError("INVALID_KEYFRAME") from exc
+
     def close(self) -> None:
         self._assert_owner()
 
         source = self._source
         self._source = None
         self._owner = None
+        self._last_indices = None
 
         if source is not None:
             try:

@@ -12,6 +12,7 @@ from multiprocessing.connection import Connection
 from typing import Any
 
 from scantopath.modules.capture.application.live_stream import LiveCameraError, LiveNativeFrame
+from scantopath.acquisition.raw_rgbd import RawRgbdCapture
 
 
 def _default_camera_factory():
@@ -44,6 +45,23 @@ def _child_main(conn: Connection, factory: Callable[[], Any]) -> None:
                 except Exception:
                     conn.send(("ERROR", "READ_FAILED"))
                     return
+            elif command == "CAPTURE":
+                session_id, specimen_id = value
+                try:
+                    capture = camera.capture_next_raw(
+                        session_id=session_id, specimen_id=specimen_id
+                    )
+                    if not isinstance(capture, RawRgbdCapture):
+                        raise LiveCameraError("INVALID_KEYFRAME")
+                    conn.send(("CAPTURED", capture))
+                except TimeoutError:
+                    conn.send(("CAPTURE_ERROR", "CAPTURE_TIMEOUT"))
+                except LiveCameraError as exc:
+                    conn.send(("CAPTURE_ERROR", exc.code))
+                    if exc.code in ("READ_FAILED", "NOT_OPEN"):
+                        return
+                except Exception:
+                    conn.send(("CAPTURE_ERROR", "CAPTURE_FAILED"))
             elif command == "CLOSE":
                 camera.close()  # Ack only after native stop/destruction returns.
                 camera = None
@@ -196,6 +214,19 @@ class ProcessIsolatedCameraAdapter:
         if kind == "ERROR":
             raise LiveCameraError(str(data))
         if kind != "FRAME" or not isinstance(data, LiveNativeFrame):
+            raise LiveCameraError("INVALID_DEVICE_RESPONSE")
+        return data
+
+    def capture_next_raw(self, *, session_id: str, specimen_id: str) -> RawRgbdCapture:
+        """Exclusive camera RPC: invoked only from the live worker thread."""
+        if not self._opened:
+            raise LiveCameraError("NOT_OPEN")
+        kind, data = self._rpc(("CAPTURE", (session_id, specimen_id)), self._read_timeout_ms)
+        if kind == "CAPTURE_ERROR":
+            raise LiveCameraError(str(data))
+        if kind != "CAPTURED" or not isinstance(data, RawRgbdCapture):
+            raise LiveCameraError("INVALID_DEVICE_RESPONSE")
+        if data.metadata.session_id != session_id or data.metadata.specimen_id != specimen_id:
             raise LiveCameraError("INVALID_DEVICE_RESPONSE")
         return data
 

@@ -19,6 +19,8 @@ from .live_worker import LiveStreamWorker
 class LiveCameraController(QObject):
     state_changed = Signal(object)      # CameraState
     frame_available = Signal()          # wake-up only; frame stays in mailbox
+    keyframe_ready = Signal(object)      # Owned RAW v2, no storage performed
+    keyframe_failed = Signal(str)
     failure = Signal(str)               # stable error code, never raw SDK text
     settled = Signal(object)            # CLOSED or FAILED, worker fully reaped
     shutdown_ready = Signal()           # safe to destroy controller/host
@@ -100,6 +102,8 @@ class LiveCameraController(QObject):
             self._worker = worker
             worker.camera_opened.connect(self._on_opened)
             worker.frame_available.connect(self._on_frame)
+            worker.keyframe_ready.connect(self._on_keyframe_ready)
+            worker.keyframe_failed.connect(self._on_keyframe_failed)
             worker.failed.connect(self._on_failed)
             worker.finished.connect(self._on_finished)
             self._opening_timer.start()
@@ -119,6 +123,20 @@ class LiveCameraController(QObject):
             self._record_failure("START_FAILED")
             self._settle_without_worker()
             return False
+        return True
+
+    def capture_keyframe(self, *, session_id: str, specimen_id: str) -> bool:
+        """Capture state transition + worker queue; no blocking camera RPC on Qt."""
+        self._assert_thread()
+        worker = self._worker
+        if self._shutting_down or worker is None:
+            return False
+        if not self._machine.begin_capture():
+            return False
+        if not worker.request_keyframe(session_id=session_id, specimen_id=specimen_id):
+            self._machine.capture_finished()
+            return False
+        self.state_changed.emit(self.state)
         return True
 
     def stop(self) -> bool:
@@ -185,6 +203,22 @@ class LiveCameraController(QObject):
         if (self.sender() == self._worker and self.state is CameraState.STREAMING
                 and self.error_code is None):
             self.frame_available.emit()
+
+    @Slot(object)
+    def _on_keyframe_ready(self, packet: object) -> None:
+        if self.sender() != self._worker or self._worker is None:
+            return
+        if not self._shutting_down and self._machine.capture_finished():
+            self.state_changed.emit(self.state)
+            self.keyframe_ready.emit(packet)
+
+    @Slot(str)
+    def _on_keyframe_failed(self, code: str) -> None:
+        if self.sender() != self._worker or self._worker is None:
+            return
+        if not self._shutting_down and self._machine.capture_finished():
+            self.state_changed.emit(self.state)
+            self.keyframe_failed.emit(code)
 
     @Slot(str)
     def _on_failed(self, code: str) -> None:
