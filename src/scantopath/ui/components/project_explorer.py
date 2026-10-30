@@ -37,6 +37,7 @@ class ProjectExplorer(QWidget):
     create_project_requested = Signal()
     create_specimen_requested = Signal()
     create_session_requested = Signal()
+    delete_empty_requested = Signal()
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -62,6 +63,9 @@ class ProjectExplorer(QWidget):
         self.create_project_action = self.add_menu.addAction("Tạo dự án")
         self.create_specimen_action = self.add_menu.addAction("Thêm vật mẫu")
         self.create_session_action = self.add_menu.addAction("Tạo phiên quét")
+        self.add_menu.addSeparator()
+        self.delete_empty_action = self.add_menu.addAction("Xóa đối tượng trống…")
+        self.delete_empty_action.triggered.connect(self.delete_empty_requested.emit)
         self.create_project_action.triggered.connect(self.create_project_requested.emit)
         self.create_specimen_action.triggered.connect(self.create_specimen_requested.emit)
         self.create_session_action.triggered.connect(self.create_session_requested.emit)
@@ -125,6 +129,7 @@ class ProjectExplorer(QWidget):
         self.create_project_action.setEnabled(can_write)
         self.create_specimen_action.setEnabled(can_write and kind == "project")
         self.create_session_action.setEnabled(can_write and kind == "specimen")
+        self.delete_empty_action.setEnabled(can_write and kind in ("project", "specimen", "scan_session"))
         self.add_button.setToolTip(
             "Tạo metadata mới trong SQLite v2" if can_write
             else "Chỉ ghi khi đã chọn kho SQLite v2 và không có tác vụ đang chạy"

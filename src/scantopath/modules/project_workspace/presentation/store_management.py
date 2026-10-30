@@ -79,6 +79,7 @@ class RecentStorePanel(QFrame):
     """Central Project store panel; source of truth remains the existing loader."""
 
     browse_requested = Signal()
+    init_default_requested = Signal()
     open_requested = Signal(str)
     forget_requested = Signal(str)
 
@@ -100,6 +101,11 @@ class RecentStorePanel(QFrame):
         self.browse_button.setObjectName("recentStoreBrowse")
         self.browse_button.clicked.connect(self.browse_requested.emit)
         title_row.addWidget(self.browse_button)
+        self.init_button = QPushButton("Khởi tạo scantopath-data", self)
+        self.init_button.setObjectName("recentStoreInitializeDefault")
+        self.init_button.setToolTip("Chỉ khởi tạo kho SQLite v2 khi bạn xác nhận; không ghi đè kho đã có.")
+        self.init_button.clicked.connect(self.init_default_requested.emit)
+        title_row.addWidget(self.init_button)
         layout.addLayout(title_row)
         top_separator = QFrame(self)
         top_separator.setObjectName("recentStoreTopSeparator")
@@ -210,6 +216,7 @@ class RecentStorePanel(QFrame):
     def set_busy(self, busy: bool) -> None:
         self._busy = bool(busy)
         self.browse_button.setEnabled(not busy)
+        self.init_button.setEnabled(not busy)
         self.recent_list.setEnabled(not busy)
         if busy:
             self.state_label.setText("Đang kiểm tra và tải kho dữ liệu…")
@@ -244,6 +251,7 @@ class RecentStorePresenter:
             legacy.hide()
         self.panel.display_recent(self._prefs.paths())
         self.panel.browse_requested.connect(view._choose_project_store)
+        self.panel.init_default_requested.connect(controller._initialize_default_store)
         self.panel.open_requested.connect(controller._begin_project_load)
         self.panel.forget_requested.connect(self._forget)
         loader.loaded.connect(self._on_loaded)

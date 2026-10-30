@@ -42,6 +42,11 @@ class LiveCapturePanel(QFrame):
         self.retry_button.setObjectName("captureLiveRetryButton")
         for button in (self.start_button, self.stop_button, self.retry_button):
             bar.addWidget(button)
+        self.capture_button = QPushButton("Chụp và lưu", self)
+        self.capture_button.setObjectName("captureLiveCommitButton")
+        self.capture_button.setToolTip("Lưu keyframe vào phiên quét đang mở trong Cây dự án")
+        self.capture_button.setEnabled(False)
+        bar.addWidget(self.capture_button)
         layout.addLayout(bar)
 
         panes = QHBoxLayout()
@@ -85,6 +90,10 @@ class LiveCapturePanel(QFrame):
         self.state_label.setObjectName("captureLiveState")
         layout.addWidget(self.roi_label)
         layout.addWidget(self.state_label)
+        self.capture_context_label = QLabel("Chọn phiên quét đang mở để chụp và lưu.", self)
+        self.capture_context_label.setObjectName("captureLiveContextLabel")
+        self.capture_context_label.setWordWrap(True)
+        layout.addWidget(self.capture_context_label)
         self.manual_button.toggled.connect(self.depth_overlay.set_manual_enabled)
         self.depth_overlay.manual_roi_selected.connect(self._on_manual_selected)
         self.auto_button.clicked.connect(self.use_auto)

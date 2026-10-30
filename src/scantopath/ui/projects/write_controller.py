@@ -17,6 +17,10 @@ def _make_write_service(root: str) -> "ProjectWritePort":
 def _execute(service, command: ProjectEditCommand) -> ProjectEditResult:
     """Only Application Services may mutate metadata; no direct ORM/SQL in Qt."""
     a = command.action
+    if a in ("project.delete", "specimen.delete", "session.delete"):
+        kind = a.split(".")[0]
+        identity = service.delete_empty_entity(kind, command.target_id, command.parent_id)
+        return ProjectEditResult(a, "scan_session" if kind == "session" else kind, identity, None)
     if a == "project.create":
         result = service.create_project(command.name, command.description)
         kind, identity = "project", result.project_id
@@ -70,6 +74,8 @@ class _WriteThread(QThread):
                 selection_kind = "scan_session" if kind == "session" else kind
                 self.completed.emit(ProjectEditResult(self.command.action, selection_kind,
                                                       exc.internal_id, None, True))
+            elif str(exc) in ("ENTITY_HAS_CHILDREN", "ENTITY_HAS_MATERIALIZED_FILES"):
+                self.failed.emit("Không thể xóa: đối tượng còn dữ liệu con hoặc thư mục vật lý. RAW được giữ nguyên.")
             elif isinstance(exc, (ValueError, LookupError)):
                 self.failed.emit("Thông tin không hợp lệ hoặc đối tượng đã thay đổi. Tải lại cây dự án rồi thử lại.")
             elif type(exc).__name__ in ("OperationalError", "IntegrityError", "DatabaseError", "PermissionError"):

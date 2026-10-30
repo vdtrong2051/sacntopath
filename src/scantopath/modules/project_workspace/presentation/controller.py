@@ -19,12 +19,36 @@ class ProjectWorkspaceController(QObject):
         self._install_project_loader()
         self._install_project_writer()
         self._install_capture_checker()
+        from scantopath.ui.projects.init_controller import StoreInitController
+        self.store_initializer = StoreInitController(self)
+        self.store_initializer.completed.connect(self._begin_project_load)
+        self.store_initializer.failed.connect(self._on_store_init_failed)
+        self.store_initializer.stopped.connect(self.view.close)
         from .store_management import RecentStorePresenter
         self.recent_stores = RecentStorePresenter(self.view, self.project_loader, self)
         from .dashboard import ProjectDashboardPresenter
         self.project_dashboard = ProjectDashboardPresenter(self.view, self)
         from .processing_workspace import ProcessingWorkspacePresenter
         self.processing_workspace = ProcessingWorkspacePresenter(self.view, self)
+
+    def _initialize_default_store(self) -> None:
+        from PySide6.QtWidgets import QMessageBox
+        from scantopath.ui.projects.init_controller import default_dev_store
+        if (self.project_loader.busy or self.project_writer.busy or
+                self.capture_checker.busy or self.store_initializer.busy):
+            return
+        target = default_dev_store()
+        if QMessageBox.question(
+            self.view, "Khởi tạo kho scantopath-data",
+            f"Khởi tạo/mở kho SQLite v2 tại:\n{target}\n"
+            "Kho đã có không bị xóa hoặc khởi tạo lại. Đồng ý?",
+            QMessageBox.Yes | QMessageBox.No, QMessageBox.No,
+        ) == QMessageBox.Yes:
+            self.store_initializer.initialize_default()
+
+    def _on_store_init_failed(self, message: str) -> None:
+        self.view.task_event_panel.add_ui_event(message)
+        self.view._set_status(message)
 
     def _install_project_loader(self) -> None:
         return self._reads._install_project_loader()

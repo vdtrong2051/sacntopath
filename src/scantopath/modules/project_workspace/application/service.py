@@ -95,5 +95,9 @@ class ProjectWorkspaceService:
     def close_session(self, specimen_id: str, session_id: str) -> SessionSummary:
         return self._commands.close_session(specimen_id, session_id)
 
+    def delete_empty_entity(self, entity_type: str, internal_id: str,
+                            parent_id: str | None = None) -> str:
+        return self._commands.delete_empty_entity(entity_type, internal_id, parent_id)
+
     def inspect_capture(self, capture_id: str) -> CaptureInspection:
         return self._inspection.inspect_capture(capture_id)

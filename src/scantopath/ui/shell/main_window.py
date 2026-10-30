@@ -48,6 +48,12 @@ def _create_capture_replay_services():
 
     return replay_service, decoder
 
+def _capture_storage_adapter():
+    """Explicit worker-thread factory; no SQLite opened during UI construction."""
+    from scantopath.modules.capture.infrastructure.capture_writer import NumberedCapturePersistenceAdapter
+    return NumberedCapturePersistenceAdapter()
+
+
 def _create_live_camera_worker():
     """GD2-09.07.2: worker construction; lazy native SDK acquisition."""
     from scantopath.modules.capture.presentation.live_worker import LiveStreamWorker
@@ -98,6 +104,9 @@ class ScanToPathMainWindow(QMainWindow):
             self,
             worker_factory=_create_live_camera_worker,
         )
+        from scantopath.modules.capture.presentation.capture_action import CaptureActionCoordinator
+        self.capture_action = CaptureActionCoordinator(self, store_factory=_capture_storage_adapter)
+        self.capture_action.stopped.connect(self.close)
 
         self._install_task_controller()
         self._connect_workspace_actions()
@@ -380,6 +389,8 @@ class ScanToPathMainWindow(QMainWindow):
         viewer_stopped = self.viewer3d is None or getattr(self.viewer3d, 'begin_shutdown', lambda: True)()
         capture_stopped = self.capture_preview.begin_shutdown()
         live_stopped = self.capture_live.begin_shutdown()
+        store_init_stopped = self.project_workspace.store_initializer.begin_shutdown()
+        capture_action_stopped = self.capture_action.begin_shutdown()
         if (
             tasks_stopped
             and project_stopped
@@ -388,6 +399,8 @@ class ScanToPathMainWindow(QMainWindow):
             and viewer_stopped
             and capture_stopped
             and live_stopped
+            and store_init_stopped
+            and capture_action_stopped
         ):
             if self.viewer3d is not None:
                 self.viewer3d.dispose()

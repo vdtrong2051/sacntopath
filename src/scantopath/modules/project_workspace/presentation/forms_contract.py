@@ -7,10 +7,12 @@ from typing import Literal
 Action = Literal[
     "project.create", "project.update", "specimen.create", "specimen.update",
     "session.create", "session.update", "session.close",
+    "project.delete", "specimen.delete", "session.delete",
 ]
 _ACTIONS = frozenset({
     "project.create", "project.update", "specimen.create", "specimen.update",
     "session.create", "session.update", "session.close",
+    "project.delete", "specimen.delete", "session.delete",
 })
 
 
@@ -48,14 +50,14 @@ class ProjectEditCommand:
             raise ValueError("Thao tác quản lý không được hỗ trợ.")
         entity = self.action.split(".")[0]
         operation = self.action.split(".")[1]
-        if operation != "close":
+        if operation not in ("close", "delete"):
             object.__setattr__(self, "name", validate_label(self.name))
         elif self.name or self.description:
-            raise ValueError("Đóng phiên không nhận tên hoặc mô tả.")
+            raise ValueError("Thao tác đóng/xóa không nhận tên hoặc mô tả.")
         if entity == "session" and self.description:
             raise ValueError("Phiên quét không có trường mô tả.")
         object.__setattr__(self, "description", validate_description(self.description))
-        if operation in ("update", "close"):
+        if operation in ("update", "close", "delete"):
             _id(self.target_id, "đối tượng")
         elif self.target_id is not None:
             raise ValueError("Thao tác tạo mới không nhận ID định sẵn.")
