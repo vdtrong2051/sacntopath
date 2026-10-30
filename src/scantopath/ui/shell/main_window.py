@@ -107,6 +107,10 @@ class ScanToPathMainWindow(QMainWindow):
         from scantopath.modules.capture.presentation.capture_action import CaptureActionCoordinator
         self.capture_action = CaptureActionCoordinator(self, store_factory=_capture_storage_adapter)
         self.capture_action.stopped.connect(self.close)
+        # 09.09.3: place existing Live and Replay panels in a compact UI.
+        # The layout owns neither camera nor SQLite/RAW lifecycle.
+        from scantopath.modules.capture.presentation.workspace_layout import CaptureWorkspaceLayout
+        self.capture_workspace_layout = CaptureWorkspaceLayout(self)
 
         self._install_task_controller()
         self._connect_workspace_actions()
