@@ -47,6 +47,7 @@ class CaptureActionCoordinator(QObject):
     """MainWindow-owned feature controller. Never opens another camera source."""
     finished = Signal(str)
     failed = Signal(str)
+    phase_changed = Signal(str, str)  # state, sanitized UI description
     stopped = Signal()
 
     def __init__(self, view, *, store_factory: Callable) -> None:
@@ -122,6 +123,7 @@ class CaptureActionCoordinator(QObject):
         self._context = context
         self._phase = "preflight"
         self._notice("Đang kiểm tra Project/Session trước khi chụp…")
+        self.phase_changed.emit("running", "Kiểm tra Project và Session đang mở")
         self._refresh()
         self._start_storage("preflight", context)
         return True
@@ -153,10 +155,12 @@ class CaptureActionCoordinator(QObject):
                 return
             self._phase = "capture"
             self._notice("Gemini 2: đang chụp keyframe RGB-D…")
+            self.phase_changed.emit("running", "Gemini 2 đang lấy keyframe RGB-D")
         elif self._phase == "commit":
             capture_id = result
             self._notice("RAW v2 đã lưu và xác minh: " + capture_id)
             self.finished.emit(capture_id)
+            self.phase_changed.emit("succeeded", "RAW v2 và SQLite: " + capture_id)
             self._phase = "idle"
             self._context = None
             # Existing reader refresh will insert Capture in Explorer. Replay is 09.09.2.
@@ -203,6 +207,7 @@ class CaptureActionCoordinator(QObject):
         self._last_indices = indices
         self._phase = "commit"
         self._notice("Đang ghi RAW v2 / đăng ký SQLite / xác minh Replay…")
+        self.phase_changed.emit("running", "Ghi RAW, đăng ký SQLite và xác minh")
         if self._thread is None:
             self._start_storage("commit", ctx, raw)
         else:
@@ -231,6 +236,7 @@ class CaptureActionCoordinator(QObject):
         self._pending_raw = None
         self._notice("Chụp/lưu chưa hoàn tất: " + code)
         self.failed.emit(code)
+        self.phase_changed.emit("failed", code)
         self._refresh()
 
     def begin_shutdown(self) -> bool:

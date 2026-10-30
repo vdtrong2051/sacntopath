@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from PySide6.QtWidgets import (
-    QBoxLayout, QHBoxLayout, QLabel, QListWidget, QPushButton, QTabWidget, QTreeWidget,
+    QAbstractItemView, QBoxLayout, QHBoxLayout, QLabel, QListWidget, QPushButton, QTabWidget, QTreeWidget,
     QTreeWidgetItem, QVBoxLayout, QWidget, QHeaderView,
 )
 
@@ -24,6 +24,7 @@ class TaskAndEventPanel(QWidget):
     """TaskSnapshot chỉ là trạng thái UI, không phải ProcessingRun trong SQLite."""
 
     MAX_UI_EVENTS = 200
+    MAX_OPERATION_EVENTS = 120
     demo_requested = Signal()
     cancel_requested = Signal(str)
     expanded_changed = Signal(bool)
@@ -71,6 +72,28 @@ class TaskAndEventPanel(QWidget):
         self.task_empty.setWordWrap(False)
         self.task_empty.hide()
         task_layout.addWidget(self.task_empty)
+        # Real Project/Camera/Capture/Replay operations use existing Qt
+        # controller signals, NOT fabricated TaskSnapshot progress.
+        self._operation_current: dict[str, tuple[str, str]] = {}
+        self.operation_table = QTreeWidget(tasks_page)
+        self.operation_table.setObjectName("operationActivityTable")
+        self.operation_table.setHeaderLabels(
+            ["Thời gian", "Nguồn", "Trạng thái", "Chi tiết"]
+        )
+        self.operation_table.setRootIsDecorated(False)
+        self.operation_table.setUniformRowHeights(True)
+        self.operation_table.setAlternatingRowColors(True)
+        self.operation_table.setSelectionMode(QAbstractItemView.NoSelection)
+        self.operation_table.setColumnWidth(0, 75)
+        self.operation_table.setColumnWidth(1, 125)
+        self.operation_table.setColumnWidth(2, 110)
+        self.operation_table.header().setStretchLastSection(True)
+        self.operation_table.setToolTip(
+            "Các chuyển trạng thái thực trong phiên ứng dụng; "
+            "không phải ProcessingRun hoặc nhật ký SQLite"
+        )
+        self.operation_table.hide()
+        task_layout.addWidget(self.operation_table, stretch=2)
         # Start with the compact layout BEFORE Qt computes minimumSizeHint().
         # Starting horizontal can force a wide minimum width (the two buttons
         # combined) and clamp an attempted resize(390, ...) above the 460 px
@@ -171,23 +194,73 @@ class TaskAndEventPanel(QWidget):
         self._demo_tools_visible = visible
         self.demo_button.setVisible(visible)
         self.task_hint.setVisible(visible and not self._snapshots_by_id)
-        self.task_empty.setVisible(not visible and not self._snapshots_by_id)
+        self.task_empty.setVisible(
+            not visible and not self._snapshots_by_id
+            and self.operation_table.topLevelItemCount() == 0
+        )
         self.cancel_button.setVisible(visible or bool(self._snapshots_by_id))
         self.cancel_button.setMaximumWidth(16777215 if visible else 190)
 
     def _update_compact_summary(self, snapshots: tuple[TaskSnapshot, ...]) -> None:
+        """Report actual live operations ahead of developer-only TaskManager jobs."""
         active = sum(s.state in (TaskState.QUEUED, TaskState.RUNNING) for s in snapshots)
         failed = sum(s.state == TaskState.FAILED for s in snapshots)
-        if active:
+        operations = self._operation_current
+        running = next((source for source in ("Capture", "Replay", "RAW Check", "Project")
+                        if operations.get(source, (None,))[0] == "running"), None)
+        last_failure = next((source for source in ("Capture", "Replay", "RAW Check", "Project", "Camera")
+                             if operations.get(source, (None,))[0] == "failed"), None)
+        if running:
+            message = f"{running}: đang xử lý · Mở bảng để xem"
+        elif active:
             message = f"{active} tác vụ đang chờ/xử lý"
+        elif last_failure:
+            message = f"{last_failure}: có lỗi · Mở bảng để xem"
         elif failed:
             message = f"{failed} tác vụ thất bại · Mở bảng để xem"
+        elif operations.get("Camera", (None,))[0] == "running":
+            camera_detail = operations["Camera"][1]
+            message = ("Camera đang truyền RGB-D"
+                       if camera_detail.endswith(("STREAMING", "CAPTURING"))
+                       else camera_detail)
         elif snapshots:
             message = f"{len(snapshots)} tác vụ đã ghi nhận"
+        elif self.operation_table.topLevelItemCount():
+            message = "Không có tác vụ đang chạy · Có lịch sử hoạt động"
         else:
             message = "Không có tác vụ đang chạy"
         self.compact_summary.setText(message)
         self.summary_changed.emit(message)
+
+    def record_operation(self, source: str, state: str, detail: str) -> None:
+        """Record a genuine controller state transition, never guessed progress.
+
+        The latest state is kept per source and the visible timeline is bounded.
+        A completed or stopped operation remains in history until app exit.
+        """
+        if (source not in {"Project", "Camera", "Capture", "Replay", "RAW Check"}
+                or state not in {"running", "succeeded", "failed", "idle"}
+                or not isinstance(detail, str) or not detail.strip()):
+            raise ValueError("Invalid operation event")
+        detail = detail.strip()
+        if self._operation_current.get(source) == (state, detail):
+            return
+        self._operation_current[source] = (state, detail)
+        from datetime import datetime
+        labels = {"running": "Đang chạy", "succeeded": "Hoàn thành",
+                  "failed": "Thất bại", "idle": "Đã dừng"}
+        item = QTreeWidgetItem(self.operation_table, [
+            datetime.now().astimezone().strftime("%H:%M:%S"),
+            source, labels[state], detail,
+        ])
+        item.setToolTip(3, detail)
+        while self.operation_table.topLevelItemCount() > self.MAX_OPERATION_EVENTS:
+            self.operation_table.takeTopLevelItem(0)
+        self.operation_table.show()
+        self.operation_table.scrollToItem(item)
+        self.task_blank_spacer.hide()
+        self.task_empty.hide()
+        self._update_compact_summary(tuple(self._snapshots_by_id.values()))
 
     def resizeEvent(self, event) -> None:
         """Stack task buttons when the dock is floated or narrowed.
@@ -212,11 +285,16 @@ class TaskAndEventPanel(QWidget):
         self._snapshots_by_id = {s.task_id: s for s in snapshots}
         self.tasks.clear()
         self.task_hint.setVisible(self._demo_tools_visible and not snapshots)
-        self.task_empty.setVisible(not self._demo_tools_visible and not snapshots)
+        self.task_empty.setVisible(
+            not self._demo_tools_visible and not snapshots
+            and self.operation_table.topLevelItemCount() == 0
+        )
         self.cancel_button.setVisible(self._demo_tools_visible or bool(snapshots))
         self._update_compact_summary(snapshots)
         self.tasks.setVisible(bool(snapshots))
-        self.task_blank_spacer.setVisible(not snapshots)
+        self.task_blank_spacer.setVisible(
+            not snapshots and self.operation_table.topLevelItemCount() == 0
+        )
         for snapshot in snapshots:
             progress = "Không xác định" if snapshot.progress is None else f"{snapshot.progress:g}%"
             item = QTreeWidgetItem(self.tasks, [

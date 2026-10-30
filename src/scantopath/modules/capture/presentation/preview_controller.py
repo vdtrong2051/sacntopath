@@ -6,7 +6,7 @@ Application services are provided by the composition root.
 """
 from __future__ import annotations
 
-from PySide6.QtCore import QObject, QTimer, Slot
+from PySide6.QtCore import QObject, QTimer, Slot, Signal
 from PySide6.QtWidgets import QFrame, QWidget
 
 from scantopath.application.contracts import WorkspaceId
@@ -41,6 +41,7 @@ _ERRORS = {
 
 class CapturePreviewController(QObject):
     """Controller for offline Capture replay inside the existing workspace."""
+    activity_changed = Signal(str, str)  # state, safe context/message
 
     def __init__(
         self,
@@ -82,6 +83,7 @@ class CapturePreviewController(QObject):
         self._context: CaptureContext | None = None
 
         self._thread: ReplayThread | None = None
+        self._activity_completed = False
         self._request_id = 0
         self._closing = False
         self._handoff = False
@@ -247,6 +249,8 @@ class CapturePreviewController(QObject):
         thread.finished.connect(thread.deleteLater)
 
         self.panel.set_busy(True)
+        self._activity_completed = False
+        self.activity_changed.emit("running", "Đang đọc RAW Capture " + context.capture_id)
 
         self.view.task_event_panel.add_ui_event(
             "Đang phát lại Capture đã chọn."
@@ -272,6 +276,8 @@ class CapturePreviewController(QObject):
             return
 
         self.panel.show_frame(frame, gray)
+        self._activity_completed = True
+        self.activity_changed.emit("succeeded", "Replay thành công: " + frame.metadata.capture_id)
 
         self.view.task_event_panel.add_ui_event(
             "RAW Replay và RGB-D Decode hoàn thành."
@@ -288,12 +294,16 @@ class CapturePreviewController(QObject):
         )
 
         self.panel.show_error(message)
+        self._activity_completed = True
+        self.activity_changed.emit("failed", message)
         self.view.task_event_panel.add_ui_event(message)
 
     @Slot()
     def _on_finished(self) -> None:
         self._thread = None
         self.panel.set_busy(False)
+        if not self._activity_completed and not self._closing:
+            self.activity_changed.emit("idle", "Replay cũ đã bị bỏ qua khi đổi lựa chọn")
 
         if not self._closing and self._auto_replay_pending:
             QTimer.singleShot(0, self._maybe_auto_replay)
