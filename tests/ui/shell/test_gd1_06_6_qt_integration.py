@@ -89,8 +89,9 @@ def test_data_selection_flows_explorer_to_viewmodel_to_inspector(window):
     assert window.navigation.selection == selection
     assert window.property_inspector.selection == selection
     window.nav_buttons[WorkspaceId.CAPTURE].click()
-    assert window.navigation.selection is None
-    assert window.property_inspector.selection is None
+    assert window.navigation.selection == selection
+    assert window.property_inspector.selection == selection
+    assert window.project_explorer.selection == selection
     assert window.project_explorer.tree.topLevelItemCount() == 1
 
 

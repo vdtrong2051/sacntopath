@@ -42,7 +42,7 @@ class NavigationViewModel:
         self._last_outcome = result
         if result.status == CommandStatus.SUCCEEDED:
             self._workspace = WorkspaceId(result.value["workspace"])
-            self._selection = None
+            # Selection belongs to the active Store, not to a workspace.
         return result
 
     def select_entity(self, selection: SelectionRef | None) -> None:

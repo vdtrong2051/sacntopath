@@ -89,6 +89,9 @@ class CapturePreviewController(QObject):
         self._handoff = False
         # Latest selection wins. Never queue frame payloads on the GUI thread.
         self._auto_replay_pending = False
+        # A completed RAW frame is not the same as an ordinary tree selection.
+        self._displayed_context: CaptureContext | None = None
+        self._resume_after_reload: CaptureContext | None = None
 
         self.panel.replay_button.clicked.connect(self.replay)
 
@@ -110,6 +113,22 @@ class CapturePreviewController(QObject):
     def context(self) -> CaptureContext | None:
         return self._context
 
+    def prepare_store_reload(self, requested_root: str) -> None:
+        """Called before ProjectRead clears the tree; only replay displayed RAW.
+
+        Reloading the same Store in Capture may restore its previously visible
+        frame. Simply switching workspaces or selecting a node never resumes RAW.
+        """
+        shown = self._displayed_context
+        self._resume_after_reload = (
+            shown if (
+                shown is not None
+                and shown == self._context
+                and shown.store_root == requested_root
+                and self.view.active_workspace is WorkspaceId.CAPTURE
+            ) else None
+        )
+
     def begin_navigation_handoff(self) -> None:
         """Preserve explicit context while GĐ1 clears Explorer selection."""
         self._handoff = True
@@ -120,6 +139,7 @@ class CapturePreviewController(QObject):
     def invalidate(self) -> None:
         """Discard stale context and reject previously started results."""
         self._auto_replay_pending = False
+        self._displayed_context = None
         self._request_id += 1
         self._contexts.clear()
         self._context = None
@@ -142,6 +162,7 @@ class CapturePreviewController(QObject):
 
     @Slot(str)
     def _on_store_failed(self, _message: str) -> None:
+        self._resume_after_reload = None
         self.invalidate()
 
     @Slot(object)
@@ -168,6 +189,17 @@ class CapturePreviewController(QObject):
 
         # The Project loader may have restored Explorer selection.
         self._on_selection(self.view.project_explorer.selection)
+        # Restore the image only when THIS Capture already had a successful
+        # display before a same-Store reload. Re-selecting a node does not replay.
+        resume = self._resume_after_reload
+        self._resume_after_reload = None
+        self._auto_replay_pending = (
+            resume is not None
+            and self._context == resume
+            and self.view.active_workspace is WorkspaceId.CAPTURE
+        )
+        if self._auto_replay_pending:
+            QTimer.singleShot(0, self._maybe_auto_replay)
 
     @Slot(object)
     def _on_selection(self, selection: object) -> None:
@@ -190,6 +222,7 @@ class CapturePreviewController(QObject):
 
         self._request_id += 1
         self._context = new_context
+        self._displayed_context = None
 
         self.panel.set_context(new_context)
         self.panel.set_busy(self.busy)
@@ -205,6 +238,9 @@ class CapturePreviewController(QObject):
 
     def _maybe_auto_replay(self) -> None:
         """Queue no second ReplayThread; latest selected Capture wins."""
+        if self._auto_replay_pending and self.view.active_workspace is not WorkspaceId.CAPTURE:
+            self._auto_replay_pending = False  # Navigation must never replay later.
+            return
         if (not self._auto_replay_pending or self._closing
                 or self._context is None or self.busy
                 or self.view.active_workspace is not WorkspaceId.CAPTURE
@@ -232,6 +268,7 @@ class CapturePreviewController(QObject):
             return False
 
         self._auto_replay_pending = False
+        self._displayed_context = None
         self._request_id += 1
         request_id = self._request_id
 
@@ -276,6 +313,7 @@ class CapturePreviewController(QObject):
             return
 
         self.panel.show_frame(frame, gray)
+        self._displayed_context = self._context
         self._activity_completed = True
         self.activity_changed.emit("succeeded", "Replay thành công: " + frame.metadata.capture_id)
 
@@ -294,6 +332,7 @@ class CapturePreviewController(QObject):
         )
 
         self.panel.show_error(message)
+        self._displayed_context = None
         self._activity_completed = True
         self.activity_changed.emit("failed", message)
         self.view.task_event_panel.add_ui_event(message)

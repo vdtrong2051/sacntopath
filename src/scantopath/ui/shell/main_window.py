@@ -121,6 +121,9 @@ class ScanToPathMainWindow(ShellCompositionMixin, QMainWindow):
         # 09.09.4: controller signals -> real operational timeline.
         from scantopath.ui.tasks.operation_bridge import OperationActivityBridge
         self.operation_activity = OperationActivityBridge(self)
+        # UXH-01.3: single validated workflow identity for all workspaces.
+        from .workflow_context_controller import WorkflowContextController
+        self.workflow_context = WorkflowContextController(self)
         # GD2-10.08.1: opt-in RAW XYZRGB preview; never opens camera at startup.
         from .geometry_preview import GeometryPreviewBridge
         self.geometry_preview = GeometryPreviewBridge(self)
@@ -387,22 +390,23 @@ class ScanToPathMainWindow(ShellCompositionMixin, QMainWindow):
             if previous is WorkspaceId.CAPTURE and not going_to_capture:
                 self.capture_live.begin_navigation_away()
 
-            if going_to_capture:
-                self.capture_preview.begin_navigation_handoff()
-
-            try:
-                # Preserve GĐ1 behavior: Explorer selection is always cleared.
-                self.project_explorer.clear_selection()
-            finally:
-                if going_to_capture:
-                    self.capture_preview.end_navigation_handoff()
-
-            self.property_inspector.set_selection(None)
+            # Workspace navigation is display-only: never clear Explorer or context.
             self.task_event_panel.add_ui_event(
                 f"Đã chuyển đến: {WORKSPACE_PRESENTATION[self.navigation.workspace].title}"
             )
 
         self._show_workspace(self.navigation.workspace)
+        if previous is WorkspaceId.INSPECT3D and self.navigation.workspace is not WorkspaceId.INSPECT3D:
+            # The scene inspector is display state, not the active Project selection.
+            # Restore metadata *after* the Viewer hide event clears its scene fields.
+            selected = self.project_explorer.selection
+            current_workspace = self.navigation.workspace
+            QTimer.singleShot(0, lambda: self._restore_project_inspector(selected, current_workspace))
+
+    def _restore_project_inspector(self, selected, destination) -> None:
+        if (self.navigation.workspace == destination and destination is not WorkspaceId.INSPECT3D
+                and self.project_explorer.selection == selected):
+            self.project_workspace._on_explorer_selection(selected)
 
     def _ensure_viewer3d(self) -> None:
         """Composition only: create a process-isolated VTK preview on first visit."""

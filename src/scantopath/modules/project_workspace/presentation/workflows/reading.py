@@ -34,12 +34,10 @@ class _ProjectReadCoordinator(_Coordinator):
     def _reload_project_store(self) -> None:
         if (self._project_root is not None and not self.project_writer.busy
                 and not self.capture_checker.busy):
-            # 09.09.1 may already target a newly committed Capture. Keep that
-            # explicit request; otherwise restore the currently selected node.
+            # Keep pending selections from writes; otherwise restore any node.
             if self._pending_selection is None:
                 selected = self.view.project_explorer.selection
-                if (selected is not None and
-                        getattr(selected, "entity_type", None) == "capture"):
+                if selected is not None:
                     self._pending_selection = selected
             self._begin_project_load(self._project_root)
 
@@ -47,6 +45,13 @@ class _ProjectReadCoordinator(_Coordinator):
         if (self.project_loader.busy or self.project_writer.busy or
                 self.capture_checker.busy or self._project_closing):
             return
+        # Save a previously rendered RAW identity BEFORE set_nodes clears
+        # the Explorer and invalidates the CapturePreview selection.
+        capture_preview = getattr(self.view, "capture_preview", None)
+        if capture_preview is not None:
+            capture_preview.prepare_store_reload(root)
+        if hasattr(self.view, "workflow_context"):
+            self.view.workflow_context.begin_store_load(root)
         # Do not carry a Capture selection across DIFFERENT stores.
         if self._project_root is not None and root != self._project_root:
             self._pending_selection = None
@@ -98,6 +103,8 @@ class _ProjectReadCoordinator(_Coordinator):
             self._project_fields[row.selection] = row.fields
             return ExplorerNode(row.title, row.selection, tuple(convert(c) for c in row.children))
 
+        if self._pending_selection is None and hasattr(self.view, "workflow_context"):
+            self._pending_selection = self.view.workflow_context.restore_candidate(bundle.info.root)
         self.view.project_explorer.set_nodes(tuple(convert(r) for r in rows))
         for index in range(self.view.project_explorer.tree.topLevelItemCount()):
             self.view.project_explorer.tree.topLevelItem(index).setExpanded(True)
@@ -105,18 +112,7 @@ class _ProjectReadCoordinator(_Coordinator):
         if self._pending_selection is not None:
             wanted = self._pending_selection
             self._pending_selection = None
-            def find(items, selection):
-                for entry in items:
-                    if entry.data(0, Qt.UserRole) == selection:
-                        return entry
-                    found = find((entry.child(i) for i in range(entry.childCount())), selection)
-                    if found is not None:
-                        return found
-                return None
-            node = find((self.view.project_explorer.tree.topLevelItem(i)
-                         for i in range(self.view.project_explorer.tree.topLevelItemCount())), wanted)
-            if node is not None:
-                self.view.project_explorer.tree.setCurrentItem(node)
+            self.view.project_explorer.select_ref(wanted)
         self._update_project_actions()
         if not rows:
             self.view.project_explorer.show_message("Kho SQLite hợp lệ nhưng chưa có dự án.")

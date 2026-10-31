@@ -57,6 +57,7 @@ class GeometryPreviewBridge(QObject):
         self._closing = False
         self._scratch: list[tempfile.TemporaryDirectory] = []
         self._receipt: PreviewReceipt | None = None
+        self._workflow_revision_at_request: int | None = None
         self._sensor_view_token = None
         self._viewer_label: QLabel | None = None
         self._measurement_ui = None  # lazy, after Viewer initialization
@@ -88,11 +89,8 @@ class GeometryPreviewBridge(QObject):
               not self.host.project_loader.busy and
               not self.host.project_writer.busy and
               not self.host.capture_checker.busy)
-        # Entering/changing Capture workspace invalidates the prior RAW A/B pair.
-        # Navigation to Inspect3D clears Explorer selection by design: do not
-        # invalidate that handoff while the Viewer is active.
+        # A different Capture or Store invalidates A/B even within Inspect3D.
         if (self._measurement_ui is not None and
-                self.host.active_workspace is WorkspaceId.CAPTURE and
                 self._receipt is not None and
                 (context is None or context.capture_id != self._receipt.capture_id)):
             self._measurement_ui.unbind()
@@ -106,6 +104,10 @@ class GeometryPreviewBridge(QObject):
         context = self.host.capture_preview.context
         if context is None or context.capture_id is None:
             return False
+        workflow = getattr(self.host, "workflow_context", None)
+        if workflow is not None and workflow.current.actionable_capture_id != context.capture_id:
+            return False
+        self._workflow_revision_at_request = workflow.revision if workflow is not None else None
         self._worker = GeometryPreviewWorker(context, self)
         self._worker.ready.connect(self._ready)
         self._worker.failed.connect(self._failed)
@@ -120,6 +122,12 @@ class GeometryPreviewBridge(QObject):
 
     @Slot(object, object, object, object)
     def _ready(self, receipt: PreviewReceipt, scratch, context: CaptureContext, view: SingleViewXYZRGB) -> None:
+        workflow = getattr(self.host, "workflow_context", None)
+        current_revision = workflow.revision if workflow is not None else None
+        if (self._workflow_revision_at_request is not None and
+                current_revision != self._workflow_revision_at_request):
+            scratch.cleanup()
+            return
         if (self._closing or context is None or
                 self.host.capture_preview.context != context or
                 self.host.project_explorer.store_root != context.store_root):
@@ -177,6 +185,14 @@ class GeometryPreviewBridge(QObject):
         current = getattr(viewer, "_current_source", None)
         pending = getattr(viewer, "_pending_source", None)
         if current == receipt.path and getattr(viewer, "_live_phase", None) == "ready":
+            selected = self.host.capture_preview.context
+            if (selected is None or selected.store_root != self.host.project_explorer.store_root
+                    or selected.capture_id != receipt.capture_id):
+                self._viewer_label.setText(
+                    f"RAW Preview {receipt.capture_id} đang hiển thị, nhưng không phải Capture hiện hành. "
+                    "Không sử dụng Preview này để đo; hãy chọn Capture và mở Preview mới."
+                )
+                return
             descriptor = getattr(viewer, "_descriptor", None)
             if getattr(descriptor, "source_sha256", None) == receipt.ply_sha256:
                 token = (receipt.path, receipt.ply_sha256,

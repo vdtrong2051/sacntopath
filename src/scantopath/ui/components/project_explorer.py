@@ -155,6 +155,30 @@ class ProjectExplorer(QWidget):
             self.tree.blockSignals(previous)
         self._update_selection(None)
 
+    def find_selection_item(self, ref: SelectionRef):
+        """Resolve current tree identity after reload; never retain a stale Qt item."""
+        def walk(item):
+            if item.data(0, Qt.UserRole) == ref:
+                return item
+            for i in range(item.childCount()):
+                match = walk(item.child(i))
+                if match is not None:
+                    return match
+            return None
+        for i in range(self.tree.topLevelItemCount()):
+            match = walk(self.tree.topLevelItem(i))
+            if match is not None:
+                return match
+        return None
+
+    def select_ref(self, ref: SelectionRef) -> bool:
+        """Restore only a current node; never synthesize a missing selection."""
+        item = self.find_selection_item(ref)
+        if item is None:
+            return False
+        self.tree.setCurrentItem(item)
+        return True
+
     def clear_selection(self) -> None:
         self.tree.clearSelection()
         self.tree.setCurrentItem(None)
