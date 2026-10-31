@@ -53,10 +53,10 @@ def audit(root: Path) -> dict:
             if any(target.startswith(('sqlite3','sqlalchemy','scantopath.metadata','scantopath.storage')) for target in targets) and '/presentation/workflows/' in '/'+rel:
                 errors.append(f'{rel}:{node.lineno}: Qt workflow imports persistence')
     # Surface ownership: metadata/numbered façades must not embed each use-case SQL.
-    facade=(source/'metadata/store.py').read_text()
+    facade=(source/'metadata/store.py').read_text(encoding='utf-8')
     for sql in ('INSERT INTO captures','INSERT INTO projects','UPDATE scan_sessions'):
         if sql in facade:errors.append(f'MetadataStore contains inlined SQL: {sql}')
-    registry=(source/'storage/numbered.py').read_text()
+    registry=(source/'storage/numbered.py').read_text(encoding='utf-8')
     for sql in ('BEGIN IMMEDIATE','INSERT INTO storage_captures','INSERT INTO storage_counters'):
         if sql in registry:errors.append(f'NumberedStorageRegistry owns storage transaction: {sql}')
     return {'version':'07.12','facades':classes,'required_files':list(REQUIRED),
