@@ -113,6 +113,11 @@ class GeometryMeasurementPanel(QObject):
         self.mode_button.setObjectName('gd2MeasureTwoPointsButton')
         self.mode_button.setCheckable(True)
         self.mode_button.setEnabled(False)
+        # The legacy VTK click picker remains testable but is no longer offered in UI.
+        self.mode_button.hide()
+        self.depth_button = QPushButton('Đo A–B trên ảnh Depth', self.panel)
+        self.depth_button.setObjectName('uxhDepthTwoPointButton')
+        self.depth_button.setEnabled(False)
         self.clear_button = QPushButton('Xóa phép đo', self.panel)
         self.clear_button.setObjectName('gd2MeasureClearButton')
         self.clear_button.setEnabled(False)
@@ -121,10 +126,12 @@ class GeometryMeasurementPanel(QObject):
         self.readout.setTextFormat(Qt.PlainText)
         self.readout.setWordWrap(True)
         layout.addWidget(self.mode_button)
+        layout.addWidget(self.depth_button)
         layout.addWidget(self.clear_button)
         layout.addWidget(self.readout, 1)
         viewer.page.layout().insertWidget(2, self.panel)
         self.mode_button.toggled.connect(self._toggle)
+        self.depth_button.clicked.connect(self._measure_from_depth)
         self.clear_button.clicked.connect(self.reset_pair)
         viewer.scene_inspection.connect(self._scene_changed)
         viewer.point_pick_completed.connect(self._picked)
@@ -144,7 +151,7 @@ class GeometryMeasurementPanel(QObject):
             raise MeasurementError('PREVIEW_CAPTURE_MISMATCH', 'Capture ID differs')
         self._view = view
         self._receipt = receipt
-        self.readout.setText('Đang tải Preview. Chỉ đo khi VTK xác nhận đúng SHA-256 và phiên cảnh.')
+        self.readout.setText('Đang tải Preview. Đo A/B sẽ thực hiện từ ảnh Depth gốc, không nhấp Viewer.')
         self._poll()
 
     def unbind(self) -> None:
@@ -160,6 +167,7 @@ class GeometryMeasurementPanel(QObject):
         self.mode_button.blockSignals(True)
         self.mode_button.setChecked(False)
         self.mode_button.setEnabled(False)
+        self.depth_button.setEnabled(False)
         self.mode_button.blockSignals(False)
         if was_measuring and hasattr(self.viewer, '_set_tool_mode'):
             self.viewer._set_tool_mode('orbit')
@@ -220,8 +228,9 @@ class GeometryMeasurementPanel(QObject):
                 return
             self._seen_pick = None
             self._frame_revision = getattr(self.viewer, '_last_frame_revision', None)
-            self.mode_button.setEnabled(True)
-            self.readout.setText('Bấm Đo 2 điểm → nhấp ngắn vào A → nhấp ngắn vào B. Chưa kiểm định.')
+            self.mode_button.setEnabled(True)  # legacy test seam; button is hidden.
+            self.depth_button.setEnabled(True)
+            self.readout.setText('Chọn Đo A–B trên ảnh Depth. Viewer 3D chỉ dùng quan sát; chưa kiểm định.')
         # A camera move changes the projected pixel coordinates. Never show
         # annotations at stale screen positions after a new rendered frame.
         frame = getattr(self.viewer, '_last_frame_revision', None)
@@ -235,6 +244,32 @@ class GeometryMeasurementPanel(QObject):
                     self.readout.setText(
                         'Góc nhìn đã thay đổi: xóa neo màn hình cũ. Nhấp A rồi B để đo lại.'
                     )
+
+    @Slot()
+    def _measure_from_depth(self) -> None:
+        # No VTK pick, no point_pick_completed, no point_requested.
+        if (self._closing or self._session is None or self._view is None
+                or self._receipt is None or not self._matches_viewer()):
+            self.readout.setText('Preview đã đổi hoặc chưa sẵn sàng để đo từ Depth.')
+            return
+        from .depth_measure_dialog import DepthTwoPointDialog
+        view, receipt, session = self._view, self._receipt, self._session
+        dialog = DepthTwoPointDialog(view, self.viewer.page)
+        if dialog.exec() != dialog.DialogCode.Accepted or dialog.result is None:
+            return
+        # Reject a result from a dialog that outlived the source/scene.
+        if (self._view is not view or self._receipt is not receipt
+                or self._session is not session or not self._matches_viewer()):
+            self.readout.setText('Capture/Viewer đã thay đổi: kết quả đo cũ bị hủy.')
+            return
+        result = dialog.result
+        self.reset_pair()
+        self.clear_button.setEnabled(True)
+        self.readout.setText(
+            f'ĐO TRÊN ẢNH DEPTH: {result.distance_m:.6f} m = '
+            f'{result.distance_mm:.3f} mm · XYZ {result.point_indices} · '
+            'PROVISIONAL_NOT_METRIC_VALIDATED. Nhấn nút để đo lại.'
+        )
 
     @Slot(bool)
     def _toggle(self, enabled: bool) -> None:

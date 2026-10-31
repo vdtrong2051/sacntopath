@@ -66,8 +66,10 @@ def scan(project_root: Path) -> list[tuple[str, int, str]]:
                     forbidden |= _starts(target, 'PySide6') or _starts(target, 'scantopath.ui')
                     forbidden |= (target.startswith(FEATURE) and '.presentation' in target)
                 if presentation or shell:
+                    # UXH-01.1: UI/presentation cannot open SQLite directly.
                     forbidden |= (_starts(target, 'scantopath.metadata') or
-                                  _starts(target, 'scantopath.storage'))
+                                  _starts(target, 'scantopath.storage') or
+                                  _starts(target, 'sqlite3'))
                 # 08.01: protect feature ownership as the second feature (Viewer) arrives.
                 # Other modules may expose small typed contracts but not concrete
                 # infrastructure, presentation, services or private implementations.

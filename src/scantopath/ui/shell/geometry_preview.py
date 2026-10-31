@@ -5,170 +5,21 @@ for writing. Temporary PLY is a display transport, NOT a trusted artifact.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
-from hashlib import sha256
 from pathlib import Path
 import re
-import shutil
-import sqlite3
 import tempfile
 
-import numpy as np
 from PySide6.QtCore import QObject, QThread, QTimer, Signal, Slot, Qt
 from PySide6.QtWidgets import QLabel, QPushButton
 
 from scantopath.application.contracts import WorkspaceId
 from scantopath.modules.capture.application.contracts import CaptureContext
 from scantopath.modules.geometry.application.service import SingleViewXYZRGB
-
-
-MAX_PREVIEW_VERTICES = 1_500_000
-MAX_PREVIEW_BYTES = 256 * 1024 * 1024
-_VERTEX_DTYPE = np.dtype([
-    ("x", "<f4"), ("y", "<f4"), ("z", "<f4"),
-    ("red", "u1"), ("green", "u1"), ("blue", "u1"),
-])
-
-
-class GeometryPreviewError(ValueError):
-    def __init__(self, code: str):
-        self.code = code
-        super().__init__(code)
-
-
-@dataclass(frozen=True, slots=True)
-class PreviewReceipt:
-    path: Path
-    capture_id: str
-    xyz_points: int
-    colored_points: int
-    ply_sha256: str
-    frame: str = "depth_optical"
-    units: str = "m"
-    status: str = "PROVISIONAL_NOT_METRIC_VALIDATED"
-
-
-def write_preview_ply(view: SingleViewXYZRGB, path: Path) -> PreviewReceipt:
-    """Only actual RGB-assigned points go to a binary VTK-compatible temp PLY.
-
-    Do not synthesize RGB for uncolored XYZ or label this PLY metric-certified.
-    Selection/picking IDs in this PLY are NOT the source XYZ row indices.
-    """
-    if not isinstance(view, SingleViewXYZRGB):
-        raise GeometryPreviewError("PREVIEW_INPUT_INVALID")
-    if view.frame != "depth_optical" or view.units != "m" or view.metric_validated:
-        raise GeometryPreviewError("PREVIEW_PROVENANCE_INVALID")
-    xyz = view.points_xyz_m
-    ix = view.colored_point_indices
-    rgb = view.colors_rgb
-    if (not isinstance(xyz, np.ndarray) or xyz.dtype != np.float64 or
-            xyz.ndim != 2 or xyz.shape[1] != 3 or
-            not isinstance(ix, np.ndarray) or ix.dtype != np.int32 or ix.ndim != 1 or
-            not isinstance(rgb, np.ndarray) or rgb.dtype != np.uint8 or
-            rgb.shape != (ix.size, 3) or
-            not 1 <= ix.size <= min(xyz.shape[0], MAX_PREVIEW_VERTICES) or
-            np.any(ix < 0) or np.any(ix >= xyz.shape[0]) or
-            np.unique(ix).size != ix.size):
-        raise GeometryPreviewError("PREVIEW_POINT_MAPPING_INVALID")
-    selected = xyz[ix]
-    if not np.isfinite(selected).all() or np.any(selected[:, 2] <= 0):
-        raise GeometryPreviewError("PREVIEW_COORDINATES_INVALID")
-    vertices = np.empty(ix.size, dtype=_VERTEX_DTYPE)
-    for key, j in (("x", 0), ("y", 1), ("z", 2)):
-        vertices[key] = selected[:, j]
-    for key, j in (("red", 0), ("green", 1), ("blue", 2)):
-        vertices[key] = rgb[:, j]
-    if not all(np.isfinite(vertices[key]).all() for key in ("x", "y", "z")):
-        raise GeometryPreviewError("PREVIEW_FLOAT32_OVERFLOW")
-    header = (
-        "ply\nformat binary_little_endian 1.0\n"
-        "comment ScanToPath GD2-10.08.1 temporary visual preview only\n"
-        "comment not a validated metric artifact or a source point-index map\n"
-        f"element vertex {ix.size}\n"
-        "property float x\nproperty float y\nproperty float z\n"
-        "property uchar red\nproperty uchar green\nproperty uchar blue\n"
-        "end_header\n"
-    ).encode("ascii")
-    if len(header) + vertices.nbytes > MAX_PREVIEW_BYTES:
-        raise GeometryPreviewError("PREVIEW_SIZE_LIMIT")
-    path = Path(path)
-    if path.suffix.lower() != ".ply" or not path.parent.is_dir() or path.exists():
-        raise GeometryPreviewError("PREVIEW_DESTINATION_INVALID")
-    with path.open("xb") as stream:
-        stream.write(header)
-        stream.write(vertices.tobytes(order="C"))
-    digest = sha256(path.read_bytes()).hexdigest()
-    return PreviewReceipt(
-        path=path, capture_id=view.source_capture_id,
-        xyz_points=int(xyz.shape[0]), colored_points=int(ix.size),
-        ply_sha256=digest,
-    )
-
-
-def snapshot_capture(context: CaptureContext, destination: Path) -> CaptureContext:
-    """Snapshot SQLite using read-only source and copy ONLY chosen RAW v2 files.
-
-    This is a best-effort source immutability boundary. The injected replay
-    adapter authenticates the snapshot's RAW manifest before processing.
-    """
-    if not isinstance(context, CaptureContext) or not context.capture_id:
-        raise GeometryPreviewError("CAPTURE_ID_REQUIRED")
-    source = Path(context.store_root).absolute()
-    if (not source.is_dir() or source.is_symlink() or
-            source.resolve(strict=True) != source):
-        raise GeometryPreviewError("STORE_NOT_OPEN")
-    db_path = source / "metadata.sqlite3"
-    if not db_path.is_file() or db_path.is_symlink():
-        raise GeometryPreviewError("STORE_NOT_OPEN")
-    destination = Path(destination)
-    if destination.exists():
-        raise GeometryPreviewError("SNAPSHOT_DESTINATION_EXISTS")
-    destination.mkdir(parents=True)
-    db_hash_before = sha256(db_path.read_bytes()).digest()
-    conn = sqlite3.connect(db_path.as_uri() + "?mode=ro", uri=True)
-    try:
-        conn.execute("PRAGMA query_only=ON")
-        row = conn.execute(
-            "SELECT relative_path, schema_version, session_id, specimen_id "
-            "FROM captures WHERE capture_id=?", (context.capture_id,),
-        ).fetchone()
-        if (row is None or row[1:] != (2, context.session_id, context.specimen_id)):
-            raise GeometryPreviewError("CAPTURE_CONTEXT_MISMATCH")
-        relative = row[0]
-        parts = relative.split("/") if isinstance(relative, str) else []
-        if (not 1 <= len(parts) <= 8 or "\\" in relative or
-                any(p in ("", ".", "..") for p in parts) or
-                (len(parts) == 8 and (parts[0] != "01_PROJECTS" or parts[6] != "01_CAPTURES")) or
-                (len(parts) == 4 and (parts[0] != "sessions" or parts[2] != "captures")) or
-                len(parts) not in (4, 8)):
-            raise GeometryPreviewError("RAW_PATH_UNSAFE")
-        src_dir = source.joinpath(*parts)
-        if (not src_dir.is_dir() or src_dir.is_symlink() or
-                not src_dir.resolve(strict=True).is_relative_to(source)):
-            raise GeometryPreviewError("RAW_PATH_UNSAFE")
-        # Transactionally consistent SQLite snapshot: do not copy live DB bytes.
-        target_db = sqlite3.connect(destination / "metadata.sqlite3")
-        try:
-            conn.backup(target_db)
-        finally:
-            target_db.close()
-    finally:
-        conn.close()
-    dst_dir = destination.joinpath(*parts)
-    dst_dir.mkdir(parents=True, exist_ok=True)
-    for filename in ("color.mjpg", "depth.y16", "metadata.json", "manifest.json", "COMMITTED"):
-        source_file = src_dir / filename
-        if not source_file.is_file() or source_file.is_symlink():
-            raise GeometryPreviewError("RAW_MISSING")
-        data = source_file.read_bytes()
-        digest = sha256(data).digest()
-        (dst_dir / filename).write_bytes(data)
-        if (sha256(source_file.read_bytes()).digest() != digest or
-                sha256((dst_dir / filename).read_bytes()).digest() != digest):
-            raise GeometryPreviewError("RAW_CHANGED_DURING_SNAPSHOT")
-    if sha256(db_path.read_bytes()).digest() != db_hash_before:
-        raise GeometryPreviewError("SQLITE_CHANGED_DURING_SNAPSHOT")
-    return replace(context, store_root=str(destination))
+from scantopath.application.contracts.preview import GeometryPreviewError, PreviewReceipt
+# Compatibility aliases for existing GD2-10 public test imports. No I/O in this module.
+from scantopath.bootstrap.geometry_preview import (
+    MAX_PREVIEW_BYTES, MAX_PREVIEW_VERTICES, snapshot_capture, write_preview_ply,
+)
 
 
 class GeometryPreviewWorker(QThread):
@@ -184,20 +35,8 @@ class GeometryPreviewWorker(QThread):
         try:
             scratch = tempfile.TemporaryDirectory(prefix="stp-gd2-10-08-")
             root = Path(scratch.name)
-            snap_context = snapshot_capture(self.context, root / "snapshot")
-            # Application composition in worker thread, never in Qt GUI thread.
-            from scantopath.modules.capture.application.replay import RawReplayService
-            from scantopath.modules.capture.infrastructure.raw_reader import RawReaderAdapter
-            from scantopath.modules.capture.application.decoding import RgbdDecoder
-            from scantopath.modules.capture.infrastructure.jpeg_codec import PillowMjpegDecoder
-            from scantopath.modules.geometry.application.replay_geometry import ReplayGeometryService
-            pipeline = ReplayGeometryService(
-                RawReplayService(RawReaderAdapter()), RgbdDecoder(PillowMjpegDecoder()),
-            )
-            result = pipeline.process(snap_context)
-            receipt = write_preview_ply(
-                result, root / f"capture_{self.context.capture_id}_preview.ply",
-            )
+            from scantopath.bootstrap.geometry_preview import build_preview_use_case
+            receipt, result = build_preview_use_case().process(self.context, root)
             self.ready.emit(receipt, scratch, self.context, result)
             scratch = None  # The receiver now owns its lifetime.
         except Exception as exc:
