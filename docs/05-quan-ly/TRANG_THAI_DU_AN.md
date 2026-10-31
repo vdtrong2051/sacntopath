@@ -61,3 +61,19 @@ Git xác nhận file và lịch sử, không xác nhận mọi lượt thử Win
 
 Đây là addendum điều chỉnh thông tin sau snapshot DOC-04; không xóa số liệu/hồ sơ lịch sử. [Decision](DEC_GD2_GD3_POST_GD1_20261029.md), [Acceptance Matrix](../07-nghiem-thu/GD2_GD3_MVPB_ACCEPTANCE_MATRIX.md).
 <!-- SCANTOPATH_GD2_GD3_PLANNING_20261029_END -->
+
+<!-- SCANTOPATH_GD2_10_CLOSURE_20261031_BEGIN -->
+## Trạng thái cập nhật — 31/10/2026: đóng riêng phiên GD2-10
+
+> `as_of_commit: feat/gd2-10-metric-geometry@292c9d81404a75caccae21f3a3e08ec4fa8e2267` · `evidence: Git verified + operator-reported H6 / Qt UI / pytest`.
+
+| Phạm vi | Implementation | Verification | Quyết định |
+|---|---|---|---|
+| GD2-10 single-view XYZRGB | IMPLEMENTED | Synthetic + real Gemini 2 H6, architecture & regression PASS | `CLOSED_ACCEPTED_WITH_LIMITATIONS` |
+| GD2-10 Desktop Preview / provisional A-B | IMPLEMENTED | C0001/C0002 UI operator PASS; backend measurement + lineage tests | `PROVISIONAL_NOT_METRIC_VALIDATED` |
+| GD2-10.08.3 repeated final HMI scenario | NOT_EXECUTED | `NOT_RUN_BY_OWNER_DECISION` | Không coi là PASS; skip duplicate checkpoint |
+| GD2-11–13 | Chưa do phiên này nghiệm thu | NOT_TESTED_BY_GD2_10 | Tiếp tục từng phiên |
+| Physical metric accuracy / multi-view | NOT_IMPLEMENTED_AS_CERTIFICATION | NOT_TESTED | Không được suy ra từ kết quả XYZRGB hoặc hai-point measurement |
+
+Quyết định này **thay snapshot `METRIC_SINGLE_VIEW_GD2=NOT_STARTED` ở phần trên**, không sửa hồi tố bằng chứng ngày 28–29/10. Chi tiết và giới hạn: [Hồ sơ đóng GD2-10](../07-nghiem-thu/GD2_10_20261031_SESSION_CLOSURE.md).
+<!-- SCANTOPATH_GD2_10_CLOSURE_20261031_END -->

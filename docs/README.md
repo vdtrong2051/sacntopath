@@ -66,3 +66,14 @@ GĐ1 đã **đóng với waiver đích danh**, `main@9e32daf`; GĐ2/GĐ3 hiện 
 
 **Đọc đúng trạng thái:** các đoạn cũ trong tài liệu trước 28/10 có thể còn ghi GĐ1 `PENDING` như snapshot lịch sử; quyết định đóng được ghi ở [hồ sơ GĐ1](07-nghiem-thu/GD1_ACCEPTANCE.md). Không coi các yêu cầu mới thành DONE cho đến khi có code/test/receipt.
 <!-- SCANTOPATH_GD2_GD3_PLANNING_20261029_END -->
+
+<!-- SCANTOPATH_GD2_10_CLOSURE_20261031_BEGIN -->
+## Cập nhật phiên 10 — 31/10/2026
+
+**GD2-10 đã được chủ dự án chốt `CLOSED_ACCEPTED_WITH_LIMITATIONS`** trên code baseline `feat/gd2-10-metric-geometry@292c9d8`: RAW Gemini 2 → single-view XYZRGB → Desktop Preview → đo hai điểm A/B (m/mm) đã được kiểm thử. Đây là cập nhật sau snapshot kế hoạch 29/10 phía trên; các dòng `GĐ2 NOT_STARTED` trong snapshot cũ không còn phản ánh phiên 10.
+
+- [Tài liệu kỹ thuật GD2-10](06-giai-doan/GD2_10_SINGLE_VIEW_GEOMETRY_IMPLEMENTATION.md)
+- [Hồ sơ nghiệm thu và quyết định đóng phiên 10](07-nghiem-thu/GD2_10_20261031_SESSION_CLOSURE.md)
+
+Không gộp `GD2-10` với toàn GĐ2: GD2-11–13 chưa được phiên này nghiệm thu. Phép đo vẫn mang trạng thái `PROVISIONAL_NOT_METRIC_VALIDATED`; không có chứng nhận sai số vật lý.
+<!-- SCANTOPATH_GD2_10_CLOSURE_20261031_END -->

@@ -69,3 +69,19 @@ Tính `abs_error = abs(model-reference)` và `relative% = abs_error/reference*10
 ## 7. Giới hạn đã biết
 
 Không có ảnh/video/log/mẫu chuẩn đo ngày 29/10 được đưa vào gói; do vậy toàn bộ cổng là NOT_TESTED. GĐ1 waiver không mở rộng sang GĐ2/GĐ3.
+
+<!-- SCANTOPATH_GD2_10_CLOSURE_20261031_BEGIN -->
+## Cập nhật riêng các gate phiên 10 — 31/10/2026
+
+Bảng `NOT_TESTED` phía trên là **kế hoạch snapshot 29/10**, không phải trạng thái cuối phiên 10. Dưới đây là quyết định sau khi phát triển và operator thử dữ liệu thật/UI tại baseline `292c9d8`.
+
+| Gate | Trạng thái cập nhật | Bằng chứng / phần không được suy diễn |
+|---|---|---|
+| `G2-10-A` | `PASS` (numerical) | Synthetic ground truth, depth scale / validity / `depth_optical` |
+| `G2-10-B` | `PASS` (single-view integration) | K6 corrected; H6 C0001/C0002 RAW SHA/XYZRGB PASS |
+| `G2-10-C` | `ACCEPTED_WITH_LIMITATIONS` (provisional functionality) | API m/mm, UI A/B hai Capture; **physical accuracy / reference specimen NOT_TESTED**, `metric_validated=False` |
+| `GD2-10.08.3` | `NOT_RUN_BY_OWNER_DECISION` | Test cuối lặp lại bị bỏ theo owner; không tự chuyển thành PASS |
+| `GD2-10 overall` | `CLOSED_ACCEPTED_WITH_LIMITATIONS` | Chỉ phiên 10, không áp dụng cho GĐ2 11–13, GD3 hoặc MVP-B |
+
+Xem [hồ sơ đóng phiên 10](GD2_10_20261031_SESSION_CLOSURE.md). Các gate còn lại giữ nguyên theo matrix kế hoạch cho đến khi có receipt tương ứng.
+<!-- SCANTOPATH_GD2_10_CLOSURE_20261031_END -->
