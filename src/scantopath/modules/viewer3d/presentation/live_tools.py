@@ -49,7 +49,7 @@ class LiveViewerTools(QFrame):
         self._divider(layout)
         for name, icon, tip, action in (
             ('viewer3dToolFit','fit','Vừa khung nhìn (F)','reset'),
-            ('viewer3dToolAxes','axes','Bật hoặc tắt trục tọa độ tham khảo','axes'),
+            ('viewer3dToolAxes','axes','Trục gốc O nét mảnh; gizmo góc hiển thị hướng XYZ (không xác nhận hệ world)','axes'),
             ('viewer3dToolZoomIn','zoom_in','Phóng to góc nhìn','zoom_in'),
             ('viewer3dToolZoomOut','zoom_out','Thu nhỏ góc nhìn','zoom_out'),
         ):
@@ -57,7 +57,7 @@ class LiveViewerTools(QFrame):
             b.clicked.connect(lambda _checked=False, a=action: self.camera_action.emit(a))
             layout.addWidget(b)
         self._divider(layout)
-        self.grid_button = self._make('viewer3dToolGrid','grid','Bật/tắt lưới tham chiếu Oxy (G)')
+        self.grid_button = self._make('viewer3dToolGrid','grid','Lưới tham chiếu nét chính/phụ, không phải mặt sàn (G)')
         self.grid_button.setCheckable(True)
         self.grid_button.setChecked(True)
         self.grid_button.toggled.connect(self._notify_grid)
@@ -99,12 +99,16 @@ class LiveViewerTools(QFrame):
 
     def _grid_menu(self, point) -> None:
         menu = QMenu(self)
-        xy = menu.addAction('Mặt phẳng Oxy (Z = 0)')
-        base = menu.addAction('Theo đáy mô hình (chỉ tham chiếu)')
+        actions = {
+            menu.addAction('XY — Z = 0 (mặt phẳng tọa độ)'): 'xy',
+            menu.addAction('XZ — Y = 0 (mặt phẳng tọa độ)'): 'xz',
+            menu.addAction('YZ — X = 0 (mặt phẳng tọa độ)'): 'yz',
+            menu.addAction('Base — Z nhỏ nhất của mô hình (không phải mặt đất)'): 'base',
+        }
         chosen = menu.exec(self.grid_button.mapToGlobal(point))
-        if chosen not in (xy, base):
+        if chosen not in actions:
             return
-        self.grid_mode = 'xy' if chosen == xy else 'base'
+        self.grid_mode = actions[chosen]
         if not self.grid_button.isChecked():
             self.grid_button.setChecked(True)
         else:
@@ -122,6 +126,8 @@ class LiveViewerTools(QFrame):
         self.layer_button.blockSignals(False)
 
     def set_grid(self, enabled: bool, mode: str = 'xy') -> None:
+        if mode not in ('xy', 'xz', 'yz', 'base'):
+            raise ValueError('INVALID_REFERENCE_GRID')
         self.grid_button.blockSignals(True)
         self.grid_mode = mode
         self.grid_button.setChecked(bool(enabled))

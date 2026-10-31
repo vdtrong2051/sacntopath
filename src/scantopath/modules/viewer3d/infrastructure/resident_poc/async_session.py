@@ -114,7 +114,7 @@ class CoalescingRenderSession:
         return self._queue_command('pick', (u, v, scene_revision, frame_revision))
 
     def set_grid(self, enabled: bool, mode: str = 'xy') -> Future:
-        if type(enabled) is not bool or mode not in ('xy', 'base'):
+        if type(enabled) is not bool or mode not in ('xy', 'xz', 'yz', 'base'):
             raise ValueError('INVALID_REFERENCE_GRID')
         return self._queue_command('grid', (enabled, mode))
 

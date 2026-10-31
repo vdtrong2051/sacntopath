@@ -60,7 +60,7 @@ def decode_request(raw: bytes) -> dict[str, Any]:
             if type(x) not in (int, float) or not 0.0 <= x <= 1.0:
                 raise ValueError('INVALID_PICK_COORDINATE')
     if value['op'] == 'set_grid' and (type(value['enabled']) is not bool or
-                                      value['mode'] not in ('xy', 'base')):
+                                      value['mode'] not in ('xy', 'xz', 'yz', 'base')):
         raise ValueError('INVALID_REFERENCE_GRID')
     if value['op'] == 'set_visibility' and type(value['visible']) is not bool:
         raise ValueError('INVALID_LAYER_VISIBILITY')

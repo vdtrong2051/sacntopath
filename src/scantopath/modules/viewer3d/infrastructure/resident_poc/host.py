@@ -16,6 +16,7 @@ from ...application.navigation import CameraView
 from ..scene_reader import load_scene
 from ...application.scene_contracts import SceneSource
 from ..camera_scene import configure_scene
+from ...application.spatial_reference import build_reference_grid, GRID_MODES
 
 
 class PersistentScene:
@@ -130,53 +131,44 @@ class PersistentScene:
                 'geometry_kind': d.geometry_kind}
 
     def _build_reference_grid(self) -> None:
-        """Reference-only XOY lines: never considered measured/calibrated geometry."""
+        """Subtle major/minor reference grid; one actor, never source geometry."""
         if self.renderer is None or self._loaded is None:
             return
-        if self.grid_actor is not None:
-            self.renderer.RemoveActor(self.grid_actor)
-            self.grid_actor = None
-        import math
-        from vtkmodules.vtkCommonCore import vtkPoints
+        # Build the next actor completely before removing the old actor.
+        plan = build_reference_grid(self._loaded.descriptor.bounds, self.grid_mode)
+        from ..spatial_visuals import grid_line_rgb, GRID_OPACITY
+        from vtkmodules.vtkCommonCore import vtkPoints, vtkUnsignedCharArray
         from vtkmodules.vtkCommonDataModel import vtkPolyData, vtkCellArray
         from vtkmodules.vtkRenderingCore import vtkActor, vtkPolyDataMapper
-        bounds = self._loaded.descriptor.bounds
-        xmin, xmax, ymin, ymax, zmin, _ = bounds
-        span = max(xmax-xmin, ymax-ymin, 1.e-6)
-        target = span / 12.0
-        exponent = math.floor(math.log10(target))
-        scale = 10.0**exponent
-        step = min((scale, 2*scale, 5*scale, 10*scale), key=lambda s: abs(s-target))
-        center_x = (xmin+xmax)/2.0
-        center_y = (ymin+ymax)/2.0
-        anchor_x = round(center_x/step)*step
-        anchor_y = round(center_y/step)*step
-        x0, x1 = anchor_x-10*step, anchor_x+10*step
-        y0, y1 = anchor_y-10*step, anchor_y+10*step
-        z = 0.0 if self.grid_mode == 'xy' else zmin
         points = vtkPoints()
         lines = vtkCellArray()
-        for i in range(-10, 11):
-            x = anchor_x + i*step
-            for a, b in (((x,y0,z),(x,y1,z)),
-                         ((x0,anchor_y+i*step,z),(x1,anchor_y+i*step,z))):
-                start = points.InsertNextPoint(*a)
-                end = points.InsertNextPoint(*b)
-                lines.InsertNextCell(2)
-                lines.InsertCellPoint(start)
-                lines.InsertCellPoint(end)
+        colors = vtkUnsignedCharArray()
+        colors.SetName('ReferenceGridRGB')
+        colors.SetNumberOfComponents(3)
+        for k, (a, b) in enumerate(plan.segments):
+            i, j = points.InsertNextPoint(*a), points.InsertNextPoint(*b)
+            lines.InsertNextCell(2)
+            lines.InsertCellPoint(i)
+            lines.InsertCellPoint(j)
+            colors.InsertNextTuple3(*grid_line_rgb(k))
         poly = vtkPolyData()
         poly.SetPoints(points)
         poly.SetLines(lines)
+        poly.GetCellData().SetScalars(colors)
         mapper = vtkPolyDataMapper()
         mapper.SetInputData(poly)
+        mapper.SetScalarModeToUseCellData()
+        mapper.SetColorModeToDirectScalars()
+        mapper.ScalarVisibilityOn()
         actor = vtkActor()
         actor.SetMapper(mapper)
-        actor.GetProperty().SetColor(0.53, 0.63, 0.75)
-        actor.GetProperty().SetOpacity(0.35)
+        actor.GetProperty().SetOpacity(GRID_OPACITY)
         actor.GetProperty().SetLineWidth(1.0)
         actor.PickableOff()
+        actor.UseBoundsOff()  # Grid must never change camera auto-fit.
         actor.SetVisibility(self.grid_enabled)
+        if self.grid_actor is not None:
+            self.renderer.RemoveActor(self.grid_actor)
         self.renderer.AddActor(actor)
         self.grid_actor = actor
 
@@ -190,8 +182,13 @@ class PersistentScene:
             overlay.SetInteractive(False)
             overlay.SetPreserveColorBuffer(True)
             axes = vtkAxesActor()
-            axes.SetTotalLength(0.75, 0.75, 0.75)
+            # Compact corner compass is the primary orientation indicator.
+            axes.SetTotalLength(0.82, 0.82, 0.82)
+            axes.SetCylinderRadius(0.018)
+            axes.SetConeRadius(0.11)
+            axes.SetSphereRadius(0.09)
             axes.PickableOff()
+            axes.UseBoundsOff()
             overlay.AddActor(axes)
             self.window.SetNumberOfLayers(2)
             self.window.AddRenderer(overlay)
@@ -218,7 +215,7 @@ class PersistentScene:
         self._orientation_renderer.ResetCameraClippingRange()
 
     def set_grid(self, enabled: bool, mode: str) -> dict[str, Any]:
-        if self.actor is None or mode not in ('xy','base') or type(enabled) is not bool:
+        if self.actor is None or mode not in GRID_MODES or type(enabled) is not bool:
             raise ValueError('INVALID_REFERENCE_GRID')
         if self.strict_frame_ack and self.pending_frame is not None:
             raise ValueError('FRAME_NOT_ACKED')
@@ -251,7 +248,8 @@ class PersistentScene:
                 data = vtk_to_numpy(points.GetData())
                 self._sensor_fit = sensor_angular_fit(data, self.width / self.height)
             sensor_fit = self._sensor_fit
-        self.axes_actor = configure_scene(self.renderer, self.camera, sensor_fit=sensor_fit)
+        self.axes_actor = configure_scene(self.renderer, self.camera, sensor_fit=sensor_fit,
+                                           viewport_aspect=self.width / self.height)
         if self.grid_actor is not None:
             self.grid_actor.SetVisibility(self.grid_enabled)
         self._sync_orientation_marker()

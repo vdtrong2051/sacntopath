@@ -30,7 +30,7 @@ def sensor_angular_fit(xyz: np.ndarray, aspect: float) -> tuple[float, float, fl
     return center_x, center_y, fov_degrees
 
 
-def configure_scene(renderer, view: CameraView, *, sensor_fit=None):
+def configure_scene(renderer, view: CameraView, *, sensor_fit=None, viewport_aspect: float | None = None):
     """Return a disposable axes actor if requested; never write geometry."""
     if not isinstance(view, CameraView):
         raise TypeError("CameraView required")
@@ -76,22 +76,27 @@ def configure_scene(renderer, view: CameraView, *, sensor_fit=None):
         raise ValueError("Invalid camera basis")
     right = [x/mag for x in right]
     height = 2.0*distance*math.tan(math.radians(camera.GetViewAngle())/2.0)
-    width = height*1000.0/620.0
+    # Match the Render Host's actual render-frame aspect, never a fixed
+    # 1000x620 assumption. Standalone/fake renderers may omit GetSize().
+    if viewport_aspect is None:
+        size = renderer.GetSize() if callable(getattr(renderer, 'GetSize', None)) else None
+        viewport_aspect = (float(size[0]) / float(size[1])
+                           if size is not None and len(size) == 2 and
+                           size[0] > 0 and size[1] > 0 else 1.0)
+    if (type(viewport_aspect) not in (int, float) or
+            not math.isfinite(float(viewport_aspect)) or viewport_aspect <= 0):
+        raise ValueError('INVALID_VIEWPORT_ASPECT')
+    width = height * float(viewport_aspect)
     shift = [-view.pan_x*width*right[i] + view.pan_y*height*up[i] for i in range(3)]
     camera.SetPosition(*(pos[i] + shift[i] for i in range(3)))
     camera.SetFocalPoint(*(target[i] + shift[i] for i in range(3)))
     camera.Zoom(view.zoom)
     axes_actor = None
     if view.axes:
-        from vtkmodules.vtkRenderingAnnotation import vtkAxesActor
+        from .spatial_visuals import make_origin_axes
+        # Source-coordinate O; no large 3D labels, and no fit contribution.
         bounds = renderer.ComputeVisiblePropBounds()
-        if not all(math.isfinite(float(x)) for x in bounds):
-            raise ValueError("Cannot locate reference axes")
-        span = max(bounds[1]-bounds[0],bounds[3]-bounds[2],bounds[5]-bounds[4])
-        length = max(span*0.18, 1e-8)
-        axes_actor = vtkAxesActor()
-        axes_actor.SetTotalLength(length,length,length)
-        axes_actor.SetPosition(bounds[0],bounds[2],bounds[4])
+        axes_actor = make_origin_axes(bounds)
         renderer.AddActor(axes_actor)
     renderer.ResetCameraClippingRange()
     return axes_actor
