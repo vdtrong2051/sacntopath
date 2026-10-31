@@ -41,6 +41,7 @@ class PersistentScene:
         self._glyph = None
         self._reader = None
         self._loaded = None
+        self._sensor_fit = None  # cached only for an explicit RAW sensor preview
         self.grid_actor = None
         self.grid_enabled = False
         self.grid_mode = 'xy'
@@ -75,6 +76,7 @@ class PersistentScene:
         if self._orientation_renderer is not None:
             self._orientation_renderer.DrawOff()
         self.axes_actor = self.actor = self._glyph = self._reader = self._loaded = None
+        self._sensor_fit = None
         self.source = None
         self.source_sha256 = None
         self.points = 0
@@ -235,7 +237,21 @@ class PersistentScene:
         # Grid is visual context only: it must not affect fit/ResetCamera bounds.
         if self.grid_actor is not None:
             self.grid_actor.SetVisibility(False)
-        self.axes_actor = configure_scene(self.renderer, self.camera)
+        sensor_fit = None
+        if self.camera.sensor_view:
+            if self._loaded is None or self._loaded.poly_data is None:
+                raise ValueError("SENSOR_SCENE_NOT_READY")
+            if self._sensor_fit is None:
+                # VTK stays exclusively in Render Host. Cached for orbit/zoom.
+                from vtkmodules.util.numpy_support import vtk_to_numpy
+                from ..camera_scene import sensor_angular_fit
+                points = self._loaded.poly_data.GetPoints()
+                if points is None:
+                    raise ValueError("SENSOR_CLOUD_EMPTY")
+                data = vtk_to_numpy(points.GetData())
+                self._sensor_fit = sensor_angular_fit(data, self.width / self.height)
+            sensor_fit = self._sensor_fit
+        self.axes_actor = configure_scene(self.renderer, self.camera, sensor_fit=sensor_fit)
         if self.grid_actor is not None:
             self.grid_actor.SetVisibility(self.grid_enabled)
         self._sync_orientation_marker()

@@ -121,6 +121,9 @@ class ScanToPathMainWindow(ShellCompositionMixin, QMainWindow):
         # 09.09.4: controller signals -> real operational timeline.
         from scantopath.ui.tasks.operation_bridge import OperationActivityBridge
         self.operation_activity = OperationActivityBridge(self)
+        # GD2-10.08.1: opt-in RAW XYZRGB preview; never opens camera at startup.
+        from .geometry_preview import GeometryPreviewBridge
+        self.geometry_preview = GeometryPreviewBridge(self)
 
         self._install_task_controller()
         self._connect_workspace_actions()
@@ -298,6 +301,7 @@ class ScanToPathMainWindow(ShellCompositionMixin, QMainWindow):
         write_stopped = self.project_writer.begin_shutdown()
         check_stopped = self.capture_checker.begin_shutdown()
         viewer_stopped = self.viewer3d is None or getattr(self.viewer3d, 'begin_shutdown', lambda: True)()
+        geometry_preview_stopped = self.geometry_preview.begin_shutdown()
         capture_stopped = self.capture_preview.begin_shutdown()
         live_stopped = self.capture_live.begin_shutdown()
         store_init_stopped = self.project_workspace.store_initializer.begin_shutdown()
@@ -308,6 +312,7 @@ class ScanToPathMainWindow(ShellCompositionMixin, QMainWindow):
             and write_stopped
             and check_stopped
             and viewer_stopped
+            and geometry_preview_stopped
             and capture_stopped
             and live_stopped
             and store_init_stopped
@@ -315,9 +320,12 @@ class ScanToPathMainWindow(ShellCompositionMixin, QMainWindow):
         ):
             if self.viewer3d is not None:
                 self.viewer3d.dispose()
+            self.geometry_preview.dispose()
             return super().closeEvent(event)
         event.ignore()
         if not viewer_stopped and getattr(self.viewer3d, 'shutdown_pending', False):
+            QTimer.singleShot(120, self.close)
+        if not geometry_preview_stopped:
             QTimer.singleShot(120, self.close)
 
     def _create_menus(self) -> None:

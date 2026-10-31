@@ -18,6 +18,7 @@ class CameraView:
     pan_y: float = 0.0
     zoom: float = 1.0
     axes: bool = False
+    sensor_view: bool = False  # Only explicit Capture Geometry Preview may enable
 
     def __post_init__(self) -> None:
         for name, cap in (("azimuth", 360.0), ("elevation", 80.0),
@@ -29,13 +30,18 @@ class CameraView:
             raise ValueError("Invalid camera zoom")
         if type(self.axes) is not bool:
             raise ValueError("Invalid camera axes")
+        if type(self.sensor_view) is not bool:
+            raise ValueError("Invalid sensor_view flag")
 
     def update(self, action: str, dx: float = 0.0, dy: float = 0.0) -> "CameraView":
-        if type(action) is not str or action not in {"orbit", "pan", "zoom", "reset", "axes"}:
+        if type(action) is not str or action not in {"orbit", "pan", "zoom", "reset", "axes", "sensor_view"}:
             raise ValueError("Unsupported camera action")
         for value in (dx, dy):
             if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or abs(value) > 10000:
                 raise ValueError("Invalid camera delta")
+        if action == "sensor_view":
+            # Explicit view preset. Geometry/source coordinates are not modified.
+            return CameraView(axes=self.axes, sensor_view=True)
         if action == "orbit":
             return replace(self, azimuth=(self.azimuth + float(dx)) % 360.0,
                            elevation=max(-80.0, min(80.0, self.elevation + float(dy))))
@@ -45,7 +51,7 @@ class CameraView:
         if action == "zoom":
             return replace(self, zoom=max(0.15, min(30.0, self.zoom * 1.25 ** max(-32.0, min(32.0, float(dx))))))
         if action == "reset":
-            return CameraView(axes=self.axes)
+            return CameraView(axes=self.axes, sensor_view=self.sensor_view)
         return replace(self, axes=not self.axes)
 
     def to_json(self) -> str:
