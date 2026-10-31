@@ -158,7 +158,7 @@ def project_to_color(
 
     distortion = calibration.color_distortion
 
-    if distortion.sdk_model not in (0, 3):
+    if distortion.sdk_model not in (0, 3, 4):
         raise ColorProjectionError(
             "DISTORTION_MODEL_UNSUPPORTED",
             "Unsupported Color distortion model",
@@ -244,18 +244,24 @@ def project_to_color(
             x = color_xyz[rows, 0] / z[rows]
             y = color_xyz[rows, 1] / z[rows]
 
-            if distortion.sdk_model == 3:
-                # Orbbec RAW order:
-                # k1,k2,k3,k4,k5,k6,p1,p2
-                k1, k2, k3, _, _, _, p1, p2 = coeff
+            if distortion.sdk_model in (3, 4):
+                # Orbbec RAW order: k1,k2,k3,k4,k5,k6,p1,p2.
+                # K6 radial is rational: numerator(k1..3)/denominator(k4..6).
+                k1, k2, k3, k4, k5, k6, p1, p2 = coeff
 
                 r2 = x * x + y * y
-                radial = (
-                    1
-                    + k1 * r2
-                    + k2 * r2**2
-                    + k3 * r2**3
-                )
+                r4 = r2 * r2
+                r6 = r4 * r2
+                numerator = 1 + k1 * r2 + k2 * r4 + k3 * r6
+                if distortion.sdk_model == 4:
+                    denominator = 1 + k4 * r2 + k5 * r4 + k6 * r6
+                    # A singular rational transform cannot establish color.
+                    safe = (np.isfinite(denominator)
+                            & (np.abs(denominator) > 1e-12))
+                    denominator = np.where(safe, denominator, np.nan)
+                    radial = numerator / denominator
+                else:
+                    radial = numerator
 
                 x_new = (
                     x * radial

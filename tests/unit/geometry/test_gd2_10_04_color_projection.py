@@ -248,7 +248,7 @@ def test_brown_conrady_tangential_distortion():
     )
 
 
-@pytest.mark.parametrize("model", [1, 2, 4, 5, 9])
+@pytest.mark.parametrize("model", [1, 2, 5, 9])
 def test_unsupported_distortion_fails_closed(model):
     geometry, calibration = sample()
 
@@ -383,3 +383,70 @@ def test_invalid_occlusion_tolerance_rejected(epsilon):
         )
 
     assert error.value.code == "OCCLUSION_POLICY_INVALID"
+
+
+def test_k6_zero_color_matches_rectilinear_projection():
+    geometry, calibration = sample()
+    k6 = replace(calibration, color_distortion=replace(
+        calibration.color_distortion, sdk_model=4
+    ))
+    baseline = project_to_color(geometry, calibration=calibration)
+    projected = project_to_color(geometry, calibration=k6)
+    np.testing.assert_allclose(
+        projected.color_uv, baseline.color_uv, equal_nan=True
+    )
+    np.testing.assert_array_equal(
+        projected.color_pixel_uv, baseline.color_pixel_uv
+    )
+    np.testing.assert_array_equal(projected.color_valid, baseline.color_valid)
+
+
+def test_k6_rational_known_ground_truth():
+    geometry, calibration = sample()
+    coeff = (0.3, 0.1, 0.05, 0.2, 0.04, 0.02, 0.03, -0.02)
+    distortion = replace(
+        calibration.color_distortion, sdk_model=4, k1_k6_p1_p2=coeff
+    )
+    projected = project_to_color(
+        geometry, calibration=replace(calibration, color_distortion=distortion)
+    )
+    # Known XYZ fixture: source [2,0] has normalized Color x=1/3, y=-1/3.
+    x, y = 1 / 3, -1 / 3
+    r2 = x*x + y*y
+    numerator = 1 + 0.3*r2 + 0.1*r2**2 + 0.05*r2**3
+    denominator = 1 + 0.2*r2 + 0.04*r2**2 + 0.02*r2**3
+    radial = numerator / denominator
+    xd = x*radial + 2*0.03*x*y + (-0.02)*(r2 + 2*x*x)
+    yd = y*radial + 0.03*(r2 + 2*y*y) + 2*(-0.02)*x*y
+    np.testing.assert_allclose(projected.color_uv[1], (4*xd+2, 4*yd+2))
+
+
+def test_k6_singular_denominator_invalidates_pixel():
+    geometry, calibration = sample()
+    # On a source corner r²=2/9; denominator=1-4.5*(2/9)=0.
+    distortion = replace(
+        calibration.color_distortion, sdk_model=4,
+        k1_k6_p1_p2=(0., 0., 0., -4.5, 0., 0., 0., 0.)
+    )
+    projected = project_to_color(
+        geometry, calibration=replace(calibration, color_distortion=distortion)
+    )
+    assert not projected.color_valid[1]
+    assert projected.color_pixel_uv[1].tolist() == [-1, -1]
+
+
+def test_k6_h6_coefficients_are_numerically_stable_on_fixture():
+    geometry, calibration = sample()
+    coeff = (
+        48.3798599243, -107.240875244, 113.904785156,
+        48.1808395386, -106.772979736, 113.921188354,
+        0.000596203550231, 0.000570189033169,
+    )
+    distortion = replace(
+        calibration.color_distortion, sdk_model=4, k1_k6_p1_p2=coeff
+    )
+    projected = project_to_color(
+        geometry, calibration=replace(calibration, color_distortion=distortion)
+    )
+    assert projected.color_valid.any()
+    assert np.isfinite(projected.color_uv[projected.color_valid]).all()

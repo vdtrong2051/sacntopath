@@ -136,7 +136,7 @@ def test_rejects_noncontiguous_depth():
     assert e.value.code == "DEPTH_ARRAY_INVALID"
 
 
-@pytest.mark.parametrize("model", [1, 2, 3, 4, 5])
+@pytest.mark.parametrize("model", [1, 2, 3, 5])
 def test_refuses_unverified_depth_distortion_instead_of_using_pinhole(model):
     depth, c = fixture()
 
@@ -227,3 +227,34 @@ def test_nonfinite_xyz_is_rejected():
         )
 
     assert e.value.code == "NONFINITE_PROJECTION"
+
+
+def test_k6_zero_depth_matches_pinhole():
+    depth, calibration = fixture()
+    from dataclasses import replace
+
+    k6 = replace(calibration, depth_distortion=replace(
+        calibration.depth_distortion, sdk_model=4
+    ))
+    normal = unproject_depth(
+        depth, calibration=calibration, capture_id=calibration.capture_id
+    )
+    actual = unproject_depth(
+        depth, calibration=k6, capture_id=calibration.capture_id
+    )
+    np.testing.assert_allclose(actual.xyz_m, normal.xyz_m, equal_nan=True)
+    np.testing.assert_array_equal(actual.depth_valid_mask, normal.depth_valid_mask)
+
+
+def test_k6_nonzero_depth_fails_closed():
+    depth, calibration = fixture()
+    from dataclasses import replace
+
+    distortion = replace(
+        calibration.depth_distortion, sdk_model=4,
+        k1_k6_p1_p2=(0.01,) + (0.0,) * 7,
+    )
+    k6 = replace(calibration, depth_distortion=distortion)
+    with pytest.raises(DepthProjectionError) as exc:
+        unproject_depth(depth, calibration=k6, capture_id=calibration.capture_id)
+    assert exc.value.code == "DISTORTION_MODEL_UNSUPPORTED"

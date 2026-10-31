@@ -274,7 +274,7 @@ def test_unsupported_color_distortion_rejected():
     meta = packet.metadata
 
     distortion = meta.color_distortion.model_copy(
-        update={"sdk_model": 4}
+        update={"sdk_model": 5}
     )
     packet = type(packet)(
         metadata=meta.model_copy(
@@ -302,3 +302,25 @@ def test_empty_depth_rejected():
         )
 
     assert getattr(err.value, "code", None) == "EMPTY_VALID_DEPTH"
+
+
+def test_single_view_accepts_k6_zero_depth_and_distorted_color():
+    packet, rgb = sample()
+    meta = packet.metadata
+    depth_dist = meta.depth_distortion.model_copy(update={"sdk_model": 4})
+    color_dist = meta.color_distortion.model_copy(update={
+        "sdk_model": 4,
+        "k1_k6_p1_p2": (0.2, 0., 0., 0.1, 0., 0., 0., 0.),
+    })
+    packet = type(packet)(
+        metadata=meta.model_copy(update={
+            "depth_distortion": depth_dist, "color_distortion": color_dist,
+        }),
+        color_mjpeg=packet.color_mjpeg,
+        depth_y16_le=packet.depth_y16_le,
+    )
+    result = process(packet, rgb)
+    assert result.points_xyz_m.shape == (5, 3)
+    assert result.quality_stats.colored_points > 0
+    assert result.colors_rgb.shape[0] == result.quality_stats.colored_points
+    assert result.metric_validated is False

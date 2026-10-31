@@ -67,18 +67,20 @@ def unproject_depth(
         raise DepthProjectionError(
             "CALIBRATION_INVALID", "Unsupported coordinate frame or unit"
         )
-    if calibration.depth_distortion.sdk_model != 0:
+    # SDK K6=4 with eight exactly-zero coefficients is rectilinear.
+    # Nonzero K6 Depth still needs a validated inverse and must fail closed.
+    depth_model = calibration.depth_distortion.sdk_model
+    depth_coeff = calibration.depth_distortion.k1_k6_p1_p2
+    if depth_model not in (0, 4):
         raise DepthProjectionError(
             "DISTORTION_MODEL_UNSUPPORTED",
-            "Depth lens distortion requires a separately verified inverse model",
+            "Depth lens distortion requires a verified inverse model",
         )
-    if any(
-        value != 0.0
-        for value in calibration.depth_distortion.k1_k6_p1_p2
-    ):
+    if any(value != 0.0 for value in depth_coeff):
         raise DepthProjectionError(
-            "DISTORTION_COEFFICIENTS_INVALID",
-            "NONE model has nonzero coefficients",
+            "DISTORTION_COEFFICIENTS_INVALID"
+            if depth_model == 0 else "DISTORTION_MODEL_UNSUPPORTED",
+            "Nonzero Depth distortion is not supported by pinhole unprojection",
         )
 
     k = calibration.depth_K
