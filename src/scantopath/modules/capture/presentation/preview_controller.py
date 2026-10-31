@@ -236,6 +236,33 @@ class CapturePreviewController(QObject):
         if self._auto_replay_pending:
             QTimer.singleShot(0, self._maybe_auto_replay)
 
+    def request_explicit_replay(self) -> bool:
+        """UXH-01.4-R02: explicit user click; coalesce while Replay is busy.
+
+        Called after choosing the RAW tab and entering Capture workspace.
+        It does not run for programmatic selection restoration.
+        """
+        context = self._context
+        if (self._closing or context is None or
+                self.view.active_workspace is not WorkspaceId.CAPTURE or
+                self.view.project_explorer.store_root != context.store_root or
+                self.view.project_explorer.selection is None or
+                self.view.project_explorer.selection.entity_type != "capture" or
+                self.view.project_explorer.selection.entity_id != context.capture_id or
+                self.view.project_loader.busy or self.view.project_writer.busy or
+                self.view.capture_checker.busy):
+            return False
+        workflow = getattr(self.view, "workflow_context", None)
+        if workflow is not None and (
+                workflow.current.actionable_capture_id != context.capture_id or
+                workflow.current.store_root != context.store_root):
+            return False
+        if self._displayed_context == context and not self.busy:
+            return True  # Keep the already displayed frame; no duplicate decode.
+        self._auto_replay_pending = True
+        QTimer.singleShot(0, self._maybe_auto_replay)
+        return True
+
     def _maybe_auto_replay(self) -> None:
         """Queue no second ReplayThread; latest selected Capture wins."""
         if self._auto_replay_pending and self.view.active_workspace is not WorkspaceId.CAPTURE:

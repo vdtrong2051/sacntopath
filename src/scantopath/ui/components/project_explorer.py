@@ -32,6 +32,7 @@ class ProjectExplorer(QWidget):
     """Explorer chỉ nhận cây dữ liệu được truyền vào, không tự mở DB."""
 
     selection_changed = Signal(object)
+    capture_open_requested = Signal(object)  # UXH-01.4-R02: actual mouse click only.
     open_requested = Signal()
     refresh_requested = Signal()
     create_project_requested = Signal()
@@ -93,6 +94,7 @@ class ProjectExplorer(QWidget):
         self.tree.setVisible(False)
         self.tree.setEnabled(False)
         self.tree.currentItemChanged.connect(self._current_item_changed)
+        self.tree.itemClicked.connect(self._capture_item_clicked)
         layout.addWidget(self.tree, stretch=1)
         self._selection: SelectionRef | None = None
         self._store_root: str | None = None
@@ -194,6 +196,12 @@ class ProjectExplorer(QWidget):
             parent.addChild(item)
         for child in node.children:
             self._add_node(item, child)
+
+    def _capture_item_clicked(self, item: QTreeWidgetItem, _column: int) -> None:
+        """A real click opens Capture; setCurrentItem/reload never triggers this."""
+        ref = item.data(0, Qt.UserRole)
+        if isinstance(ref, SelectionRef) and ref.entity_type == "capture":
+            self.capture_open_requested.emit(ref)
 
     def _current_item_changed(self, item: QTreeWidgetItem | None, _previous: QTreeWidgetItem | None) -> None:
         selection = item.data(0, Qt.UserRole) if item is not None else None

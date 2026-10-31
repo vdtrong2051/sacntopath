@@ -127,6 +127,10 @@ class ScanToPathMainWindow(ShellCompositionMixin, QMainWindow):
         # GD2-10.08.1: opt-in RAW XYZRGB preview; never opens camera at startup.
         from .geometry_preview import GeometryPreviewBridge
         self.geometry_preview = GeometryPreviewBridge(self)
+        # UXH-01.4-R02: one action route, no extra toolbar/viewport.
+        self.project_explorer.capture_open_requested.connect(self._open_capture_from_click)
+        self.project_workspace.project_dashboard.panel.capture_open_requested.connect(
+            self._open_capture_from_click)
 
         self._install_task_controller()
         self._connect_workspace_actions()
@@ -163,6 +167,52 @@ class ScanToPathMainWindow(ShellCompositionMixin, QMainWindow):
             QPushButton, "workspacePrimaryAction")
         if processing is not None:
             processing.clicked.connect(self._open_audit_panel)
+
+    def _open_capture_from_click(self, ref) -> None:
+        """UXH-01.4-R02: click Capture -> existing saved RAW tab + Replay.
+
+        Never invoked from selection_changed / SQLite reload.
+        """
+        from scantopath.application.contracts import SelectionRef
+        from scantopath.application.contracts.workflow_context import WorkflowStatus
+        if not isinstance(ref, SelectionRef) or ref.entity_type != "capture":
+            return
+        if (self.project_loader.busy or self.project_writer.busy or
+                self.capture_checker.busy):
+            self._set_status("Kho đang bận; chưa thể mở bản thu.")
+            return
+        # Dashboard emits its selected signal synchronously, but explicitly
+        # resolve the current Explorer identity if signal order changes.
+        if self.project_explorer.selection != ref:
+            if not self.project_explorer.select_ref(ref):
+                self._set_status("Bản thu không còn trong kho đang mở.")
+                return
+        wf = self.workflow_context.current
+        preview = self.capture_preview
+        ctx = preview.context
+        if (wf.status is not WorkflowStatus.READY or
+                wf.selection != ref or wf.actionable_capture_id != ref.entity_id or
+                wf.store_root != self.project_explorer.store_root or
+                ctx is None or ctx.store_root != wf.store_root or
+                ctx.capture_id != ref.entity_id or
+                ctx.project_id != wf.project_id or
+                ctx.specimen_id != wf.specimen_id or
+                ctx.session_id != wf.session_id):
+            self._set_status("Ngữ cảnh bản thu chưa hợp lệ; hãy tải lại kho.")
+            return
+        # Never leave a live camera stream running invisibly on a RAW view.
+        live_state = getattr(self.capture_live.state, "value", "")
+        if str(live_state).lower() not in ("idle", "closed", "failed"):
+            self._set_status("Hãy dừng camera trực tiếp trước khi mở bản thu đã lưu.")
+            return
+        # Set the destination tab before exposing the Capture workspace.
+        self.capture_workspace_layout.tabs.setCurrentWidget(preview.panel)
+        if self.active_workspace is not WorkspaceId.CAPTURE:
+            self._navigate(WorkspaceId.CAPTURE)
+        if self.active_workspace is not WorkspaceId.CAPTURE:
+            return
+        if not preview.request_explicit_replay():
+            self._set_status("Không thể phát lại RAW tại thời điểm này.")
 
     def _open_audit_panel(self) -> None:
         self.task_dock_chrome.open_audit()

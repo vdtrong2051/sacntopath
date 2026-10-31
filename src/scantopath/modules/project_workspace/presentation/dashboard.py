@@ -20,6 +20,7 @@ class ProjectDashboard(QFrame):
     """Central Project/Specimen/Session overview, not a second Explorer tree."""
 
     selected = Signal(object)
+    capture_open_requested = Signal(object)  # UXH-01.4-R02: actual click only.
     change_store_requested = Signal()
     create_project_requested = Signal()
     create_specimen_requested = Signal()
@@ -97,6 +98,8 @@ class ProjectDashboard(QFrame):
             table.setTextElideMode(Qt.ElideMiddle)
             table.setMinimumHeight(120)
             table.currentItemChanged.connect(self._row_changed)
+            if kind == "capture":
+                table.itemClicked.connect(self._capture_row_clicked)
             table.header().setStretchLastSection(True)
             tabs.addTab(table, title)
             self.tables[kind] = table
@@ -149,6 +152,11 @@ class ProjectDashboard(QFrame):
             selection = self.project_combo.itemData(index)
             if selection is not None:
                 self.selected.emit(selection)
+
+    def _capture_row_clicked(self, item: QTreeWidgetItem, _column: int) -> None:
+        ref = item.data(0, Qt.UserRole)
+        if isinstance(ref, SelectionRef) and ref.entity_type == "capture":
+            self.capture_open_requested.emit(ref)
 
     def _row_changed(self, item: QTreeWidgetItem | None, _previous) -> None:
         if not self._updating and item is not None:
