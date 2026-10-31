@@ -21,6 +21,7 @@ from .live_tools import LiveViewerTools
 
 class InteractiveViewer3DController(LiveViewer3DController):
     scene_inspection = Signal(object)
+    point_pick_completed = Signal(object)  # fresh VTK pick: SceneSelectionRef | None
 
     def __init__(self, parent, *, session_factory):
         super().__init__(parent, session_factory=session_factory)
@@ -229,9 +230,11 @@ class InteractiveViewer3DController(LiveViewer3DController):
                 self.page.set_status('Đã chọn ' + ('mặt' if kind == 'face' else 'điểm') +
                                      f' số {idx}. Xem thông tin trong bảng Thuộc tính.')
             self._emit_scene()
+            self.point_pick_completed.emit(self._selected)
         except (ValueError, KeyError, TypeError, RuntimeError):
             self._selected = None
             self._emit_scene()
+            self.point_pick_completed.emit(None)
             self.page.set_status('Không thể xác định hình học tại vị trí nhấn.', is_error=True)
 
     def navigate(self, action: str, dx: float = 0.0, dy: float = 0.0) -> bool:

@@ -172,7 +172,7 @@ def snapshot_capture(context: CaptureContext, destination: Path) -> CaptureConte
 
 
 class GeometryPreviewWorker(QThread):
-    ready = Signal(object, object, object)  # PreviewReceipt, TemporaryDirectory, CaptureContext
+    ready = Signal(object, object, object, object)  # receipt, scratch, context, SingleViewXYZRGB
     failed = Signal(str)
 
     def __init__(self, context: CaptureContext, parent=None):
@@ -198,7 +198,7 @@ class GeometryPreviewWorker(QThread):
             receipt = write_preview_ply(
                 result, root / f"capture_{self.context.capture_id}_preview.ply",
             )
-            self.ready.emit(receipt, scratch, self.context)
+            self.ready.emit(receipt, scratch, self.context, result)
             scratch = None  # The receiver now owns its lifetime.
         except Exception as exc:
             code = getattr(exc, "code", "PREVIEW_PIPELINE_FAILED")
@@ -220,6 +220,7 @@ class GeometryPreviewBridge(QObject):
         self._receipt: PreviewReceipt | None = None
         self._sensor_view_token = None
         self._viewer_label: QLabel | None = None
+        self._measurement_ui = None  # lazy, after Viewer initialization
         panel = host.capture_preview.panel
         self.button = QPushButton("Xem XYZRGB 3D", panel)
         self.button.setObjectName("captureGeometryPreviewButton")
@@ -248,6 +249,14 @@ class GeometryPreviewBridge(QObject):
               not self.host.project_loader.busy and
               not self.host.project_writer.busy and
               not self.host.capture_checker.busy)
+        # Entering/changing Capture workspace invalidates the prior RAW A/B pair.
+        # Navigation to Inspect3D clears Explorer selection by design: do not
+        # invalidate that handoff while the Viewer is active.
+        if (self._measurement_ui is not None and
+                self.host.active_workspace is WorkspaceId.CAPTURE and
+                self._receipt is not None and
+                (context is None or context.capture_id != self._receipt.capture_id)):
+            self._measurement_ui.unbind()
         self.button.setEnabled(bool(ok))
 
     @Slot()
@@ -270,8 +279,8 @@ class GeometryPreviewBridge(QObject):
         self._worker.start()
         return True
 
-    @Slot(object, object, object)
-    def _ready(self, receipt: PreviewReceipt, scratch, context: CaptureContext) -> None:
+    @Slot(object, object, object, object)
+    def _ready(self, receipt: PreviewReceipt, scratch, context: CaptureContext, view: SingleViewXYZRGB) -> None:
         if (self._closing or context is None or
                 self.host.capture_preview.context != context or
                 self.host.project_explorer.store_root != context.store_root):
@@ -288,6 +297,17 @@ class GeometryPreviewBridge(QObject):
         self._update_viewer_label()
         if not viewer.load_ply(receipt.path):
             self._viewer_label.setText("Không mở được XYZRGB; dữ liệu RAW vẫn nguyên vẹn.")
+            if self._measurement_ui is not None:
+                self._measurement_ui.unbind()
+            return
+        # Keep the original float64 XYZ and RGB->XYZ row map until scene switch.
+        # VTK's PLY point IDs are NOT the ValidGeometry row indices.
+        if not hasattr(viewer, 'scene_inspection'):
+            return  # Qt offscreen viewer cannot perform source-backed native picking.
+        if self._measurement_ui is None:
+            from .geometry_measurement import GeometryMeasurementPanel
+            self._measurement_ui = GeometryMeasurementPanel(viewer, self)
+        self._measurement_ui.bind_preview(receipt, view)
 
     def _ensure_viewer_label(self, viewer) -> None:
         if self._viewer_label is not None:
@@ -368,6 +388,8 @@ class GeometryPreviewBridge(QObject):
         return self._worker is None or not self._worker.isRunning()
 
     def dispose(self) -> None:
+        if self._measurement_ui is not None:
+            self._measurement_ui.dispose()
         self._availability_timer.stop()
         if getattr(self, "_info_timer", None) is not None:
             self._info_timer.stop()
