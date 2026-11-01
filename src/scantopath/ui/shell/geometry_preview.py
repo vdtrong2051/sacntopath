@@ -16,6 +16,7 @@ from scantopath.application.contracts import WorkspaceId
 from scantopath.modules.capture.application.contracts import CaptureContext
 from scantopath.modules.geometry.application.service import SingleViewXYZRGB
 from scantopath.application.contracts.preview import GeometryPreviewError, PreviewReceipt
+from scantopath.application.preview_scratch_leases import PreviewScratchLeases
 # Compatibility aliases for existing GD2-10 public test imports. No I/O in this module.
 from scantopath.bootstrap.geometry_preview import (
     MAX_PREVIEW_BYTES, MAX_PREVIEW_VERTICES, snapshot_capture, write_preview_ply,
@@ -55,7 +56,8 @@ class GeometryPreviewBridge(QObject):
         self.host = host
         self._worker: GeometryPreviewWorker | None = None
         self._closing = False
-        self._scratch: list[tempfile.TemporaryDirectory] = []
+        # UXH-01.6: each temporary PLY has an explicit scene-lifetime lease.
+        self._scratch = PreviewScratchLeases()
         self._receipt: PreviewReceipt | None = None
         self._workflow_revision_at_request: int | None = None
         self._sensor_view_token = None
@@ -81,6 +83,7 @@ class GeometryPreviewBridge(QObject):
 
     @Slot()
     def _refresh(self, *_args) -> None:
+        self._reap_retired_scratch()
         context = self.host.capture_preview.context
         ok = (not self._closing and self._worker is None and context is not None and
               self.host.project_explorer.store_root == context.store_root and
@@ -133,12 +136,15 @@ class GeometryPreviewBridge(QObject):
                 self.host.project_explorer.store_root != context.store_root):
             scratch.cleanup()
             return
-        self._scratch.append(scratch)  # Keep PLY alive throughout render-host use.
+        # Do not take ownership until the Viewer accepts this source.
+        # Until then the worker-transferred scratch belongs to this callback.
         self._receipt = receipt
         self._sensor_view_token = None
         self.host._navigate(WorkspaceId.INSPECT3D)
         viewer = self.host.viewer3d
         if viewer is None:
+            scratch.cleanup()
+            self._receipt = None
             return
         self._ensure_viewer_label(viewer)
         self._update_viewer_label()
@@ -146,7 +152,11 @@ class GeometryPreviewBridge(QObject):
             self._viewer_label.setText("Không mở được XYZRGB; dữ liệu RAW vẫn nguyên vẹn.")
             if self._measurement_ui is not None:
                 self._measurement_ui.unbind()
+            scratch.cleanup()  # Viewer refused: no host owns this PLY.
+            self._receipt = None
             return
+        # The accepted source is now pending/current/retry in the Viewer.
+        self._scratch.retain(receipt.path, scratch)
         # Keep the original float64 XYZ and RGB->XYZ row map until scene switch.
         # VTK's PLY point IDs are NOT the ValidGeometry row indices.
         if not hasattr(viewer, 'scene_inspection'):
@@ -155,6 +165,35 @@ class GeometryPreviewBridge(QObject):
             from .geometry_measurement import GeometryMeasurementPanel
             self._measurement_ui = GeometryMeasurementPanel(viewer, self)
         self._measurement_ui.bind_preview(receipt, view)
+
+    def _reap_retired_scratch(self) -> None:
+        """Reclaim old PLY only after RenderSession teardown finished.
+
+        A Capture selection or workspace switch alone never frees a live PLY.
+        Current, pending and retry-able sources remain protected. Qt's 200-ms
+        refresh timer retries Windows file-lock cleanup without another worker.
+        """
+        if self._closing:
+            return  # MainWindow disposes after every child/worker has stopped.
+        viewer = self.host.viewer3d
+        protected = ()
+        if viewer is not None:
+            if getattr(viewer, 'shutdown_pending', False):
+                return
+            teardown = getattr(viewer, '_teardown', None)
+            if teardown is not None and teardown.is_alive():
+                return
+            protected = (
+                getattr(viewer, '_current_source', None),
+                getattr(viewer, '_pending_source', None),
+                getattr(viewer, '_last_requested_source', None),
+            )
+        self._scratch.release_except(protected, renderer_retired=True)
+        if self._receipt is not None and not self._scratch.contains(self._receipt.path):
+            self._receipt = None
+            self._sensor_view_token = None
+            if self._measurement_ui is not None:
+                self._measurement_ui.unbind()
 
     def _ensure_viewer_label(self, viewer) -> None:
         if self._viewer_label is not None:
@@ -248,6 +287,5 @@ class GeometryPreviewBridge(QObject):
         self._availability_timer.stop()
         if getattr(self, "_info_timer", None) is not None:
             self._info_timer.stop()
-        for item in self._scratch:
-            item.cleanup()
-        self._scratch.clear()
+        # Only called after MainWindow shutdown gate confirms Render Host exit.
+        self._scratch.release_all()
