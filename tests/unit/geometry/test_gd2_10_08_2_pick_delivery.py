@@ -5,8 +5,8 @@ import pytest
 from PySide6.QtWidgets import QApplication
 
 from scantopath.ui.shell.geometry_measurement import GeometryMeasurementPanel
-from tests.unit.geometry.test_gd2_10_08_2_anchor_visual import prepare
-from tests.unit.geometry.test_gd2_10_08_2_measurement_ui import pick
+from tests.support.uxh_geometry_visual import prepare
+from tests.support.uxh_geometry_measure import pick
 
 
 @pytest.fixture

@@ -17,25 +17,7 @@ from scantopath.ui.shell.geometry_measurement import (
 from scantopath.ui.shell.geometry_preview import write_preview_ply
 
 
-def fixture(tmp_path):
-    packet = raw()
-    meta = packet.metadata
-    rgb = np.full((meta.color.height, meta.color.width, 3), (21, 133, 219), dtype=np.uint8)
-    view = GeometryService.process(depth_u16=packet.depth_u16_copy(), color_rgb=rgb,
-                                  metadata=meta, capture_id=meta.capture_id)
-    assert len(view.colored_point_indices) >= 3
-    # Simulate a colored subset with gaps: PLY index must not be used as XYZ ID.
-    ids = view.colored_point_indices[::2].copy()
-    colors = view.colors_rgb[::2].copy()
-    view = replace(view, colored_point_indices=ids, colors_rgb=colors)
-    receipt = write_preview_ply(view, tmp_path/'temporary.ply')
-    return view, receipt
-
-
-def pick(view, receipt, row, rev=3):
-    p = view.points_xyz_m[view.colored_point_indices[row]]
-    rounded = tuple(float(x) for x in np.asarray(p, dtype=np.float32))
-    return SceneSelectionRef(receipt.ply_sha256, rev, 'point', row, rounded)
+from tests.support.uxh_geometry_measure import fixture, pick
 
 
 def test_real_mapping_and_distance_uses_xyz64_not_ply_float32(tmp_path):
@@ -98,12 +80,17 @@ def test_source_content_not_mutated_after_measure(tmp_path):
     assert sha256(before).hexdigest()==r.ply_sha256
 
 
+class FixtureMeasurementPage(QWidget):
+    def mount_measurement(self, panel):
+        self.layout().addWidget(panel)
+
+
 class FakeViewer(QObject):
     scene_inspection = Signal(object)
     point_pick_completed = Signal(object)
     def __init__(self):
         super().__init__()
-        self.page=QWidget();self.page.setLayout(QVBoxLayout())
+        self.page=FixtureMeasurementPage();self.page.setLayout(QVBoxLayout())
         self._descriptor=None
         self._current_source=None
         self._pending_source=None

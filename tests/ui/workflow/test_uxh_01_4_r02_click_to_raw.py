@@ -15,7 +15,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtTest import QTest
 from scantopath.application.contracts import WorkspaceId
 
-from tests.ui.capture.test_gd2_09_09_2_replay_tree import (
+from tests.support.uxh_capture_replay import (
     qapp, window, _seed, _load, _capture_item, _selected_picture_matches,
     _has_picture, _until,
 )

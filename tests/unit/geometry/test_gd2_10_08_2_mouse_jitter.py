@@ -68,7 +68,7 @@ def test_orbit_behavior_not_changed(app):
     finally:widget.close()
 
 def test_ui_notifies_drag_ignored_in_measure_mode(app,tmp_path):
-    from tests.unit.geometry.test_gd2_10_08_2_anchor_visual import prepare
+    from tests.support.uxh_geometry_visual import prepare
     view, receipt, viewer, panel=prepare(tmp_path, app)
     try:
         viewer.page.preview.selection_drag_ignored.emit()

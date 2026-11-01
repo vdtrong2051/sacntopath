@@ -23,14 +23,7 @@ from scantopath.storage.numbered import NumberedStorageRegistry
 from tests.support.raw_fixture import raw
 
 
-def xyzrgb_view():
-    packet = raw()
-    metadata = packet.metadata
-    image = np.full((metadata.color.height, metadata.color.width, 3),
-                    (23, 120, 208), dtype=np.uint8)
-    return GeometryService.process(
-        depth_u16=packet.depth_u16_copy(), color_rgb=image,
-        metadata=metadata, capture_id=metadata.capture_id)
+from tests.support.uxh_geometry_preview import xyzrgb_view
 
 
 def test_preview_binary_ply_is_color_subset_and_never_metric_certificate(tmp_path):

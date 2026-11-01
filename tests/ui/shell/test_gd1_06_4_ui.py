@@ -140,9 +140,10 @@ def test_navigating_clears_selection_without_deleting_tree(window):
     window.nav_buttons[WorkspaceId.INSPECT3D].click()
     assert window.active_workspace == WorkspaceId.INSPECT3D
     assert window.project_explorer.tree.topLevelItemCount() == 1
-    assert window.project_explorer.selection is None
-    assert window.navigation.selection is None
-    assert window.property_inspector.selection is None
+    # UXH-01.3 preserves Project selection even while Inspect 3D is active.
+    expected = SelectionRef("project", "prj-fixture")
+    assert window.project_explorer.selection == expected
+    assert window.navigation.selection == expected
     assert window.task_event_panel.events.count() == 1
     assert window.task_event_panel.events.item(0).text() == "Đã chuyển đến: Kiểm tra 3D"
 

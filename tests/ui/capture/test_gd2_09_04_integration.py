@@ -246,8 +246,10 @@ def test_selected_capture_survives_navigation_handoff(
 
     _open_capture_workspace(window, qapp)
 
-    # GĐ1 navigation contract remains unchanged.
-    assert window.project_explorer.selection is None
+    # UXH-01.3 keeps the active Capture selection across workspaces.
+    assert window.project_explorer.selection is not None
+    assert window.project_explorer.selection.entity_id == "c1"
+    assert window.navigation.selection == window.project_explorer.selection
 
     # Capture owns an explicit immutable context snapshot.
     assert window.capture_preview.context.capture_id == "c1"

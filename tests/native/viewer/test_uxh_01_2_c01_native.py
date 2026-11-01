@@ -15,7 +15,8 @@ from scantopath.modules.viewer3d.infrastructure.resident_poc.host import Persist
 def test_slim_axes_have_no_text_no_picking_and_no_bounds():
     bounds = (2., 4., 3., 5., 6., 8.)
     actor = make_origin_axes(bounds)
-    assert type(actor) is vtkActor  # Not the massive vtkAxesActor with 3D labels.
+    # OpenGL backend may return vtkOpenGLActor, a valid vtkActor subclass.
+    assert isinstance(actor, vtkActor)  # Still not vtkAxesActor with 3D labels.
     assert actor.GetPosition() == (0., 0., 0.)
     assert actor.GetPickable() == 0
     assert actor.GetUseBounds() == 0

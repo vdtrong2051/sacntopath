@@ -8,7 +8,7 @@ pytest.importorskip('PySide6')
 
 from scantopath.application.contracts import SelectionRef, WorkspaceId
 from scantopath.application.contracts.workflow_context import WorkflowStatus
-from tests.ui.capture.test_gd2_09_09_2_replay_tree import (
+from tests.support.uxh_capture_replay import (
     qapp, window, _seed, _load, _capture_item, _until,
 )
 

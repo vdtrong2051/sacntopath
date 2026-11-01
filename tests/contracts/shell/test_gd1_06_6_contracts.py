@@ -49,7 +49,8 @@ def test_selection_cleared_after_navigation_without_loading_metadata():
     vm.select_entity(SelectionRef("project", "project-local-only"))
     result = vm.select_workspace(WorkspaceId.INSPECT3D)
     assert result.status is CommandStatus.SUCCEEDED
-    assert vm.selection is None
+    # Selection is Store-scoped since UXH-01.3, not workspace-scoped.
+    assert vm.selection == SelectionRef("project", "project-local-only")
     assert vm.workspace == WorkspaceId.INSPECT3D
 
 

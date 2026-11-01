@@ -77,3 +77,11 @@ Git xác nhận file và lịch sử, không xác nhận mọi lượt thử Win
 
 Quyết định này **thay snapshot `METRIC_SINGLE_VIEW_GD2=NOT_STARTED` ở phần trên**, không sửa hồi tố bằng chứng ngày 28–29/10. Chi tiết và giới hạn: [Hồ sơ đóng GD2-10](../07-nghiem-thu/GD2_10_20261031_SESSION_CLOSURE.md).
 <!-- SCANTOPATH_GD2_10_CLOSURE_20261031_END -->
+
+
+<!-- UXH_01_8_CLOSURE_ADDENDUM_20261101 -->
+## Addendum UXH-01.8 — candidate lock
+
+Theo Git branch `feat/gd2-uxh-01-hardening`, UXH-01.7 đã commit tại `016f0cf06de65a432626bb58ec8868483b30eb04`. UXH-01.8 có [inventory](../07-nghiem-thu/UXH_01_8_INVENTORY.md), [acceptance gates](../07-nghiem-thu/UXH_01_8_REGRESSION_MATRIX.md) và [biên bản](../07-nghiem-thu/UXH_01_8_ACCEPTANCE.md).
+
+**UXH closure: `LOCK_PENDING_WINDOWS_ACCEPTANCE`** khi tạo addendum. Không thay đổi trạng thái GD2/GD3 hay ghi đè các snapshot/lịch sử bên trên. Chỉ final receipt do operator ký duyệt mới có quyền xác nhận UXH đóng.

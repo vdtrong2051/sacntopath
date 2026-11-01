@@ -77,3 +77,11 @@ GĐ1 đã **đóng với waiver đích danh**, `main@9e32daf`; GĐ2/GĐ3 hiện 
 
 Không gộp `GD2-10` với toàn GĐ2: GD2-11–13 chưa được phiên này nghiệm thu. Phép đo vẫn mang trạng thái `PROVISIONAL_NOT_METRIC_VALIDATED`; không có chứng nhận sai số vật lý.
 <!-- SCANTOPATH_GD2_10_CLOSURE_20261031_END -->
+
+
+<!-- UXH_01_8_CLOSURE_ADDENDUM_20261101 -->
+## Phụ lục hiện hành UXH-01.8 (sau snapshot DOC-03/DOC-04)
+
+[Kiểm kê UXH](07-nghiem-thu/UXH_01_8_INVENTORY.md) · [ma trận regression](07-nghiem-thu/UXH_01_8_REGRESSION_MATRIX.md) · [biên bản nghiệm thu có điều kiện](07-nghiem-thu/UXH_01_8_ACCEPTANCE.md) · [giới hạn](07-nghiem-thu/UXH_01_8_KNOWN_LIMITATIONS.md) · [runtime Gemini 2](04-phat-trien/UXH_01_8_WINDOWS_RUNTIME.md) · [phụ lục UI/Viewer](03-modules/UXH_01_8_UI_VIEWER_ADDENDUM.md).
+
+Các metadata `as_of_commit` cũ ở phần trên là snapshot lịch sử theo từng DOC; không tự nâng chúng thành UXH-01.8 PASS. Chỉ receipt Windows/HMI thực mới xác định trạng thái closure.

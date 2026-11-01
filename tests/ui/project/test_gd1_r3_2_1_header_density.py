@@ -28,7 +28,9 @@ def test_compact_header_keeps_original_structure(window, workspace, app):
     page_content=page.findChild(QWidget,'workspaceScrollContent')
     outer=page_content.layout()
     margins=outer.contentsMargins()
-    assert (margins.left(),margins.top(),margins.right(),margins.bottom())==(24,10,24,16)
+    # Capture uses the compact UXH-01.7 tab layout; other workspaces remain R3.2.1.
+    expected_margins = (14,8,14,12) if workspace is WorkspaceId.CAPTURE else (24,10,24,16)
+    assert (margins.left(),margins.top(),margins.right(),margins.bottom()) == expected_margins
     assert outer.spacing()==6
     eyebrow=page.findChild(QLabel,'workspaceEyebrow')
     assert eyebrow is not None and eyebrow.isHidden()

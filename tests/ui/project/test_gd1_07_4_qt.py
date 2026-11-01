@@ -164,8 +164,11 @@ def test_refresh_finds_new_records_and_drops_old_selection(window, qapp, tmp_pat
     window.project_explorer.refresh_button.click()
     _wait(qapp, lambda: not window.project_loader.busy)
     assert window.project_explorer.tree.topLevelItemCount() == 2
-    assert window.navigation.selection is None
-    assert window.property_inspector.selection is None
+    # Same-store refresh retains a still-existing selection (UXH-01.3).
+    assert window.navigation.selection is not None
+    assert window.navigation.selection.entity_id == "project-internal-id"
+    assert window.project_explorer.selection == window.navigation.selection
+    assert window.property_inspector.selection == window.navigation.selection
 
 
 def test_reselecting_different_store_replaces_tree(window, qapp, tmp_path):

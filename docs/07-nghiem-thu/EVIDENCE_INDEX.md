@@ -57,3 +57,11 @@ Index chưa có đường dẫn một receipt Windows đã được kiểm độ
 
 [Ma trận gate GĐ2/GĐ3/MVP-B](GD2_GD3_MVPB_ACCEPTANCE_MATRIX.md) chỉ là tiêu chí **NOT_TESTED**, **chưa có receipt thực thi**. Không chuyển GĐ1 waiver thành GĐ2 PASS, không dùng mesh demo để chứng nhận metric/registration/coverage toàn hệ. Khi chạy, lưu receipt ngoài repo với commit/time/device/profile/source hashes và reviewer, rồi dẫn liên kết chính xác tại đây. [Quyết định](../05-quan-ly/DEC_GD2_GD3_POST_GD1_20261029.md).
 <!-- SCANTOPATH_GD2_GD3_PLANNING_20261029_END -->
+
+
+<!-- UXH_01_8_CLOSURE_ADDENDUM_20261101 -->
+## UXH-01.8 — mục lục chứng cứ mới (chờ Windows receipt)
+
+[Inventory](UXH_01_8_INVENTORY.md) · [Regression matrix](UXH_01_8_REGRESSION_MATRIX.md) · [Resource audit](UXH_01_8_RESOURCE_AUDIT.md) · [Acceptance](UXH_01_8_ACCEPTANCE.md) · [Baseline lock](UXH_01_8_BASELINE_LOCK.md). Nguồn Git UXH-01.7: `016f0cf06de65a432626bb58ec8868483b30eb04`, `GIT_VERIFIED`.
+
+Receipt `UXH_01_8/evidence/RUN_*` được tạo ngoài Git trên máy operator. **Chưa có** receipt mới do bộ tài liệu này tự sinh. Chỉ cập nhật PASS theo JSON/log và checklist đã kiểm; không suy từ commit hoặc screenshot riêng lẻ.

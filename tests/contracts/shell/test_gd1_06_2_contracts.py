@@ -157,11 +157,13 @@ def test_viewmodel_moves_workspace_clears_selection_and_keeps_failures_visible()
     res = vm.select_workspace("inspect3d")
     assert res.status is CommandStatus.SUCCEEDED
     assert vm.workspace is WorkspaceId.INSPECT3D
-    assert vm.selection is None
+    # UXH-01.3: workspace navigation must not erase Store selection.
+    assert vm.selection == SelectionRef("project", "project-1")
     assert vm.last_outcome == res
     failed = vm.select_workspace("invalid")
     assert failed.status is CommandStatus.FAILED
     assert vm.workspace is WorkspaceId.INSPECT3D
+    assert vm.selection == SelectionRef("project", "project-1")
 
 
 def test_viewmodel_is_framework_agnostic_on_clean_python_import():

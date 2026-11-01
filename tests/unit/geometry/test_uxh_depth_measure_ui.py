@@ -1,7 +1,7 @@
 """Qt-only regression for the new independent Depth image measurement dialog."""
 from PySide6.QtWidgets import QApplication, QDialog
 from scantopath.ui.shell.depth_measure_dialog import DepthTwoPointDialog
-from tests.unit.geometry.test_gd2_10_08_1_preview import xyzrgb_view
+from tests.support.uxh_geometry_preview import xyzrgb_view
 
 
 def test_depth_dialog_two_clicks_produce_float64_source_backed_result():
