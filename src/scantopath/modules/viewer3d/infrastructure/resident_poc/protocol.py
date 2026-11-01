@@ -16,12 +16,12 @@ def decode_request(raw: bytes) -> dict[str, Any]:
         value = json.loads(raw)
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise ValueError('INVALID_JSON') from exc
-    if not isinstance(value, dict) or set(value) - {'id', 'op', 'path', 'action', 'dx', 'dy', 'frame_mode', 'state', 'scene_revision', 'frame_revision', 'slot', 'expected_sha256', 'u', 'v', 'visible', 'enabled', 'mode'}:
+    if not isinstance(value, dict) or set(value) - {'id', 'op', 'path', 'action', 'dx', 'dy', 'frame_mode', 'state', 'scene_revision', 'frame_revision', 'slot', 'expected_sha256', 'u', 'v', 'visible', 'enabled', 'mode', 'live_session_token', 'camera_generation', 'cloud_sequence'}:
         raise ValueError('INVALID_FIELDS')
     if type(value.get('id')) is not int or not 1 <= value['id'] <= 2**53:
         raise ValueError('INVALID_ID')
     if type(value.get('op')) is not str or value['op'] not in {
-        'hello', 'open', 'open_scene', 'camera', 'set_camera', 'ack_frame', 'status', 'close_scene', 'shutdown', 'pick', 'set_visibility', 'set_grid'
+        'hello', 'open', 'open_scene', 'camera', 'set_camera', 'ack_frame', 'status', 'close_scene', 'shutdown', 'pick', 'set_visibility', 'set_grid', 'begin_live_cloud', 'update_live_cloud', 'end_live_cloud'
     }:
         raise ValueError('INVALID_OP')
     allowed = {
@@ -35,6 +35,9 @@ def decode_request(raw: bytes) -> dict[str, Any]:
         'pick': {'id', 'op', 'u', 'v', 'scene_revision', 'frame_revision'},
         'set_visibility': {'id', 'op', 'visible'},
         'set_grid': {'id', 'op', 'enabled', 'mode'},
+        'begin_live_cloud': {'id', 'op', 'live_session_token', 'camera_generation'},
+        'update_live_cloud': {'id', 'op', 'slot', 'live_session_token', 'camera_generation', 'cloud_sequence'},
+        'end_live_cloud': {'id', 'op', 'live_session_token', 'camera_generation'},
     }[value['op']]
     if value['op'] == 'hello' and set(value) == {'id', 'op', 'frame_mode'}:
         if value['frame_mode'] != 'ack':
@@ -45,6 +48,17 @@ def decode_request(raw: bytes) -> dict[str, Any]:
         SceneSource(value['path'], value['expected_sha256'])
     elif set(value) != allowed:
         raise ValueError('INVALID_FIELDS')
+    if value['op'] in ('begin_live_cloud', 'update_live_cloud', 'end_live_cloud'):
+        for name in ('live_session_token', 'camera_generation'):
+            x = value[name]
+            if type(x) is not int or not 1 <= x <= 2**53 - 1:
+                raise ValueError('INVALID_LIVE_ID')
+        if value['op'] == 'update_live_cloud':
+            if type(value['slot']) is not int or value['slot'] not in (0, 1):
+                raise ValueError('INVALID_CLOUD_SLOT')
+            x = value['cloud_sequence']
+            if type(x) is not int or not 1 <= x <= 2**53 - 1:
+                raise ValueError('INVALID_CLOUD_SEQUENCE')
     if value['op'] == 'ack_frame':
         for field in ('scene_revision', 'frame_revision'):
             if type(value[field]) is not int or not 0 <= value[field] <= 2**53:

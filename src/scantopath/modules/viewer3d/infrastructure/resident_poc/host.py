@@ -12,6 +12,7 @@ import sys
 from typing import Any
 
 from .protocol import MAX_MESSAGE_BYTES, MIN_SIZE, MAX_SIZE, decode_request, encode_response
+from .cloud_protocol import CLOUD_SHM_BYTES, CloudProtocolError, read_slot
 from ...application.navigation import CameraView
 from ..scene_reader import load_scene
 from ...application.scene_contracts import SceneSource
@@ -47,6 +48,13 @@ class PersistentScene:
         self.grid_enabled = False
         self.grid_mode = 'xy'
         self._orientation_renderer = None
+        self._live_token = 0
+        self._live_generation = 0
+        self._live_sequence = 0
+        self._live_frame_index = -1
+        self._live_fingerprint = None
+        self._live_poly = None
+        self._live_glyph = None
 
     def _ensure_renderer(self) -> None:
         if self.window is not None:
@@ -83,6 +91,9 @@ class PersistentScene:
         self.points = 0
         self.camera = CameraView()
         self.pending_frame = None
+        self._live_token = self._live_generation = self._live_sequence = 0
+        self._live_frame_index = -1
+        self._live_fingerprint = self._live_poly = self._live_glyph = None
         self.scene_revision += 1
 
     def open(self, path: str) -> dict[str, Any]:
@@ -129,6 +140,82 @@ class PersistentScene:
                 'bounds': list(d.bounds), 'has_rgb': d.has_rgb,
                 'units': d.units, 'coordinate_frame': d.coordinate_frame,
                 'geometry_kind': d.geometry_kind}
+
+    def begin_live_cloud(self, token: int, generation: int, cloud_shm) -> dict[str, Any]:
+        if (not self.strict_frame_ack or cloud_shm is None or
+                cloud_shm.size < CLOUD_SHM_BYTES):
+            raise ValueError('CLOUD_NOT_NEGOTIATED')
+        if self.pending_frame is not None or self._live_token:
+            raise ValueError('LIVE_MODE_CONFLICT')
+        self.close_scene()
+        self._ensure_renderer()
+        from vtkmodules.vtkCommonDataModel import vtkPolyData
+        from vtkmodules.vtkFiltersGeneral import vtkVertexGlyphFilter
+        from vtkmodules.vtkRenderingCore import vtkActor, vtkPolyDataMapper
+        poly = vtkPolyData()
+        glyph = vtkVertexGlyphFilter()
+        glyph.SetInputData(poly)
+        mapper = vtkPolyDataMapper()
+        mapper.SetInputConnection(glyph.GetOutputPort())
+        actor = vtkActor()
+        actor.SetMapper(mapper)
+        actor.GetProperty().SetPointSize(2.0)
+        actor.GetProperty().SetColor(0.79, 0.91, 1.0)
+        self.renderer.AddActor(actor)
+        self._live_poly = poly
+        self._live_glyph = glyph
+        self.actor = actor
+        self._live_token = token
+        self._live_generation = generation
+        return {'live_mode': True, 'scene_revision': self.scene_revision}
+
+    def update_live_cloud(self, cloud_shm, *, slot: int, token: int,
+                          generation: int, sequence: int) -> dict[str, Any]:
+        if (not self._live_token or token != self._live_token or
+                generation != self._live_generation or self._live_poly is None):
+            raise ValueError('LIVE_SESSION_MISMATCH')
+        if self.strict_frame_ack and self.pending_frame is not None:
+            raise ValueError('FRAME_NOT_ACKED')
+        identity, xyz = read_slot(cloud_shm, slot)
+        if ((identity.live_session_token, identity.camera_generation, identity.cloud_sequence)
+                != (token, generation, sequence)):
+            raise ValueError('CLOUD_HEADER_IDENTITY_MISMATCH')
+        if sequence <= self._live_sequence or identity.depth_frame_index <= self._live_frame_index:
+            raise ValueError('CLOUD_FRAME_STALE')
+        if (self._live_fingerprint is not None and
+                identity.calibration_fingerprint != self._live_fingerprint):
+            raise ValueError('CLOUD_CALIBRATION_CHANGED')
+        # numpy_to_vtk(deep=True) creates VTK-owned copy before ingress ACK.
+        from vtkmodules.vtkCommonCore import vtkPoints
+        from vtkmodules.util.numpy_support import numpy_to_vtk
+        points = vtkPoints()
+        points.SetData(numpy_to_vtk(xyz, deep=True))
+        self._live_poly.SetPoints(points)
+        self._live_poly.Modified()
+        self._live_glyph.Modified()
+        self._live_glyph.Update()
+        first = self._live_sequence == 0
+        self._live_fingerprint = identity.calibration_fingerprint
+        self._live_sequence = sequence
+        self._live_frame_index = identity.depth_frame_index
+        self.points = len(xyz)
+        self.scene_revision += 1
+        if first:
+            self.renderer.ResetCamera()
+        self.renderer.ResetCameraClippingRange()
+        frame = self.render()
+        return {**frame, 'cloud_acked_sequence': sequence, 'cloud_acked_slot': slot,
+                'cloud_acked_generation': generation, 'live_mode': True,
+                'units': 'm', 'coordinate_frame': 'depth_optical',
+                'metric_validated': False}
+
+    def end_live_cloud(self, token: int, generation: int) -> dict[str, Any]:
+        if not self._live_token or (token, generation) != (self._live_token, self._live_generation):
+            raise ValueError('LIVE_SESSION_MISMATCH')
+        if self.strict_frame_ack and self.pending_frame is not None:
+            raise ValueError('FRAME_NOT_ACKED')
+        self.close_scene()
+        return {'live_mode': False, **self.status()}
 
     def _build_reference_grid(self) -> None:
         """Subtle major/minor reference grid; one actor, never source geometry."""
@@ -257,7 +344,7 @@ class PersistentScene:
     def pick(self, u: float, v: float, scene_revision: int,
              frame_revision: int) -> dict[str, Any]:
         """Pick native geometry on the exact displayed frame; never hash/reload."""
-        if (self.actor is None or self._loaded is None or
+        if (self._live_token or self.actor is None or self._loaded is None or
                 self.scene_revision != scene_revision or self.frame_revision != frame_revision):
             raise ValueError('STALE_PICK_FRAME')
         from vtkmodules.vtkRenderingCore import vtkCellPicker, vtkPointPicker
@@ -364,7 +451,8 @@ class PersistentScene:
     def status(self) -> dict[str, Any]:
         return {'scene_revision': self.scene_revision, 'frame_revision': self.frame_revision,
                 'point_count': self.points, 'open_count': self.open_count,
-                'active_scene': self.source is not None}
+                'active_scene': self.source is not None or bool(self._live_token),
+                'live_mode': bool(self._live_token)}
 
     def dispose(self) -> None:
         self.close_scene()
@@ -374,7 +462,7 @@ class PersistentScene:
         self.window = self.renderer = self._orientation_renderer = None
 
 
-def run_host(width: int, height: int, shm_name: str) -> int:
+def run_host(width: int, height: int, shm_name: str, cloud_shm_name: str | None = None) -> int:
     """Serve bounded newline-delimited requests; never import Qt or touch SQLite."""
     if not MIN_SIZE <= width <= MAX_SIZE or not MIN_SIZE <= height <= MAX_SIZE:
         raise ValueError('INVALID_DIMENSIONS')
@@ -383,6 +471,17 @@ def run_host(width: int, height: int, shm_name: str) -> int:
     if shm.size < width * height * 3 * 2:
         shm.close()
         raise ValueError('BUFFER_TOO_SMALL')
+    cloud_shm = None
+    try:
+        if cloud_shm_name is not None:
+            cloud_shm = shared_memory.SharedMemory(name=cloud_shm_name, create=False, **options)
+            if cloud_shm.size < CLOUD_SHM_BYTES:
+                raise ValueError('CLOUD_SHM_TOO_SMALL')
+    except BaseException:
+        if cloud_shm is not None:
+            cloud_shm.close()
+        shm.close()
+        raise
     scene = PersistentScene(width, height, shm)
     previous_id = 0
     try:
@@ -403,7 +502,19 @@ def run_host(width: int, height: int, shm_name: str) -> int:
                     if scene.actor is not None or scene.pending_frame is not None:
                         raise ValueError('ACK_NEGOTIATION_REQUIRES_EMPTY_SCENE')
                     scene.strict_frame_ack = True
-                if op == 'open':
+                if op in ('open', 'open_scene') and scene._live_token:
+                    raise ValueError('LIVE_ACTIVE_END_REQUIRED')
+                if op == 'begin_live_cloud':
+                    data = scene.begin_live_cloud(request['live_session_token'],
+                                                 request['camera_generation'], cloud_shm)
+                elif op == 'update_live_cloud':
+                    data = scene.update_live_cloud(cloud_shm, slot=request['slot'],
+                         token=request['live_session_token'],
+                         generation=request['camera_generation'], sequence=request['cloud_sequence'])
+                elif op == 'end_live_cloud':
+                    data = scene.end_live_cloud(request['live_session_token'],
+                                                request['camera_generation'])
+                elif op == 'open':
                     data = scene.open(request['path'])
                 elif op == 'open_scene':
                     data = scene.open_scene(request['path'], request.get('expected_sha256'))
@@ -432,7 +543,7 @@ def run_host(width: int, height: int, shm_name: str) -> int:
                     data = scene.status()
                     done = True
                 response = {'id': rid, 'ok': True, **data}
-            except (ValueError, TypeError, OSError) as exc:
+            except (ValueError, TypeError, OSError, CloudProtocolError) as exc:
                 response = {'id': response.get('id', previous_id), 'ok': False,
                             'error': str(exc)[:160]}
             sys.stdout.buffer.write(encode_response(response))
@@ -441,6 +552,8 @@ def run_host(width: int, height: int, shm_name: str) -> int:
                 break
     finally:
         scene.dispose()
+        if cloud_shm is not None:
+            cloud_shm.close()
         shm.close()
     return 0
 
@@ -450,8 +563,9 @@ def main() -> int:
     parser.add_argument('--width', required=True, type=int)
     parser.add_argument('--height', required=True, type=int)
     parser.add_argument('--shm-name', required=True)
+    parser.add_argument('--cloud-shm-name', default=None)
     args = parser.parse_args()
-    return run_host(args.width, args.height, args.shm_name)
+    return run_host(args.width, args.height, args.shm_name, args.cloud_shm_name)
 
 
 if __name__ == '__main__':

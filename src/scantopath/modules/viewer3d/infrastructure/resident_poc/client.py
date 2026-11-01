@@ -11,6 +11,7 @@ import threading
 from typing import Any
 
 from .protocol import MIN_SIZE, MAX_SIZE, MAX_MESSAGE_BYTES, encode_response
+from .cloud_protocol import CLOUD_SHM_BYTES, CloudIdentity, encode_cloud, publish_slot, CloudProtocolError
 
 HOST = 'scantopath.modules.viewer3d.infrastructure.resident_poc.host'
 
@@ -34,6 +35,12 @@ class ResidentRenderClient:
         self.width, self.height, self.timeout = width, height, timeout
         self._stride = width * height * 3
         self._shm: shared_memory.SharedMemory | None = None
+        self._cloud_shm: shared_memory.SharedMemory | None = None
+        self._cloud_slot = 0
+        self._cloud_failed = False
+        self._live_token = 0
+        self._live_generation = 0
+        self._cloud_sequence = 0
         self._proc: subprocess.Popen | None = None
         self._responses: queue.Queue[bytes | None] = queue.Queue(maxsize=8)
         self._reader: threading.Thread | None = None
@@ -62,11 +69,16 @@ class ResidentRenderClient:
         self._last_frame = None
         self._errors.clear()
         self._shm = shared_memory.SharedMemory(create=True, size=self._stride * 2)
+        self._cloud_slot = 0
+        self._cloud_failed = False
+        self._live_token = self._live_generation = self._cloud_sequence = 0
         try:
+            self._cloud_shm = shared_memory.SharedMemory(create=True, size=CLOUD_SHM_BYTES)
             self._proc = subprocess.Popen(
                 [sys.executable, '-X', 'faulthandler', '-m', HOST,
                  '--width', str(self.width), '--height', str(self.height),
-                 '--shm-name', self._shm.name],
+                 '--shm-name', self._shm.name,
+                 '--cloud-shm-name', self._cloud_shm.name],
                 stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                 bufsize=0,
             )
@@ -175,6 +187,67 @@ class ResidentRenderClient:
         self._last_frame = None
         return descriptor, rgb
 
+    def begin_live_cloud(self, *, live_session_token: int, camera_generation: int) -> dict[str, Any]:
+        if not self._ack_mode or self._cloud_shm is None or self._cloud_failed:
+            raise RenderHostError('CLOUD_NOT_AVAILABLE')
+        if self._last_frame is not None or self._live_token:
+            raise RenderHostError('LIVE_MODE_CONFLICT')
+        answer = self.request('begin_live_cloud', live_session_token=live_session_token,
+                              camera_generation=camera_generation)
+        self._live_token = live_session_token
+        self._live_generation = camera_generation
+        self._cloud_sequence = 0
+        self._cloud_slot = 0
+        return answer
+
+    def update_live_cloud(self, cloud) -> dict[str, Any]:
+        """Synchronous bounded RPC, only from render worker (not GUI)."""
+        from scantopath.modules.geometry.application.live_geometry import LiveCloudFrame
+        if (not isinstance(cloud, LiveCloudFrame) or self._cloud_shm is None or
+                self._live_token == 0 or self._cloud_failed or not self._ack_mode):
+            raise RenderHostError('CLOUD_NOT_AVAILABLE')
+        if cloud.camera_generation != self._live_generation:
+            raise RenderHostError('CLOUD_GENERATION_MISMATCH')
+        if self._last_frame is not None:
+            raise RenderHostError('FRAME_NOT_ACKED')
+        seq = self._cloud_sequence + 1
+        slot = self._cloud_slot
+        identity = CloudIdentity(
+            self._live_token, cloud.camera_generation, seq,
+            cloud.depth_frame_index, cloud.depth_timestamp_us,
+            cloud.calibration_fingerprint)
+        # Input validation before any slot mutation. Only one RPC may be inflight.
+        blob = encode_cloud(identity, cloud.points_xyz_m)
+        publish_slot(self._cloud_shm, slot, blob)
+        try:
+            response = self.request('update_live_cloud', slot=slot,
+                                    live_session_token=self._live_token,
+                                    camera_generation=self._live_generation,
+                                    cloud_sequence=seq)
+            if (response.get('cloud_acked_sequence') != seq or
+                    response.get('cloud_acked_slot') != slot or
+                    response.get('cloud_acked_generation') != self._live_generation or
+                    'frame_revision' not in response):
+                raise RenderHostError('CLOUD_ACK_INVALID')
+        except BaseException:
+            # ACK ambiguity: NEVER overwrite this slot; kill host before reuse.
+            self._cloud_failed = True
+            self.abort()
+            raise
+        self._cloud_sequence = seq
+        self._cloud_slot = 1 - slot
+        return response
+
+    def end_live_cloud(self) -> dict[str, Any]:
+        if not self._live_token:
+            raise RenderHostError('LIVE_MODE_NOT_ACTIVE')
+        if self._last_frame is not None:
+            raise RenderHostError('FRAME_NOT_ACKED')
+        response = self.request('end_live_cloud', live_session_token=self._live_token,
+                                camera_generation=self._live_generation)
+        self._live_token = self._live_generation = self._cloud_sequence = 0
+        return response
+
     def set_camera(self, state: str) -> dict[str, Any]:
         return self.request('set_camera', state=state)
 
@@ -238,6 +311,13 @@ class ResidentRenderClient:
         if self._error_reader is not None:
             self._error_reader.join(timeout=1)
             self._error_reader = None
+        if self._cloud_shm is not None:
+            self._cloud_shm.close()
+            try:
+                self._cloud_shm.unlink()
+            except FileNotFoundError:
+                pass
+            self._cloud_shm = None
         if self._shm is not None:
             self._shm.close()
             try:
@@ -247,6 +327,8 @@ class ResidentRenderClient:
             self._shm = None
         self._last_frame = None
         self._ack_mode = False
+        self._live_token = self._live_generation = self._cloud_sequence = 0
+        self._cloud_failed = False
 
     def __enter__(self):
         self.start()

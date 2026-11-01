@@ -52,6 +52,13 @@ class CoalescingRenderSession:
         self._frames_received = 0
         self._frames_dropped = 0
         self._camera_renders = 0
+        self._live_token = 0
+        self._live_generation = 0
+        self._live_last_index = -1
+        self._live_pending = None
+        self._live_dropped = 0
+        self._live_stale = 0
+        self._live_acked = 0
 
     @property
     def pid(self) -> int | None:
@@ -62,7 +69,10 @@ class CoalescingRenderSession:
         with self._cv:
             return {'input_revision': self._wanted_revision, 'rendered_input_revision': self._sent_revision,
                     'frames_received': self._frames_received, 'frames_dropped': self._frames_dropped,
-                    'camera_renders': self._camera_renders, 'pending_commands': len(self._commands)}
+                    'camera_renders': self._camera_renders, 'pending_commands': len(self._commands),
+                    'cloud_pending': int(self._live_pending is not None),
+                    'cloud_dropped': self._live_dropped, 'cloud_stale': self._live_stale,
+                    'cloud_acked': self._live_acked}
 
     def start(self) -> Future:
         with self._cv:
@@ -100,6 +110,40 @@ class CoalescingRenderSession:
         dto = SceneSource(str(source), expected_sha256)
         return self._queue_command('open_scene', dto)
 
+    def begin_live_cloud(self, *, live_session_token: int, camera_generation: int) -> Future:
+        from .protocol import decode_request, encode_response
+        decode_request(encode_response({'id': 1, 'op': 'begin_live_cloud',
+                         'live_session_token': live_session_token,
+                         'camera_generation': camera_generation}))
+        return self._queue_command('begin_live_cloud', (live_session_token, camera_generation))
+
+    def submit_live_cloud(self, cloud) -> bool:
+        """Never queues per-frame Future; producer can submit from GUI without IPC."""
+        from scantopath.modules.geometry.application.live_geometry import LiveCloudFrame
+        if not isinstance(cloud, LiveCloudFrame):
+            raise TypeError('Expected LiveCloudFrame')
+        with self._cv:
+            if (self._stopping or self._failure is not None or self._live_token == 0 or
+                    cloud.camera_generation != self._live_generation):
+                self._live_stale += 1
+                return False
+            if cloud.depth_frame_index <= self._live_last_index:
+                self._live_stale += 1
+                return False
+            self._live_last_index = cloud.depth_frame_index
+            if self._live_pending is not None:
+                self._live_dropped += 1
+            self._live_pending = cloud
+            self._cv.notify()
+            return True
+
+    def end_live_cloud(self) -> Future:
+        with self._cv:
+            if self._live_pending is not None:
+                self._live_pending = None
+                self._live_dropped += 1
+        return self._queue_command('end_live_cloud')
+
     def pick(self, u: float, v: float, scene_revision: int,
              frame_revision: int) -> Future:
         """Yêu cầu chọn hình học có giới hạn; không chặn Qt hoặc chấp nhận camera còn chờ."""
@@ -109,7 +153,7 @@ class CoalescingRenderSession:
                                          'scene_revision': scene_revision,
                                          'frame_revision': frame_revision}))
         with self._cv:
-            if not self._active or self._wanted_revision != self._sent_revision:
+            if self._live_token or not self._active or self._wanted_revision != self._sent_revision:
                 raise ValueError('CAMERA_NOT_SETTLED')
         return self._queue_command('pick', (u, v, scene_revision, frame_revision))
 
@@ -124,6 +168,8 @@ class CoalescingRenderSession:
         return self._queue_command('visibility', visible)
 
     def close_scene(self) -> Future:
+        with self._cv:
+            self._live_pending = None
         return self._queue_command('close_scene')
 
     def camera(self, action: str, dx: float = 0.0, dy: float = 0.0) -> int:
@@ -176,17 +222,61 @@ class CoalescingRenderSession:
             while True:
                 with self._cv:
                     while (not self._stopping and not self._commands and
-                           (not self._active or self._wanted_revision == self._sent_revision)):
+                           (not self._active or self._wanted_revision == self._sent_revision) and
+                           self._live_pending is None):
                         self._cv.wait()
                     if self._stopping:
                         break
                     if self._commands:
                         op, value, current = self._commands.popleft()
                         revision = self._wanted_revision
-                    else:
+                    elif self._active and self._wanted_revision != self._sent_revision:
                         op, value, current = 'set_camera', self._desired.to_json(), None
                         revision = self._wanted_revision
-                if op in ('open', 'open_scene'):
+                    else:
+                        op, value, current = 'live_cloud', self._live_pending, None
+                        self._live_pending = None
+                        revision = self._wanted_revision
+                if op == 'begin_live_cloud':
+                    token, generation = value
+                    if self._live_token:
+                        self._client.end_live_cloud()
+                    self._clear_frames()
+                    with self._cv:
+                        self._live_pending = None
+                        self._active = False
+                        self._desired = CameraView()
+                        self._wanted_revision = self._sent_revision = 0
+                    response = self._client.begin_live_cloud(live_session_token=token,
+                                                             camera_generation=generation)
+                    with self._cv:
+                        self._live_token, self._live_generation = token, generation
+                        self._live_last_index = -1
+                    current.set_result(response)
+                elif op == 'live_cloud':
+                    if value is not None and self._live_token:
+                        self._client.update_live_cloud(value)
+                        descriptor, rgb = self._client.copy_ack_frame()
+                        self._publish_frame(descriptor, rgb, revision)
+                        with self._cv:
+                            self._active = True
+                            self._live_acked += 1
+                elif op == 'end_live_cloud':
+                    with self._cv:
+                        self._live_pending = None
+                        self._active = False
+                    response = self._client.end_live_cloud()
+                    self._clear_frames()
+                    with self._cv:
+                        self._live_token = self._live_generation = 0
+                        self._live_last_index = -1
+                    current.set_result(response)
+                elif op in ('open', 'open_scene'):
+                    if self._live_token:
+                        self._client.end_live_cloud()
+                        with self._cv:
+                            self._live_token = self._live_generation = 0
+                            self._live_pending = None
                     with self._cv:
                         self._active = False
                         self._desired = CameraView()
@@ -220,6 +310,11 @@ class CoalescingRenderSession:
                     self._publish_frame(descriptor, rgb, revision)
                     current.set_result(response)
                 elif op == 'close_scene':
+                    if self._live_token:
+                        self._client.end_live_cloud()
+                        with self._cv:
+                            self._live_token = self._live_generation = 0
+                            self._live_pending = None
                     response = self._client.request('close_scene')
                     with self._cv:
                         self._active = False
@@ -255,6 +350,8 @@ class CoalescingRenderSession:
                 return
             self._stopping = True
             self._active = False
+            self._live_pending = None
+            self._live_token = self._live_generation = 0
             while self._commands:
                 _, _, future = self._commands.popleft()
                 future.set_exception(RenderHostError('SESSION_STOPPED'))
