@@ -16,10 +16,13 @@ from .depth_analysis_worker import DepthAnalysisThread
 from .live_capture_panel import LiveCapturePanel
 from .live_controller import LiveCameraController
 from .live_worker import LiveStreamWorker
+from scantopath.modules.geometry.presentation.live_geometry_worker import LiveGeometryThread
 
 
 class LiveCaptureUiController(QObject):
     analysis_ready = Signal(object, object)  # owned frame + tracking result
+    geometry_available = Signal()  # wake-up, fetch via take_latest_geometry()
+    geometry_failed = Signal(str)  # stable error code, not SDK details
     """GUI-thread owner of live panel, camera lifecycle and depth analysis thread."""
 
     def __init__(self, view, *, worker_factory: Callable[[], LiveStreamWorker]) -> None:
@@ -36,6 +39,9 @@ class LiveCaptureUiController(QObject):
 
         self.camera = LiveCameraController(worker_factory=worker_factory, parent=self)
         self._analysis: DepthAnalysisThread | None = None
+        self._geometry: LiveGeometryThread | None = None
+        self._geometry_latest = None
+        self._geometry_last_error: str | None = None
         self._generation = 0
         self._closing = False
         self._shutdown_notified = False
@@ -57,7 +63,8 @@ class LiveCaptureUiController(QObject):
 
     @property
     def safe_to_dispose(self) -> bool:
-        return (self.camera.safe_to_dispose and self._analysis is None)
+        return (self.camera.safe_to_dispose and self._analysis is None
+                and self._geometry is None)
 
     @property
     def state(self) -> CameraState:
@@ -73,9 +80,33 @@ class LiveCaptureUiController(QObject):
         thread.finished.connect(self._on_analysis_finished)
         thread.start()
 
+    def _start_geometry_if_needed(self) -> None:
+        if self._geometry is not None:
+            return
+        thread = LiveGeometryThread()
+        self._geometry = thread
+        thread.result_available.connect(self._on_geometry_available)
+        thread.finished.connect(self._on_geometry_finished)
+        thread.start()
+
+    def take_latest_geometry(self):
+        """Consume at most one current-generation LiveCloudFrame on GUI thread."""
+        self._assert_gui()
+        cloud = self._geometry_latest
+        self._geometry_latest = None
+        return cloud if self.camera.state is CameraState.STREAMING else None
+
+    def geometry_statistics(self) -> dict:
+        self._assert_gui()
+        return self._geometry.statistics() if self._geometry is not None else {}
+
     def _new_generation(self) -> None:
         self._generation += 1
         self._last_analyzed_frame = None
+        self._geometry_latest = None
+        self._geometry_last_error = None
+        if self._geometry is not None:
+            self._geometry.change_generation(self._generation)
         if self._analysis is not None:
             self._analysis.change_generation(self._generation)
         self.panel.clear_live()
@@ -85,6 +116,7 @@ class LiveCaptureUiController(QObject):
         if self._closing or self.camera.state not in (CameraState.IDLE, CameraState.CLOSED):
             return False
         self._start_analysis_if_needed()
+        self._start_geometry_if_needed()
         self._new_generation()
         return self.camera.start()
 
@@ -97,6 +129,7 @@ class LiveCaptureUiController(QObject):
         if self._closing or self.camera.state is not CameraState.FAILED:
             return False
         self._start_analysis_if_needed()
+        self._start_geometry_if_needed()
         self._new_generation()
         return self.camera.retry()
 
@@ -125,6 +158,16 @@ class LiveCaptureUiController(QObject):
         self.panel.show_live_frame(frame)
         if self._analysis is not None:
             self._analysis.submit(self._generation, frame)
+        # One controller owns take_latest(); other consumers share owned frame.
+        worker = self._geometry
+        if worker is not None:
+            roi = self.panel.displayed_roi
+            rect = None
+            if (roi is not None and
+                    (roi.frame_width, roi.frame_height) ==
+                    (frame.source.depth_width, frame.source.depth_height)):
+                rect = (roi.x, roi.y, roi.width, roi.height)
+            worker.submit(self._generation, frame, depth_roi=rect)
 
     @Slot(int, int, object)
     def _on_analyzed(self, generation: int, frame_index: int, result: object) -> None:
@@ -155,6 +198,30 @@ class LiveCaptureUiController(QObject):
             self.panel.set_auto_result(result)
         self.analysis_ready.emit(frame, result)
 
+    @Slot()
+    def _on_geometry_available(self) -> None:
+        worker = self._geometry
+        if worker is None:
+            return
+        packet = worker.take_latest_result()
+        if packet is None:
+            return
+        generation, frame_index, cloud, error = packet
+        if (self._closing or generation != self._generation or
+                self.camera.state is not CameraState.STREAMING):
+            return
+        if error is not None:
+            self._geometry_latest = None
+            if error != self._geometry_last_error:
+                self._geometry_last_error = error
+                self.geometry_failed.emit(error)
+            return
+        if cloud is None or cloud.depth_frame_index != frame_index:
+            return
+        self._geometry_last_error = None
+        self._geometry_latest = cloud
+        self.geometry_available.emit()
+
     def begin_navigation_away(self) -> None:
         """Leaving Capture requests stop; worker remains owned until reaped."""
         self._assert_gui()
@@ -171,6 +238,8 @@ class LiveCaptureUiController(QObject):
         self._new_generation()
         if self._analysis is not None:
             self._analysis.request_stop()
+        if self._geometry is not None:
+            self._geometry.request_stop()
         self.camera.request_shutdown()
         return self.safe_to_dispose
 
@@ -188,6 +257,19 @@ class LiveCaptureUiController(QObject):
             QTimer.singleShot(10, self._on_analysis_finished)
             return
         self._analysis = None
+        thread.deleteLater()
+        self._maybe_close()
+
+    @Slot()
+    def _on_geometry_finished(self) -> None:
+        thread = self._geometry
+        if thread is None:
+            return
+        if thread.isRunning() or not thread.wait(0):
+            QTimer.singleShot(10, self._on_geometry_finished)
+            return
+        self._geometry = None
+        self._geometry_latest = None
         thread.deleteLater()
         self._maybe_close()
 
