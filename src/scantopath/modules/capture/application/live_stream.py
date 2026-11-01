@@ -11,6 +11,7 @@ from math import isfinite
 import numpy as np
 
 from .ports import NativeCameraPort
+from .live_calibration import LiveCalibrationSnapshot
 from scantopath.acquisition.raw_rgbd import RawRgbdCapture
 from .decoding import MjpegDecoderPort, RgbdDecodeError
 
@@ -38,6 +39,8 @@ class LiveNativeFrame:
     depth_scale_m_per_unit: float
     device_name: str
     firmware: str
+    calibration: LiveCalibrationSnapshot | None = None
+    calibration_error: str | None = None
 
     def __post_init__(self) -> None:
         for name in (
@@ -97,6 +100,24 @@ class LiveNativeFrame:
             or self.depth_scale_m_per_unit <= 0
         ):
             raise ValueError("invalid depth scale")
+
+        # Older injected fake packets may lack calibration; preview remains valid,
+
+        # but live geometry must explicitly fail closed on missing metadata.
+        if self.calibration is not None:
+            c = self.calibration
+            if (not isinstance(c, LiveCalibrationSnapshot)
+                    or (c.depth_intrinsics.width, c.depth_intrinsics.height)
+                    != (self.depth_width, self.depth_height)
+                    or (c.color_intrinsics.width, c.color_intrinsics.height)
+                    != (self.color_width, self.color_height)
+                    or c.depth_scale_m_per_unit != self.depth_scale_m_per_unit
+                    or self.calibration_error is not None):
+                raise ValueError("invalid live calibration/frame pairing")
+        elif self.calibration_error is not None and (
+                not isinstance(self.calibration_error, str)
+                or not self.calibration_error):
+            raise ValueError("invalid live calibration error")
 
 
 @dataclass(frozen=True, slots=True)

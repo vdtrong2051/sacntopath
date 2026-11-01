@@ -16,6 +16,11 @@ from scantopath.modules.capture.application.live_stream import (
 )
 
 
+from scantopath.modules.capture.application.live_calibration import (
+    LiveCalibrationError, LiveCalibrationSnapshot,
+)
+
+
 class Gemini2NativeCameraAdapter:
     def __init__(
         self,
@@ -121,6 +126,14 @@ class Gemini2NativeCameraAdapter:
 
             # pybind11 .bytes returns Python-owned copies.
             # No SDK frame pointer escapes this boundary.
+            # SDK already exposes K/D/D2C on this exact frameset.
+            # Fail closed for geometry, preserve legacy RGB/Depth preview.
+            try:
+                snapshot = LiveCalibrationSnapshot.from_native_packet(packet)
+                calibration_error = None
+            except LiveCalibrationError as exc:
+                snapshot = None
+                calibration_error = exc.code
             self._last_indices = (int(packet.color.frame_index), int(packet.depth.frame_index))
             return LiveNativeFrame(
                 color_mjpeg=packet.color.bytes,
@@ -146,6 +159,8 @@ class Gemini2NativeCameraAdapter:
                 ),
                 device_name=str(packet.device.name),
                 firmware=str(packet.device.firmware),
+                calibration=snapshot,
+                calibration_error=calibration_error,
             )
 
         except Exception as exc:
