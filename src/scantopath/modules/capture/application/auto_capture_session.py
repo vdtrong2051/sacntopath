@@ -101,6 +101,18 @@ class AutoCaptureSession:
             self.state = AutoCaptureState.CAPTURING
         return outcome
 
+    def reject_roi_guard(self, reason: str) -> None:
+        """Record an evaluated preview rejected by ROI safety, without capture."""
+        if not self.can_accept_frames:
+            return
+        if not isinstance(reason, str) or not reason.isascii() or not reason:
+            raise ValueError("stable ROI safety reason required")
+        self.evaluated += 1
+        self._last_reason = reason
+        # A stale reference from a formerly safe ROI must not be reused after
+        # the operator adjusts the ROI or moves back into range.
+        self.invalidate_view_reference()
+
     def mark_saved(self, capture_id: str) -> None:
         if not self.pending or self.state not in (AutoCaptureState.CAPTURING, AutoCaptureState.STOPPING):
             raise RuntimeError("NO_PENDING_AUTO_CAPTURE")

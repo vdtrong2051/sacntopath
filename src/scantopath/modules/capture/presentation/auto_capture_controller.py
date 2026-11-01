@@ -12,6 +12,7 @@ from scantopath.modules.capture.application.auto_capture_session import (
 )
 from scantopath.modules.capture.domain.models import CameraState
 from scantopath.modules.capture.application.keyframe_selection_models import KeyframeDecision
+from scantopath.modules.capture.application.roi_safety import RoiSafetyEvaluator
 
 
 STORAGE_TERMINAL_ERRORS = frozenset({
@@ -31,6 +32,7 @@ class AutoCaptureController(QObject):
         self.action = view.capture_action
         self.panel = self.live.panel
         self.session = AutoCaptureSession()
+        self.roi_safety = RoiSafetyEvaluator()
         self._last_context = None
         self.panel.auto_capture_button.toggled.connect(self._on_toggled)
         self.live.analysis_ready.connect(self._on_analysis)
@@ -55,6 +57,7 @@ class AutoCaptureController(QObject):
         self.panel.auto_capture_button.setChecked(False)
         self.panel.auto_capture_button.blockSignals(False)
         self.action._refresh()  # re-enable manual fallback when auto turns OFF
+        self._show_roi_safety(None)
         self._refresh()
 
     @Slot(bool)
@@ -74,8 +77,28 @@ class AutoCaptureController(QObject):
             self._stop("AUTO_SESSION_BUSY")
             return
         self._last_context = context
+        self._show_roi_safety(None)
         self._log("Auto Keyframe: bắt đầu trong Scan Session " + context.session_id)
         self._refresh()
+
+    def _show_roi_safety(self, result) -> None:
+        label = getattr(self.panel, "roi_safety_status", None)
+        if label is None:
+            return  # Legacy Qt fixtures do not have the post-01.4 label.
+        if result is None:
+            label.setText("ROI Safety: WAITING | chưa đánh giá Depth")
+            return
+        status = "READY_PROXY" if result.safe_to_propose else "BLOCKED"
+        distance = ("--" if result.median_depth_m is None
+                    else f"{result.median_depth_m:.2f} m")
+        label.setText(
+            f"ROI Safety: {status} | {result.reason.value} | "
+            f"source={result.source} | width={result.width_fraction:.0%} "
+            f"area={result.area_fraction:.0%} | depth={distance} "
+            f"valid={result.valid_fraction:.0%}"
+            + (" | ROI tay chỉ cố định theo ảnh, không bám vật thể"
+               if result.source == "manual" else "")
+        )
 
     @Slot(object, object)
     def _on_analysis(self, frame, tracking) -> None:
@@ -95,6 +118,20 @@ class AutoCaptureController(QObject):
         roi = manual if manual is not None else (
             tracking.roi if tracking is not None and tracking.usable else None
         )
+        # This *guard* checks geometry/metric depth plausibility, not whether
+        # the rectangle contains the requested object. Fail closed for auto.
+        try:
+            safety = self.roi_safety.evaluate(frame, roi)
+        except (TypeError, ValueError):
+            self.session.reject_roi_guard("ROI_FRAME_INVALID")
+            self._show_roi_safety(None)
+            self._refresh()
+            return
+        self._show_roi_safety(safety)
+        if not safety.safe_to_propose:
+            self.session.reject_roi_guard(safety.reason.value)
+            self._refresh()
+            return
         try:
             outcome = self.session.observe(frame, roi)
         except (TypeError, ValueError, RuntimeError):

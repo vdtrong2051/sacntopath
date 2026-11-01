@@ -12,7 +12,7 @@ from PySide6.QtCore import QObject, Signal
 from PySide6.QtWidgets import QApplication, QWidget, QPushButton, QLabel
 
 from scantopath.modules.capture.application.contracts import CaptureContext
-from scantopath.modules.capture.domain.models import CameraState
+from scantopath.modules.capture.domain.models import CameraState, DepthRoi
 from scantopath.modules.capture.presentation.auto_capture_controller import AutoCaptureController
 from tests.unit.capture.test_hs_01_2_frame_quality import frame, roi
 
@@ -37,6 +37,7 @@ class Live(QObject):
         self.panel = SimpleNamespace(
             auto_capture_button=button,
             auto_capture_status=QLabel("status"),
+            roi_safety_status=QLabel("ROI Safety"),
             manual_roi=None,
         )
 
@@ -104,12 +105,16 @@ def harness():
     view.close()
     view.capture_live.panel.auto_capture_button.deleteLater()
     view.capture_live.panel.auto_capture_status.deleteLater()
+    view.capture_live.panel.roi_safety_status.deleteLater()
     app.processEvents()
 
 
 def push(view, idx, value=1000, valid=True):
     f = frame(idx, depth_value=value)
-    view.capture_live.panel.manual_roi = roi(f) if valid else None
+    # A valid test ROI must be smaller than the complete scene;
+    # HS-01.4 intentionally rejects full-frame rectangles.
+    view.capture_live.panel.manual_roi = (DepthRoi(10, 8, 42, 30, 64, 48)
+                                          if valid else None)
     view.capture_live.analysis_ready.emit(f, None)
 
 

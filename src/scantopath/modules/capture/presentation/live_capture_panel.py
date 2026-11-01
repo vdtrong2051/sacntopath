@@ -104,6 +104,18 @@ class LiveCapturePanel(QFrame):
         self.capture_context_label.setObjectName("captureLiveContextLabel")
         self.capture_context_label.setWordWrap(True)
         layout.addWidget(self.capture_context_label)
+        self.roi_safety_status = QLabel("ROI Safety: WAITING | chưa đánh giá Depth", self)
+        self.roi_safety_status.setObjectName("captureLiveRoiSafetyStatus")
+        self.roi_safety_status.setWordWrap(True)
+        self.roi_safety_status.setToolTip(
+            "Ngưỡng kiểm soát an toàn HS-01.4; không phải segmentation hay đo pose. "
+            "Nếu ROI quá rộng, hãy chọn ROI thủ công theo ảnh Depth."
+        )
+        layout.addWidget(self.roi_safety_status)
+        self.auto_capture_button.setToolTip(
+            "Bật/tắt thu RAW tự động; tắt Auto không dừng camera. "
+            "ROI không an toàn sẽ chặn yêu cầu tự động."
+        )
         self.auto_capture_status = QLabel("Auto Keyframe: IDLE", self)
         self.auto_capture_status.setObjectName("captureLiveAutoKeyframeStatus")
         self.auto_capture_status.setWordWrap(True)
