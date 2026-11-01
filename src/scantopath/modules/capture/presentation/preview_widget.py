@@ -123,6 +123,12 @@ class CapturePreviewWidget(QFrame):
         self.replay_button = QPushButton("Phát lại RAW", self)
         self.replay_button.setObjectName("captureReplayButton")
         self.replay_button.setEnabled(False)
+        # Dedicated action slot sits immediately before the Replay button.
+        self.replay_action_slot = QHBoxLayout()
+        self.replay_action_slot.setObjectName('captureReplayActionSlot')
+        self.replay_action_slot.setContentsMargins(0, 0, 0, 0)
+        self.replay_action_slot.setSpacing(8)
+        header.addLayout(self.replay_action_slot)
         header.addWidget(self.replay_button)
 
         root.addLayout(header)
@@ -194,6 +200,12 @@ class CapturePreviewWidget(QFrame):
         root.addWidget(self.state_label)
 
         self.setMinimumHeight(365)
+
+    def mount_replay_action(self, widget: QWidget) -> None:
+        """Add a Capture Replay action without depending on header indexes."""
+        if widget.parent() is not self or self.replay_action_slot.indexOf(widget) >= 0:
+            raise ValueError('CAPTURE_REPLAY_ACTION_INVALID_OR_DUPLICATE')
+        self.replay_action_slot.addWidget(widget)
 
     @property
     def context(self) -> CaptureContext | None:

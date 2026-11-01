@@ -8,7 +8,7 @@ from __future__ import annotations
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QAbstractItemView, QFrame, QHBoxLayout, QLabel, QPushButton,
-    QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget,
+    QHeaderView, QSizePolicy, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget,
 )
 
 from scantopath.application.contracts import SelectionRef
@@ -56,7 +56,8 @@ class PropertyInspector(QWidget):
         self.title_label = QLabel("", self.context_frame)
         self.title_label.setObjectName("inspectorEntityTitle")
         self.title_label.setWordWrap(True)
-        self.title_label.setMaximumHeight(56)
+        # Do not clip wrapped project/session names on high-DPI displays.
+        self.title_label.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Minimum)
         self.title_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
         heading_layout.addWidget(self.title_label)
         layout.addWidget(self.context_frame)
@@ -90,12 +91,16 @@ class PropertyInspector(QWidget):
         self.details.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         self.details.setAlternatingRowColors(True)
         self.details.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.details.header().setMinimumSectionSize(70)
+        self.details.header().setSectionResizeMode(0, QHeaderView.Interactive)
+        self.details.header().setSectionResizeMode(1, QHeaderView.Stretch)
         self.details.setColumnWidth(0, 112)
         prop_layout.addWidget(self.details, stretch=1)
         self.note = QLabel("Nguồn: metadata SQLite · không xác nhận hình học.", self.properties_frame)
         self.note.setObjectName("inspectorSourceNote")
         self.note.setWordWrap(True)
-        self.note.setMaximumHeight(70)
+        # Full provenance/RAW disclaimers must remain readable on resize.
+        self.note.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Minimum)
         prop_layout.addWidget(self.note)
         layout.addWidget(self.properties_frame, stretch=1)
 

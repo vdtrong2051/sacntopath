@@ -67,8 +67,7 @@ class GeometryPreviewBridge(QObject):
         self.button = QPushButton("Xem XYZRGB 3D", panel)
         self.button.setObjectName("captureGeometryPreviewButton")
         self.button.setToolTip("Tạo bản xem tạm có RGB từ RAW đã lưu; chưa kiểm định đo lường")
-        header = panel.layout().itemAt(0).layout()
-        header.insertWidget(header.count() - 1, self.button)
+        panel.mount_replay_action(self.button)
         self.button.clicked.connect(self.open_selected)
         host.project_explorer.selection_changed.connect(self._refresh)
         host.project_loader.busy_changed.connect(self._refresh)
@@ -202,7 +201,7 @@ class GeometryPreviewBridge(QObject):
         label.setObjectName("gd2GeometryPreviewInfo")
         label.setWordWrap(True)
         label.setTextFormat(Qt.PlainText)
-        viewer.page.layout().insertWidget(1, label)
+        viewer.page.mount_source_info(label)
         self._viewer_label = label
         # Scene inspection fires whenever an externally loaded scene replaces ours.
         if hasattr(viewer, "scene_inspection"):

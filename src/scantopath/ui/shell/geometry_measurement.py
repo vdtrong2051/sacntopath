@@ -129,7 +129,7 @@ class GeometryMeasurementPanel(QObject):
         layout.addWidget(self.depth_button)
         layout.addWidget(self.clear_button)
         layout.addWidget(self.readout, 1)
-        viewer.page.layout().insertWidget(2, self.panel)
+        viewer.page.mount_measurement(self.panel)
         self.mode_button.toggled.connect(self._toggle)
         self.depth_button.clicked.connect(self._measure_from_depth)
         self.clear_button.clicked.connect(self.reset_pair)

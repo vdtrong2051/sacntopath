@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from PySide6.QtCore import Qt, Signal, QSize
-from PySide6.QtGui import QIcon
+from PySide6.QtGui import QIcon, QActionGroup
 from PySide6.QtWidgets import QFrame, QToolButton, QVBoxLayout, QButtonGroup, QMenu
 
 ICON_ROOT = Path(__file__).resolve().parent / 'icons'
@@ -46,30 +46,161 @@ class LiveViewerTools(QFrame):
             b.clicked.connect(lambda _checked=False, m=mode: self.mode_changed.emit(m))
             layout.addWidget(b)
         self.buttons['viewer3dToolOrbit'].setChecked(True)
+        # Primary: high-frequency inspection and camera reset, always visible.
         self._divider(layout)
-        for name, icon, tip, action in (
-            ('viewer3dToolFit','fit','Vừa khung nhìn (F)','reset'),
-            ('viewer3dToolAxes','axes','Trục gốc O nét mảnh; gizmo góc hiển thị hướng XYZ (không xác nhận hệ world)','axes'),
-            ('viewer3dToolZoomIn','zoom_in','Phóng to góc nhìn','zoom_in'),
-            ('viewer3dToolZoomOut','zoom_out','Thu nhỏ góc nhìn','zoom_out'),
+        fit = self._make('viewer3dToolFit', 'fit', 'Vừa khung nhìn (F)')
+        fit.clicked.connect(lambda _checked=False: self.camera_action.emit('reset'))
+        layout.addWidget(fit)
+
+        # Advanced actions live in one menu. Keep the ORIGINAL QToolButtons,
+        # objectNames, signals and shortcuts so existing callers remain stable.
+        # Their visual duplicates are not placed on the canvas.
+        self._divider(layout)
+        self.advanced_button = QToolButton(self)
+        self.advanced_button.setObjectName('viewer3dToolAdvanced')
+        self.advanced_button.setText('⋯')
+        self.advanced_button.setToolTip('Công cụ nâng cao: Zoom, Trục, Lưới, Lớp')
+        self.advanced_button.setAccessibleName('Công cụ nâng cao')
+        self.advanced_button.setFixedSize(40, 40)
+        self.advanced_button.setPopupMode(QToolButton.InstantPopup)
+        self.advanced_menu = QMenu(self.advanced_button)
+        self.advanced_menu.setObjectName('viewer3dAdvancedMenu')
+        self.advanced_button.setMenu(self.advanced_menu)
+        # UXH-01.7-B-POLISH-HOTFIX (UI only)
+        # Hide the native popup chevron: it crowds the ellipsis on 40px buttons.
+        self.advanced_button.setStyleSheet("""
+            QToolButton#viewer3dToolAdvanced {
+                background-color: #263b52;
+                color: #eef6ff;
+                border: 1px solid #58758f;
+                border-radius: 9px;
+                font: 700 19px "Segoe UI";
+                padding: 0px 0px 5px 0px;
+            }
+            QToolButton#viewer3dToolAdvanced:hover {
+                background-color: #345675;
+                border-color: #80b6e6;
+            }
+            QToolButton#viewer3dToolAdvanced:pressed {
+                background-color: #1d3249;
+            }
+            QToolButton#viewer3dToolAdvanced::menu-indicator {
+                image: none;
+                width: 0px;
+                height: 0px;
+            }
+        """)
+        self.advanced_menu.setMinimumWidth(245)
+        self.advanced_menu.setStyleSheet("""
+            QMenu#viewer3dAdvancedMenu, QMenu#viewer3dGridPlaneMenu {
+                background-color: #192b3d;
+                color: #eaf3ff;
+                border: 1px solid #4b6580;
+                border-radius: 10px;
+                padding: 7px 5px;
+                font: 12px "Segoe UI";
+            }
+            QMenu::item {
+                padding: 9px 30px 9px 27px;
+                margin: 2px 5px;
+                border-radius: 6px;
+                background: transparent;
+            }
+            QMenu::item:selected {
+                background-color: #315475;
+                color: #ffffff;
+            }
+            QMenu::item:disabled {
+                color: #849bb0;
+            }
+            QMenu::separator {
+                height: 1px;
+                background-color: #425e79;
+                margin: 6px 14px;
+            }
+        """)
+        layout.addWidget(self.advanced_button)
+
+        for name, icon, tip, action, label in (
+            ('viewer3dToolAxes', 'axes',
+             'Trục gốc O nét mảnh; gizmo góc hiển thị hướng XYZ (không xác nhận hệ world)',
+             'axes', 'Hiện/ẩn trục XYZ'),
+            ('viewer3dToolZoomIn', 'zoom_in', 'Phóng to góc nhìn', 'zoom_in', 'Phóng to'),
+            ('viewer3dToolZoomOut', 'zoom_out', 'Thu nhỏ góc nhìn', 'zoom_out', 'Thu nhỏ'),
         ):
-            b = self._make(name,icon,tip)
-            b.clicked.connect(lambda _checked=False, a=action: self.camera_action.emit(a))
-            layout.addWidget(b)
-        self._divider(layout)
-        self.grid_button = self._make('viewer3dToolGrid','grid','Lưới tham chiếu nét chính/phụ, không phải mặt sàn (G)')
+            button = self._make(name, icon, tip)
+            button.clicked.connect(lambda _checked=False, a=action: self.camera_action.emit(a))
+            button.hide()
+            menu_action = self.advanced_menu.addAction(label)
+            menu_action.setObjectName('viewer3dAction' + action.title().replace('_', ''))
+            menu_action.triggered.connect(lambda _checked=False, b=button: b.click())
+
+        self.advanced_menu.addSeparator()
+        self.grid_button = self._make('viewer3dToolGrid', 'grid',
+            'Lưới tham chiếu nét chính/phụ, không phải mặt sàn (G)')
         self.grid_button.setCheckable(True)
         self.grid_button.setChecked(True)
-        self.grid_button.toggled.connect(self._notify_grid)
         self.grid_mode = 'xy'
+        self.grid_button.toggled.connect(self._notify_grid)
         self.grid_button.setContextMenuPolicy(Qt.CustomContextMenu)
         self.grid_button.customContextMenuRequested.connect(self._grid_menu)
-        layout.addWidget(self.grid_button)
-        self.layer_button = self._make('viewer3dToolLayer','layers','Hiện hoặc ẩn lớp hình học (L)')
+        self.grid_button.hide()
+
+        self._advanced_grid_action = self.advanced_menu.addAction('Hiện lưới tham chiếu (G)')
+        self._advanced_grid_action.setObjectName('viewer3dActionGrid')
+        self._advanced_grid_action.setCheckable(True)
+        self._advanced_grid_action.setChecked(True)
+        self._advanced_grid_action.triggered.connect(
+            lambda _checked=False: self.grid_button.setChecked(
+                self._advanced_grid_action.isChecked()
+            )
+        )
+        self.grid_button.toggled.connect(
+            lambda _checked=False: self._advanced_grid_action.setChecked(
+                self.grid_button.isChecked()
+            )
+        )
+
+        plane_menu = self.advanced_menu.addMenu('Mặt phẳng lưới')
+        plane_menu.setObjectName('viewer3dGridPlaneMenu')
+        plane_menu.setStyleSheet(self.advanced_menu.styleSheet())
+        plane_group = QActionGroup(self)
+        plane_group.setExclusive(True)
+        self._grid_plane_actions = {}
+        for mode, title in (
+            ('xy', 'XY — Z = 0'),
+            ('xz', 'XZ — Y = 0'),
+            ('yz', 'YZ — X = 0'),
+            ('base', 'Base — Z nhỏ nhất của mô hình (không phải mặt đất)'),
+        ):
+            choice = plane_menu.addAction(title)
+            choice.setObjectName('viewer3dGridPlane' + mode.upper())
+            choice.setCheckable(True)
+            plane_group.addAction(choice)
+            choice.triggered.connect(lambda _checked=False, m=mode: self._select_grid_plane(m))
+            self._grid_plane_actions[mode] = choice
+        self._grid_plane_actions['xy'].setChecked(True)
+
+        self.layer_button = self._make('viewer3dToolLayer', 'layers',
+            'Hiện hoặc ẩn lớp hình học (L)')
         self.layer_button.setCheckable(True)
         self.layer_button.setChecked(True)
         self.layer_button.toggled.connect(self.layer_changed.emit)
-        layout.addWidget(self.layer_button)
+        self.layer_button.hide()
+        self._advanced_layer_action = self.advanced_menu.addAction('Hiện lớp hình học (L)')
+        self._advanced_layer_action.setObjectName('viewer3dActionLayer')
+        self._advanced_layer_action.setCheckable(True)
+        self._advanced_layer_action.setChecked(True)
+        self._advanced_layer_action.triggered.connect(
+            lambda _checked=False: self.layer_button.setChecked(
+                self._advanced_layer_action.isChecked()
+            )
+        )
+        self.layer_button.toggled.connect(
+            lambda _checked=False: self._advanced_layer_action.setChecked(
+                self.layer_button.isChecked()
+            )
+        )
         self.adjustSize()
 
     def _make(self, name: str, icon: str, tooltip: str) -> QToolButton:
@@ -108,7 +239,13 @@ class LiveViewerTools(QFrame):
         chosen = menu.exec(self.grid_button.mapToGlobal(point))
         if chosen not in actions:
             return
-        self.grid_mode = actions[chosen]
+        self._select_grid_plane(actions[chosen])
+
+    def _select_grid_plane(self, mode: str) -> None:
+        if mode not in self._grid_plane_actions:
+            raise ValueError('INVALID_REFERENCE_GRID')
+        self.grid_mode = mode
+        self._grid_plane_actions[mode].setChecked(True)
         if not self.grid_button.isChecked():
             self.grid_button.setChecked(True)
         else:
@@ -124,6 +261,7 @@ class LiveViewerTools(QFrame):
         self.layer_button.blockSignals(True)
         self.layer_button.setChecked(bool(visible))
         self.layer_button.blockSignals(False)
+        self._advanced_layer_action.setChecked(bool(visible))
 
     def set_grid(self, enabled: bool, mode: str = 'xy') -> None:
         if mode not in ('xy', 'xz', 'yz', 'base'):
@@ -132,6 +270,8 @@ class LiveViewerTools(QFrame):
         self.grid_mode = mode
         self.grid_button.setChecked(bool(enabled))
         self.grid_button.blockSignals(False)
+        self._advanced_grid_action.setChecked(bool(enabled))
+        self._grid_plane_actions[mode].setChecked(True)
 
     def reset_layer(self) -> None:
         self.set_layer(True)

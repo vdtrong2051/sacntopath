@@ -110,7 +110,21 @@ class Viewer3DPage(QWidget):
         self.open_ply_button.clicked.connect(self.open_ply_requested.emit)
         row.addWidget(self.open_ply_button)
         outer.addLayout(row)
+        # UXH-01.7-A: stable integration slots. Empty layouts do not own a
+        # widget until the corresponding feature explicitly mounts one.
+        self.source_info_slot = QVBoxLayout()
+        self.source_info_slot.setObjectName('viewer3dSourceInfoSlot')
+        self.source_info_slot.setContentsMargins(0, 0, 0, 0)
+        self.source_info_slot.setSpacing(0)
+        outer.addLayout(self.source_info_slot)
+        self.measurement_slot = QVBoxLayout()
+        self.measurement_slot.setObjectName('viewer3dMeasurementSlot')
+        self.measurement_slot.setContentsMargins(0, 0, 0, 0)
+        self.measurement_slot.setSpacing(0)
+        outer.addLayout(self.measurement_slot)
         nav_row = QHBoxLayout()
+        self.navigation_layout = nav_row
+        nav_row.setObjectName('viewer3dNavigationLayout')
         nav_row.setSpacing(6)
         self.navigation_buttons = []
         for label, name, action, dx, dy in (
@@ -191,6 +205,29 @@ class Viewer3DPage(QWidget):
         inspector_layout.addWidget(self.point_info)
         outer.addWidget(self.point_inspector)
         self._image = QPixmap()
+
+    def mount_source_info(self, widget: QWidget) -> None:
+        """Mount a source/provenance row once, above legacy navigation."""
+        if widget.parent() is not self or self.source_info_slot.count():
+            raise ValueError('VIEWER_SOURCE_INFO_SLOT_OCCUPIED_OR_WRONG_PARENT')
+        self.source_info_slot.addWidget(widget)
+
+    def mount_measurement(self, widget: QWidget) -> None:
+        """Mount the measurement panel once, below source information."""
+        if widget.parent() is not self or self.measurement_slot.count():
+            raise ValueError('VIEWER_MEASUREMENT_SLOT_OCCUPIED_OR_WRONG_PARENT')
+        self.measurement_slot.addWidget(widget)
+
+    def enable_canvas_priority(self) -> None:
+        """Compact interactive-view chrome without hiding source/measurement.
+
+        The render surface already owns stretch=1. This changes only its
+        presentation spacing; navigation and PNG fallback stay mounted.
+        """
+        content = self.layout()
+        content.setContentsMargins(12, 8, 12, 8)
+        content.setSpacing(6)
+        self.surface.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
     def set_loading(self, active: bool) -> None:
         self.open_ply_button.setEnabled(not active)

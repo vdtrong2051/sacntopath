@@ -13,6 +13,41 @@ from PySide6.QtWidgets import (
 from scantopath.application.contracts import WorkspaceId
 
 
+class ResponsiveCaptureWorkflowBar(QFrame):
+    """Presentation-only responsive heading, never owns camera or selection."""
+
+    FULL_HINT = "Session → Kết nối → Chụp và lưu → Capture → Phát lại"
+    COMPACT_HINT = "Session → Camera → RAW"
+
+    def __init__(self, parent=None) -> None:
+        super().__init__(parent)
+        self.hint_label: QLabel | None = None
+
+    def attach_hint(self, label: QLabel) -> None:
+        if self.hint_label is not None or label.parentWidget() is not self:
+            raise ValueError('CAPTURE_WORKFLOW_HINT_INVALID')
+        self.hint_label = label
+        # The full single-line hint would otherwise force QHBoxLayout's minimum
+        # width above the compact breakpoint, preventing resizeEvent from
+        # observing narrow viewports (notably with Windows/high-DPI fonts).
+        label.setMinimumWidth(0)
+        label.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
+        label.setWordWrap(True)
+        label.setToolTip(self.FULL_HINT)
+        self._refresh_hint()
+
+    def _refresh_hint(self) -> None:
+        if self.hint_label is None:
+            return
+        content = self.COMPACT_HINT if self.width() < 530 else self.FULL_HINT
+        if self.hint_label.text() != content:
+            self.hint_label.setText(content)
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        self._refresh_hint()
+
+
 class CaptureWorkspaceLayout:
     """A presentation-only layout adapter for the existing Live and Replay panels.
 
@@ -41,10 +76,10 @@ class CaptureWorkspaceLayout:
             if heading is not None:
                 heading.hide()
 
-        outer.setContentsMargins(24, 10, 24, 16)
+        outer.setContentsMargins(14, 8, 14, 12)
         outer.setSpacing(6)
 
-        self.workflow_bar = QFrame(host)
+        self.workflow_bar = ResponsiveCaptureWorkflowBar(host)
         self.workflow_bar.setObjectName("captureWorkflowBar")
         workflow = QHBoxLayout(self.workflow_bar)
         workflow.setContentsMargins(10, 6, 10, 6)
@@ -58,6 +93,7 @@ class CaptureWorkspaceLayout:
         hint.setWordWrap(True)
         hint.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
         workflow.addWidget(hint, 1)
+        self.workflow_bar.attach_hint(hint)
 
         # Capture the location BEFORE reparenting: QTabWidget.addTab() moves
         # widgets out of their previous QLayout automatically.
@@ -68,7 +104,9 @@ class CaptureWorkspaceLayout:
         self.tabs = QTabWidget(host)
         self.tabs.setObjectName("captureWorkspaceTabs")
         self.tabs.setDocumentMode(False)
-        self.tabs.setUsesScrollButtons(False)
+        # At narrow central widths the two original tabs remain navigable.
+        self.tabs.setUsesScrollButtons(True)
+        self.tabs.setElideMode(Qt.ElideRight)
         self.tabs.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.tabs.setMinimumHeight(390)
         self.tabs.setTabPosition(QTabWidget.North)

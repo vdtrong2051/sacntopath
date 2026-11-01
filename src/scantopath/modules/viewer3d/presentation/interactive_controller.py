@@ -46,7 +46,7 @@ class InteractiveViewer3DController(LiveViewer3DController):
         self.tools.move(8, 8)
         self.tools.raise_()
         # Keep old objectNames for compatibility, but remove duplicate controls.
-        nav = self.page.layout().itemAt(1).layout()
+        nav = self.page.navigation_layout
         for index in range(nav.count()):
             widget = nav.itemAt(index).widget()
             if widget is not None:
@@ -54,6 +54,7 @@ class InteractiveViewer3DController(LiveViewer3DController):
         self.page.layer_label.hide()
         self.page.point_inspector.hide()
         self.page.note.setStyleSheet('font-size: 12px; color: #64748b;')
+        self.page.enable_canvas_priority()
         self._ready_tools()
 
     def _handle_toolbar_camera(self, action: str) -> None:
@@ -314,7 +315,7 @@ class InteractiveViewer3DController(LiveViewer3DController):
         self.page.point_inspector.setVisible(enabled)
         self.page.layer_label.setVisible(enabled)
         # PNG fallback must retain its original accessible navigation controls.
-        nav = self.page.layout().itemAt(1).layout()
+        nav = self.page.navigation_layout
         for index in range(nav.count()):
             widget = nav.itemAt(index).widget()
             if widget is not None:
