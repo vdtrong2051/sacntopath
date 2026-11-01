@@ -16,6 +16,7 @@ from time import monotonic
 from PySide6.QtCore import QThread, Signal
 
 from scantopath.modules.capture.application.live_stream import LiveRgbdFrame
+from scantopath.modules.geometry.application.live_object_isolation import isolate_object_depth
 from scantopath.modules.geometry.application.live_geometry import (
     LiveCloudFrame, LiveGeometryError, LiveGeometryService,
 )
@@ -28,7 +29,12 @@ class LiveGeometryThread(QThread):
 
     def __init__(self, *, processor: Callable | None = None, parent=None) -> None:
         super().__init__(parent)
+        self._standard_processor = processor is None
         self._processor = processor or LiveGeometryService.process
+        self._denoise_mode = "standard" if processor is None else "off"
+        self._scope_mode = "scene"  # FT-03/FT-05 compatibility; UI selects object
+        self._scope_revision = 0
+        self._last_isolation_status = "SCENE"
         if not callable(self._processor):
             raise TypeError("processor must be callable")
         self._cv = Condition()
@@ -95,6 +101,31 @@ class LiveGeometryThread(QThread):
             self._cv.notify()
             return True
 
+    def set_denoise_mode(self, mode: str) -> None:
+        if type(mode) is not str or mode not in ("standard", "off"):
+            raise ValueError("DENOISE_MODE_INVALID")
+        with self._cv:
+            if self._closing:
+                return
+            self._denoise_mode = mode
+
+    def set_scope_mode(self, mode: str) -> None:
+        if type(mode) is not str or mode not in ("scene", "object"):
+            raise ValueError("SCOPE_MODE_INVALID")
+        with self._cv:
+            if self._closing or mode == self._scope_mode:
+                return
+            self._scope_mode = mode
+            self._scope_revision += 1
+            if self._pending is not None:
+                self._counts["frames_dropped_input"] += 1
+            if self._latest is not None:
+                self._counts["frames_dropped_output"] += 1
+            self._pending = self._latest = None
+            self._notice_pending = False
+            self._last_isolation_status = "PENDING" if mode == "object" else "SCENE"
+            self._cv.notify_all()
+
     def request_stop(self) -> None:
         """Nonblocking; inflight calculation may complete but cannot publish."""
         with self._cv:
@@ -120,6 +151,9 @@ class LiveGeometryThread(QThread):
             return {
                 **self._counts,
                 "camera_generation": self._generation,
+                "denoise_mode": self._denoise_mode,
+                "scope_mode": self._scope_mode,
+                "last_isolation_status": self._last_isolation_status,
                 "pending_input": int(self._pending is not None),
                 "pending_output": int(self._latest is not None),
                 "worker_closing": int(self._closing),
@@ -138,12 +172,30 @@ class LiveGeometryThread(QThread):
                 if self._closing:
                     return
                 generation, index, frame, roi = self._pending
+                denoise_mode = self._denoise_mode
+                scope_mode = self._scope_mode
+                scope_revision = self._scope_revision
                 self._pending = None
             before = monotonic()
             cloud: LiveCloudFrame | None = None
             error: str | None = None
+            isolation_status = "SCENE"
             try:
-                cloud = self._processor(frame, camera_generation=generation, depth_roi=roi)
+                kw = {"camera_generation": generation, "depth_roi": roi}
+                if scope_mode == "object" and self._standard_processor:
+                    calibration = frame.source.calibration
+                    if calibration is None:
+                        raise LiveGeometryError("LIVE_CALIBRATION_MISSING", "No calibration")
+                    isolated = isolate_object_depth(
+                        frame.depth_u16, frame.source.depth_scale_m_per_unit,
+                        calibration.depth_intrinsics, depth_roi=roi)
+                    isolation_status = isolated.status
+                    if not isolated.usable:
+                        raise LiveGeometryError(isolated.status, isolated.message)
+                    kw["object_mask"] = isolated.object_mask
+                if self._standard_processor:
+                    kw["denoise_mode"] = denoise_mode
+                cloud = self._processor(frame, **kw)
                 if (not isinstance(cloud, LiveCloudFrame)
                         or cloud.camera_generation != generation
                         or cloud.depth_frame_index != index):
@@ -161,10 +213,13 @@ class LiveGeometryThread(QThread):
             with self._cv:
                 self._counts["frames_processed"] += 1
                 self._durations_ms.append(duration_ms)
-                if self._closing or generation != self._generation or index <= self._last_output:
+                if (self._closing or generation != self._generation or
+                        scope_revision != self._scope_revision or index <= self._last_output):
                     self._counts["frames_rejected_stale"] += 1
                     continue
                 self._last_output = index
+                self._last_isolation_status = isolation_status if error is None else (
+                    error if error.startswith("ISOLATION_") else "ERROR")
                 if self._latest is not None:
                     self._counts["frames_dropped_output"] += 1
                 if error is not None:

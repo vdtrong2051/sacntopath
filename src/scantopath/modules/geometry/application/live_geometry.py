@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from math import isfinite
 
 import numpy as np
+from .live_denoise import local_depth_support_mask
 from scantopath.modules.capture.application.live_calibration import (
     LiveCalibrationSnapshot,
 )
@@ -30,6 +31,7 @@ class LiveCloudStats:
     valid_before_sampling: int
     skipped_for_sampling: int
     output_points: int
+    filtered_outliers: int = 0  # FT-05.6 display-only support rejection
 
 
 @dataclass(frozen=True, slots=True)
@@ -85,7 +87,11 @@ class LiveGeometryService:
         min_depth_m: float = 0.0,
         max_depth_m: float | None = None,
         point_budget: int = 200_000,
+        denoise_mode: str = "off",  # API parity with FT-02 by default
+        object_mask: np.ndarray | None = None,  # FT-05.7 native Depth grid, view-only
     ) -> LiveCloudFrame:
+        if denoise_mode not in ("off", "standard") or type(denoise_mode) is not str:
+            raise LiveGeometryError("DENOISE_MODE_INVALID", "Expected off or standard")
         if not isinstance(frame, LiveRgbdFrame):
             raise LiveGeometryError("LIVE_FRAME_INVALID", "Expected decoded owned live frame")
         if type(camera_generation) is not int or camera_generation <= 0:
@@ -111,6 +117,10 @@ class LiveGeometryService:
         distortion = calibration.depth_distortion
         if distortion.sdk_model not in (0, 4) or any(c != 0.0 for c in distortion.k1_k6_p1_p2):
             raise LiveGeometryError("DISTORTION_MODEL_UNSUPPORTED", "Verified inverse unavailable")
+        if object_mask is not None and (
+                not isinstance(object_mask, np.ndarray) or object_mask.dtype != np.bool_
+                or object_mask.shape != depth.shape):
+            raise LiveGeometryError("OBJECT_MASK_INVALID", "Mask must be native Depth bool grid")
         height, width = depth.shape
         if depth_roi is None:
             x, y, rw, rh = 0, 0, width, height
@@ -122,10 +132,19 @@ class LiveGeometryService:
             if x < 0 or y < 0 or rw <= 0 or rh <= 0 or x+rw > width or y+rh > height:
                 raise LiveGeometryError("ROI_INVALID", "ROI outside native depth grid")
         roi = depth[y:y+rh, x:x+rw]
-        mask = roi != 0
+        mask = (roi != 0) & (roi != 65535)
+        if object_mask is not None:
+            mask &= object_mask[y:y+rh, x:x+rw]
+        filtered_outliers = 0
+        if denoise_mode == "standard":
+            supported = local_depth_support_mask(
+                depth, calibration.depth_scale_m_per_unit)
+            selected = supported[y:y+rh, x:x+rw]
+            filtered_outliers = int(np.count_nonzero(mask & ~selected))
+            mask &= selected
         rows, cols = np.nonzero(mask)   # stable native-depth row-major lineage
         total = rw * rh
-        missing = total - int(rows.size)
+        missing = int(np.count_nonzero((roi == 0) | (roi == 65535)))
         if rows.size == 0:
             raise LiveGeometryError("EMPTY_VALID_DEPTH", "No valid Depth")
         z = roi[rows, cols].astype(np.float64) * calibration.depth_scale_m_per_unit
@@ -170,5 +189,6 @@ class LiveGeometryService:
                 valid_before_sampling=count_before,
                 skipped_for_sampling=count_before-int(z.size),
                 output_points=int(z.size),
+                filtered_outliers=filtered_outliers,
             ),
         )

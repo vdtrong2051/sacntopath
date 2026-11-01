@@ -13,6 +13,7 @@ from PySide6.QtWidgets import QWidget
 from scantopath.application.contracts import WorkspaceId
 from scantopath.modules.capture.domain.models import CameraState
 from .depth_analysis_worker import DepthAnalysisThread
+from scantopath.modules.capture.application.live_display_stabilizer import DepthDisplayStabilizer
 from .live_capture_panel import LiveCapturePanel
 from .live_controller import LiveCameraController
 from .live_worker import LiveStreamWorker
@@ -46,6 +47,9 @@ class LiveCaptureUiController(QObject):
         self._closing = False
         self._shutdown_notified = False
         self._last_analyzed_frame: int | None = None
+        self._display_stabilizer = DepthDisplayStabilizer()
+        self._geometry_scope_mode = "scene"  # FT-05.7 backend compatible; Qt explicitly opts into object
+        self._geometry_denoise_mode = "standard"
 
         self._preview_timer = QTimer(self)
         self._preview_timer.setInterval(100)  # 10 Hz, UI never follows native FPS
@@ -84,6 +88,8 @@ class LiveCaptureUiController(QObject):
         if self._geometry is not None:
             return
         thread = LiveGeometryThread()
+        thread.set_scope_mode(self._geometry_scope_mode)
+        thread.set_denoise_mode(self._geometry_denoise_mode)
         self._geometry = thread
         thread.result_available.connect(self._on_geometry_available)
         thread.finished.connect(self._on_geometry_finished)
@@ -96,6 +102,26 @@ class LiveCaptureUiController(QObject):
         self._geometry_latest = None
         return cloud if self.camera.state is CameraState.STREAMING else None
 
+    def set_geometry_denoise_mode(self, mode: str) -> None:
+        self._assert_gui()
+        if type(mode) is not str or mode not in ("standard", "off"):
+            raise ValueError("DENOISE_MODE_INVALID")
+        self._geometry_denoise_mode = mode
+        if self._geometry is not None:
+            self._geometry.set_denoise_mode(mode)
+
+    def set_geometry_scope_mode(self, mode: str) -> None:
+        self._assert_gui()
+        if type(mode) is not str or mode not in ("scene", "object"):
+            raise ValueError("SCOPE_MODE_INVALID")
+        if mode == self._geometry_scope_mode:
+            return
+        self._geometry_scope_mode = mode
+        self._geometry_latest = None
+        self._geometry_last_error = None
+        if self._geometry is not None:
+            self._geometry.set_scope_mode(mode)
+
     def geometry_statistics(self) -> dict:
         self._assert_gui()
         return self._geometry.statistics() if self._geometry is not None else {}
@@ -105,6 +131,7 @@ class LiveCaptureUiController(QObject):
         self._last_analyzed_frame = None
         self._geometry_latest = None
         self._geometry_last_error = None
+        self._display_stabilizer.reset()
         if self._geometry is not None:
             self._geometry.change_generation(self._generation)
         if self._analysis is not None:
@@ -177,7 +204,8 @@ class LiveCaptureUiController(QObject):
         if self._last_analyzed_frame is not None and frame_index <= self._last_analyzed_frame:
             return
         self._last_analyzed_frame = frame_index
-        self.panel.set_auto_result(result)
+        self.panel.set_auto_result(
+                result, display_roi=self._display_stabilizer.update(frame_index, result))
 
     @Slot()
     def _on_analysis_available(self) -> None:
@@ -195,7 +223,8 @@ class LiveCaptureUiController(QObject):
             return
         if self._last_analyzed_frame != frame_index:
             self._last_analyzed_frame = frame_index
-            self.panel.set_auto_result(result)
+            self.panel.set_auto_result(
+                result, display_roi=self._display_stabilizer.update(frame_index, result))
         self.analysis_ready.emit(frame, result)
 
     @Slot()

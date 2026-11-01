@@ -121,6 +121,9 @@ class ScanToPathMainWindow(ShellCompositionMixin, ProjectDelegatesMixin, QMainWi
         # The layout owns neither camera nor SQLite/RAW lifecycle.
         from scantopath.modules.capture.presentation.workspace_layout import CaptureWorkspaceLayout
         self.capture_workspace_layout = CaptureWorkspaceLayout(self)
+        # FT-05: one live 3D viewer inside the existing Capture tab.
+        from scantopath.modules.capture.presentation.live_3d_controller import Live3DController
+        self.live_3d = Live3DController(self)
         # 09.09.4: controller signals -> real operational timeline.
         from scantopath.ui.tasks.operation_bridge import OperationActivityBridge
         self.operation_activity = OperationActivityBridge(self)
@@ -248,6 +251,7 @@ class ScanToPathMainWindow(ShellCompositionMixin, ProjectDelegatesMixin, QMainWi
         viewer_stopped = self.viewer3d is None or getattr(self.viewer3d, 'begin_shutdown', lambda: True)()
         geometry_preview_stopped = self.geometry_preview.begin_shutdown()
         capture_stopped = self.capture_preview.begin_shutdown()
+        live_3d_stopped = self.live_3d.begin_shutdown()
         live_stopped = self.capture_live.begin_shutdown()
         store_init_stopped = self.project_workspace.store_initializer.begin_shutdown()
         capture_action_stopped = self.capture_action.begin_shutdown()
@@ -260,6 +264,7 @@ class ScanToPathMainWindow(ShellCompositionMixin, ProjectDelegatesMixin, QMainWi
             and geometry_preview_stopped
             and capture_stopped
             and live_stopped
+            and live_3d_stopped
             and store_init_stopped
             and capture_action_stopped
         ):

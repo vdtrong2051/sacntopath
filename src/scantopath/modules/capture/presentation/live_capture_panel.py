@@ -6,16 +6,19 @@ from __future__ import annotations
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
-    QFrame, QHBoxLayout, QLabel, QPushButton, QSizePolicy, QVBoxLayout, QWidget,
+    QFrame, QHBoxLayout, QLabel, QPushButton, QSizePolicy, QSplitter, QVBoxLayout, QWidget,
 )
 
 from scantopath.modules.capture.domain.models import CameraState, DepthRoi, RoiSource
 from .depth_roi_overlay import DepthRoiOverlay
+from .live_3d_panel import Live3DPanel
 from .preview_widget import owned_rgb_image
 from .preview_widget import depth_display_u8
 
 from PySide6.QtGui import QPixmap
 
+
+_FT056_DEFAULT_ROI = object()  # Backward-compatible optional display override.
 
 class LiveCapturePanel(QFrame):
     def __init__(self, parent: QWidget | None = None) -> None:
@@ -59,8 +62,12 @@ class LiveCapturePanel(QFrame):
         bar.addWidget(self.auto_capture_button)
         layout.addLayout(bar)
 
-        panes = QHBoxLayout()
-        left = QFrame(self)
+        panes = QSplitter(Qt.Horizontal, self)
+        self._camera_column = QWidget(panes)
+        camera_layout = QVBoxLayout(self._camera_column)
+        camera_layout.setContentsMargins(0, 0, 0, 0)
+        camera_layout.setSpacing(4)
+        left = QFrame(self._camera_column)
         left_layout = QVBoxLayout(left)
         left_layout.setContentsMargins(0, 0, 0, 0)
         left_layout.addWidget(QLabel("RGB live (không align)", left))
@@ -71,17 +78,23 @@ class LiveCapturePanel(QFrame):
         self.rgb_image.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.rgb_image.setStyleSheet("background:#171c24; color:#bec7d2;")
         left_layout.addWidget(self.rgb_image, 1)
-        panes.addWidget(left, 1)
+        camera_layout.addWidget(left, 1)
 
-        right = QFrame(self)
+        right = QFrame(self._camera_column)
         right_layout = QVBoxLayout(right)
         right_layout.setContentsMargins(0, 0, 0, 0)
         right_layout.addWidget(QLabel("Depth live + ROI (tọa độ Depth)", right))
         self.depth_overlay = DepthRoiOverlay(right)
         self.depth_overlay.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         right_layout.addWidget(self.depth_overlay, 1)
-        panes.addWidget(right, 1)
-        layout.addLayout(panes, 1)
+        camera_layout.addWidget(right, 1)
+        panes.addWidget(self._camera_column)
+        self.cloud_view = Live3DPanel(panes)
+        panes.addWidget(self.cloud_view)
+        panes.setStretchFactor(0, 2)
+        panes.setStretchFactor(1, 3)
+        panes.setChildrenCollapsible(False)
+        layout.addWidget(panes, 1)
 
         tools = QHBoxLayout()
         self.manual_button = QPushButton("Chọn ROI thủ công", self)
@@ -142,9 +155,14 @@ class LiveCapturePanel(QFrame):
         self.manual_button.setChecked(False)
         self._show_roi()
 
-    def set_auto_result(self, result) -> None:
-        # No stale box for ambiguous, acquiring, missing or failed tracking.
-        self._auto = result.roi if result is not None and result.usable else None
+    def set_auto_result(self, result, *, display_roi=_FT056_DEFAULT_ROI) -> None:
+        # Display-only override; safety/Auto Capture receives original result.
+        if display_roi is _FT056_DEFAULT_ROI:
+            self._auto = result.roi if result is not None and result.usable else None
+        elif display_roi is None or isinstance(display_roi, DepthRoi):
+            self._auto = display_roi
+        else:
+            raise TypeError("DISPLAY_ROI_INVALID")
         reason = result.status.value if result is not None else "analysis_failed"
         confidence = f"{result.confidence:.2f}" if result is not None else "--"
         self._reason = f"{reason}; score={confidence} (chưa hiệu chuẩn)"
