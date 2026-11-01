@@ -6,7 +6,7 @@ displayed coordinates are not independently verified metric measurements.
 """
 from __future__ import annotations
 
-from concurrent.futures import Future
+from concurrent.futures import Future, CancelledError
 from pathlib import Path
 
 from PySide6.QtCore import QEvent, Signal, Qt
@@ -15,6 +15,7 @@ from PySide6.QtGui import QShortcut, QKeySequence
 from PySide6.QtWidgets import QLabel
 
 from ..application.scene_contracts import SceneSelectionRef
+from ..application.typed_pick import StalePickResult, validate_native_pick
 from .live_controller import LiveViewer3DController
 from .live_tools import LiveViewerTools
 
@@ -82,6 +83,7 @@ class InteractiveViewer3DController(LiveViewer3DController):
             self._shortcuts.append(shortcut)
 
     def _clear_selection(self):
+        self._pick_future = None  # Drop in-flight selection intent.
         self.page.preview.cancel_drag()
         self._selected = None
         self._emit_scene()
@@ -103,6 +105,8 @@ class InteractiveViewer3DController(LiveViewer3DController):
     def _set_tool_mode(self, mode: str):
         if mode not in ('select', 'orbit', 'pan'):
             return
+        if mode != 'select':
+            self._pick_future = None  # Switching tools revokes the last click.
         self._tool_mode = mode
         self.page.preview.cancel_drag()
         self.tools.set_mode(mode)
@@ -173,6 +177,7 @@ class InteractiveViewer3DController(LiveViewer3DController):
         token = (self._expected_scene_revision, self._descriptor.source_sha256) if self._descriptor else None
         if self._live_phase == 'ready' and token != self._inspected_scene:
             self._inspected_scene = token
+            self._pick_future = None  # Scene replacement invalidates prior pick.
             self._selected = None
             self._emit_scene()
         self._poll_selection()
@@ -207,31 +212,27 @@ class InteractiveViewer3DController(LiveViewer3DController):
         self._pick_future = None
         try:
             result = future.result()
-            d = self._descriptor
-            if (d is None or self._live_phase != 'ready' or
-                    result['scene_revision'] != self._expected_scene_revision or
-                    result['frame_revision'] != self._last_frame_revision or
-                    result['source_sha256'] != d.source_sha256 or
-                    result['geometry_kind'] != d.geometry_kind):
+            descriptor = self._descriptor
+            if (descriptor is None or self._live_phase != 'ready' or
+                    self._last_frame_revision < 0):
                 return
-            if not result['hit']:
-                self._selected = None
+            # UXH-01.5: reject stale/untrusted native pick replies before UI publication.
+            try:
+                selected = validate_native_pick(
+                    result, descriptor, self._expected_scene_revision,
+                    self._last_frame_revision)
+            except StalePickResult:
+                return  # Old scene/frame must not mutate current Inspector state.
+            self._selected = selected
+            if selected is None:
                 self.page.set_status('Không có điểm hoặc mặt tại vị trí đã chọn.')
             else:
-                kind = result['kind']
-                idx = result['element_id']
-                limit = d.point_count if kind == 'point' else d.face_count
-                if (kind != ('face' if d.geometry_kind == 'mesh' else 'point') or
-                        type(idx) is not int or not 0 <= idx < limit):
-                    raise ValueError('INVALID_PICK_ELEMENT')
-                self._selected = SceneSelectionRef(
-                    d.source_sha256, self._expected_scene_revision, kind, idx,
-                    tuple(result['xyz']))
-                self.page.set_status('Đã chọn ' + ('mặt' if kind == 'face' else 'điểm') +
-                                     f' số {idx}. Xem thông tin trong bảng Thuộc tính.')
+                self.page.set_status(
+                    'Đã chọn ' + ('mặt' if selected.kind == 'face' else 'điểm') +
+                    f' số {selected.element_id}. Xem thông tin trong bảng Thuộc tính.')
             self._emit_scene()
             self.point_pick_completed.emit(self._selected)
-        except (ValueError, KeyError, TypeError, RuntimeError):
+        except (ValueError, KeyError, TypeError, RuntimeError, CancelledError):
             self._selected = None
             self._emit_scene()
             self.point_pick_completed.emit(None)
@@ -240,6 +241,7 @@ class InteractiveViewer3DController(LiveViewer3DController):
     def navigate(self, action: str, dx: float = 0.0, dy: float = 0.0) -> bool:
         result = super().navigate(action, dx, dy)
         if result and not self._legacy_mode:
+            self._pick_future = None  # Invalidate pending click after camera intent.
             self._selected = None
             self._emit_scene()
         return result
@@ -251,6 +253,7 @@ class InteractiveViewer3DController(LiveViewer3DController):
         try:
             self._layer_future = self._live_session.set_visibility(visible)
             self._visible_geometry = visible
+            self._pick_future = None  # Geometry visibility changed.
             self._selected = None
             self._emit_scene()
         except (ValueError, RuntimeError):
@@ -265,6 +268,7 @@ class InteractiveViewer3DController(LiveViewer3DController):
         try:
             self._grid_future = self._live_session.set_grid(enabled,mode)
             self._grid_enabled, self._grid_mode = enabled,mode
+            self._pick_future = None  # Rendered frame identity will change.
         except (ValueError, RuntimeError):
             self.tools.set_grid(self._grid_enabled,self._grid_mode)
             self.page.set_status('Không thể đổi lưới tham chiếu.',is_error=True)
