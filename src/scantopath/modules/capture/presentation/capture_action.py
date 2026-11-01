@@ -61,9 +61,12 @@ class CaptureActionCoordinator(QObject):
         self._last_indices: tuple[int, int] | None = None
         self._seen_ids: set[str] = set()
         self._pending_raw: RawRgbdCapture | None = None
+        self._preserve_session_selection = False
+        self._auto_frame_floor: tuple[int, int] | None = None
         self.panel = view.capture_live.panel
         self.camera = view.capture_live.camera
         self.panel.capture_button.clicked.connect(self.capture)
+        self.panel.auto_capture_button.toggled.connect(self._refresh)
         self.camera.keyframe_ready.connect(self._on_keyframe)
         self.camera.keyframe_failed.connect(self._on_keyframe_failed)
         self.camera.state_changed.connect(self._on_camera_state)
@@ -100,7 +103,8 @@ class CaptureActionCoordinator(QObject):
         project = self.view.project_workspace
         ready = (not self._closing and self._phase == "idle" and self._thread is None
                  and not project.project_loader.busy and not project.project_writer.busy
-                 and self.camera.state is CameraState.STREAMING and selected is not None)
+                 and self.camera.state is CameraState.STREAMING and selected is not None
+                 and not self.panel.auto_capture_button.isChecked())
         self.panel.capture_button.setEnabled(ready)
         if self._phase == "idle":
             self.panel.capture_context_label.setText(
@@ -127,6 +131,27 @@ class CaptureActionCoordinator(QObject):
         self._refresh()
         self._start_storage("preflight", context)
         return True
+
+    def capture_auto(self, context: CaptureContext, *,
+                     color_frame_index: int, depth_frame_index: int) -> bool:
+        """Opt-in automation through the existing manual capture workflow.
+
+        RAW indices must be strictly newer than the triggering preview.
+        Preserve Scan Session selection after a verified commit.
+        """
+        if (not isinstance(context, CaptureContext) or context.capture_id is not None
+                or self._selected_context() != context
+                or type(color_frame_index) is not int or color_frame_index < 0
+                or type(depth_frame_index) is not int or depth_frame_index < 0
+                or self.busy or self._closing):
+            return False
+        self._preserve_session_selection = True
+        self._auto_frame_floor = (color_frame_index, depth_frame_index)
+        success = self.capture()
+        if not success:
+            self._preserve_session_selection = False
+            self._auto_frame_floor = None
+        return success
 
     def _start_storage(self, operation: str, context: CaptureContext,
                        raw: RawRgbdCapture | None = None) -> None:
@@ -162,10 +187,18 @@ class CaptureActionCoordinator(QObject):
             self.finished.emit(capture_id)
             self.phase_changed.emit("succeeded", "RAW v2 và SQLite: " + capture_id)
             self._phase = "idle"
-            self._context = None
-            # Existing reader refresh will insert Capture in Explorer. Replay is 09.09.2.
-            self.view.project_workspace._pending_selection = SelectionRef("capture", capture_id)
+            # Manual capture opens the new Capture; automatic capture stays
+            # on its original Scan Session for successive frames.
+            preserved = self._preserve_session_selection
+            session_id = self._context.session_id if self._context else None
+            self._preserve_session_selection = False
+            self._auto_frame_floor = None
+            self.view.project_workspace._pending_selection = (
+                SelectionRef("scan_session", session_id)
+                if preserved and session_id else SelectionRef("capture", capture_id)
+            )
             self.view.project_workspace._reload_project_store()
+            self._context = None
         self._refresh()
 
     @Slot(str)
@@ -199,6 +232,9 @@ class CaptureActionCoordinator(QObject):
         if (meta.session_id != ctx.session_id or meta.specimen_id != ctx.specimen_id
                 or meta.camera_pose is not None or meta.alignment_mode != "disabled"
                 or meta.capture_id in self._seen_ids or
+                (self._auto_frame_floor is not None and
+                 (indices[0] <= self._auto_frame_floor[0] or
+                  indices[1] <= self._auto_frame_floor[1])) or
                 (self._last_indices is not None and
                  (indices[0] <= self._last_indices[0] or indices[1] <= self._last_indices[1]))):
             self._fail("STALE_OR_INVALID_KEYFRAME")
@@ -234,6 +270,8 @@ class CaptureActionCoordinator(QObject):
         self._phase = "idle"
         self._context = None
         self._pending_raw = None
+        self._preserve_session_selection = False
+        self._auto_frame_floor = None
         self._notice("Chụp/lưu chưa hoàn tất: " + code)
         self.failed.emit(code)
         self.phase_changed.emit("failed", code)

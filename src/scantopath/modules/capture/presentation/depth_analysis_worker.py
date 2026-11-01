@@ -14,7 +14,8 @@ from scantopath.modules.capture.application.live_stream import LiveRgbdFrame
 
 
 class DepthAnalysisThread(QThread):
-    analyzed = Signal(int, int, object)  # generation, frame index, TrackingResult|None
+    analyzed = Signal(int, int, object)  # original consumers, unchanged
+    analysis_available = Signal()  # one-slot owned frame + result mailbox
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
@@ -22,11 +23,15 @@ class DepthAnalysisThread(QThread):
         self._pending: tuple[int, int, LiveRgbdFrame] | None = None
         self._generation = 0
         self._closing = False
+        self._latest_analysis = None
+        self._analysis_notice_pending = False
 
     def change_generation(self, generation: int) -> None:
         with self._cv:
             self._generation = generation
             self._pending = None
+            self._latest_analysis = None
+            self._analysis_notice_pending = False
             self._cv.notify_all()
 
     def submit(self, generation: int, frame: LiveRgbdFrame) -> bool:
@@ -43,7 +48,16 @@ class DepthAnalysisThread(QThread):
         with self._cv:
             self._closing = True
             self._pending = None
+            self._latest_analysis = None
             self._cv.notify_all()
+
+    def take_latest_analysis(self):
+        """Atomically consume latest analyzed frame; older ones are discarded."""
+        with self._cv:
+            packet = self._latest_analysis
+            self._latest_analysis = None
+            self._analysis_notice_pending = False
+            return packet
 
     def run(self) -> None:
         tracker = DepthBboxTracker()
@@ -69,3 +83,12 @@ class DepthAnalysisThread(QThread):
                 if self._closing or generation != self._generation:
                     continue
             self.analyzed.emit(generation, frame_index, result)
+            notify = False
+            with self._cv:
+                if not self._closing and generation == self._generation:
+                    self._latest_analysis = (generation, frame_index, frame, result)
+                    if not self._analysis_notice_pending:
+                        self._analysis_notice_pending = True
+                        notify = True
+            if notify:
+                self.analysis_available.emit()

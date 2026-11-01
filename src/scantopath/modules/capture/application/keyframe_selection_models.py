@@ -42,12 +42,21 @@ class KeyframeSelectionConfig:
     min_reference_overlap_fraction: float = 0.30
     min_novelty_score: float = 0.10
     novelty_depth_normalizer_m: float = 0.20
+    # R1 conservative defaults; not calibrated against the operator's RAW set.
+    depth_noise_floor_m: float = 0.012
+    color_noise_floor_gray: float = 14.0
+    near_surface_band_m: float = 0.10
+    min_near_surface_samples: int = 12
+    max_signature_shift_cells: int = 1
+    silhouette_noise_fraction: float = 0.10
 
     def __post_init__(self) -> None:
         if type(self.cooldown_us) is not int or not 0 <= self.cooldown_us <= 60_000_000:
             raise ValueError("invalid cooldown_us")
         for name in ("max_interframe_depth_change_m", "min_interframe_overlap_fraction",
-                     "min_reference_overlap_fraction", "min_novelty_score", "novelty_depth_normalizer_m"):
+                     "min_reference_overlap_fraction", "min_novelty_score", "novelty_depth_normalizer_m",
+                     "depth_noise_floor_m", "color_noise_floor_gray", "near_surface_band_m",
+                     "silhouette_noise_fraction"):
             value = getattr(self, name)
             if type(value) not in (int, float) or not isfinite(value):
                 raise ValueError(f"invalid {name}")
@@ -58,6 +67,17 @@ class KeyframeSelectionConfig:
                 0 < self.min_reference_overlap_fraction <= 1 and
                 0 < self.min_novelty_score <= 1):
             raise ValueError("invalid fraction/novelty threshold")
+        if not (0 <= self.depth_noise_floor_m <= 0.10
+                and 0 <= self.color_noise_floor_gray <= 64
+                and 0 < self.near_surface_band_m <= 1
+                and 0 <= self.silhouette_noise_fraction <= 0.5):
+            raise ValueError("invalid R1 noise/foreground settings")
+        if (type(self.min_near_surface_samples) is not int or
+                not 4 <= self.min_near_surface_samples <= 128):
+            raise ValueError("invalid min_near_surface_samples")
+        if (type(self.max_signature_shift_cells) is not int or
+                not 0 <= self.max_signature_shift_cells <= 2):
+            raise ValueError("invalid max_signature_shift_cells")
 
 
 @dataclass(frozen=True, slots=True)

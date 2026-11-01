@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from PySide6.QtCore import QObject, QThread, QTimer, Slot
+from PySide6.QtCore import QObject, QThread, QTimer, Signal, Slot
 from PySide6.QtWidgets import QWidget
 
 from scantopath.application.contracts import WorkspaceId
@@ -19,6 +19,7 @@ from .live_worker import LiveStreamWorker
 
 
 class LiveCaptureUiController(QObject):
+    analysis_ready = Signal(object, object)  # owned frame + tracking result
     """GUI-thread owner of live panel, camera lifecycle and depth analysis thread."""
 
     def __init__(self, view, *, worker_factory: Callable[[], LiveStreamWorker]) -> None:
@@ -68,6 +69,7 @@ class LiveCaptureUiController(QObject):
         thread = DepthAnalysisThread()
         self._analysis = thread
         thread.analyzed.connect(self._on_analyzed)
+        thread.analysis_available.connect(self._on_analysis_available)
         thread.finished.connect(self._on_analysis_finished)
         thread.start()
 
@@ -133,6 +135,25 @@ class LiveCaptureUiController(QObject):
             return
         self._last_analyzed_frame = frame_index
         self.panel.set_auto_result(result)
+
+    @Slot()
+    def _on_analysis_available(self) -> None:
+        worker = self._analysis
+        if worker is None:
+            return
+        packet = worker.take_latest_analysis()
+        if packet is None:
+            return
+        generation, frame_index, frame, result = packet
+        if (self._closing or generation != self._generation or
+                self.camera.state is not CameraState.STREAMING or
+                (self._last_analyzed_frame is not None and
+                 frame_index < self._last_analyzed_frame)):
+            return
+        if self._last_analyzed_frame != frame_index:
+            self._last_analyzed_frame = frame_index
+            self.panel.set_auto_result(result)
+        self.analysis_ready.emit(frame, result)
 
     def begin_navigation_away(self) -> None:
         """Leaving Capture requests stop; worker remains owned until reaped."""

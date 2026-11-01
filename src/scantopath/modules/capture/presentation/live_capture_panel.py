@@ -47,6 +47,16 @@ class LiveCapturePanel(QFrame):
         self.capture_button.setToolTip("Lưu keyframe vào phiên quét đang mở trong Cây dự án")
         self.capture_button.setEnabled(False)
         bar.addWidget(self.capture_button)
+        self.auto_capture_button = QPushButton("Auto Keyframe: OFF", self)
+        self.auto_capture_button.setObjectName("captureLiveAutoKeyframeButton")
+        self.auto_capture_button.setCheckable(True)
+        self.auto_capture_button.setEnabled(False)
+        self.auto_capture_button.toggled.connect(
+            lambda checked: self.auto_capture_button.setText(
+                "Auto Keyframe: ON" if checked else "Auto Keyframe: OFF"
+            )
+        )
+        bar.addWidget(self.auto_capture_button)
         layout.addLayout(bar)
 
         panes = QHBoxLayout()
@@ -94,6 +104,10 @@ class LiveCapturePanel(QFrame):
         self.capture_context_label.setObjectName("captureLiveContextLabel")
         self.capture_context_label.setWordWrap(True)
         layout.addWidget(self.capture_context_label)
+        self.auto_capture_status = QLabel("Auto Keyframe: IDLE", self)
+        self.auto_capture_status.setObjectName("captureLiveAutoKeyframeStatus")
+        self.auto_capture_status.setWordWrap(True)
+        layout.addWidget(self.auto_capture_status)
         self.manual_button.toggled.connect(self.depth_overlay.set_manual_enabled)
         self.depth_overlay.manual_roi_selected.connect(self._on_manual_selected)
         self.auto_button.clicked.connect(self.use_auto)
