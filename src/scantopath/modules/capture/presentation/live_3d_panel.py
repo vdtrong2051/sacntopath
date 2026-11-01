@@ -78,6 +78,7 @@ class Live3DPanel(QFrame):
     camera_intent = Signal(str, float, float)
     denoise_mode_changed = Signal(str)
     scope_mode_changed = Signal(str)
+    reference_mode_changed = Signal(str)
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
@@ -99,6 +100,16 @@ class Live3DPanel(QFrame):
         self.scope_mode.currentIndexChanged.connect(
             lambda _i: self.scope_mode_changed.emit(str(self.scope_mode.currentData())))
         header.addWidget(self.scope_mode)
+        self.reference_mode = QComboBox(self)
+        self.reference_mode.setObjectName("captureLive3DReferenceMode")
+        self.reference_mode.addItem("ChArUco", "charuco")
+        self.reference_mode.addItem("Hình học Depth", "depth")
+        self.reference_mode.setToolTip("ChArUco: dùng bảng chuẩn; Hình học Depth: FT-05.7 độc lập")
+        self.reference_mode.currentIndexChanged.connect(
+            lambda _i: self.reference_mode_changed.emit(str(self.reference_mode.currentData())))
+        self.scope_mode.currentIndexChanged.connect(
+            lambda _i: self.reference_mode.setEnabled(self.scope_mode.currentData() == "object"))
+        header.addWidget(self.reference_mode)
         self.denoise_toggle = QCheckBox("Lọc nhiễu 3D", self)
         self.denoise_toggle.setObjectName("captureLive3DDenoise")
         self.denoise_toggle.setChecked(True)

@@ -17,6 +17,7 @@ from PySide6.QtCore import QThread, Signal
 
 from scantopath.modules.capture.application.live_stream import LiveRgbdFrame
 from scantopath.modules.geometry.application.live_object_isolation import isolate_object_depth
+from scantopath.modules.geometry.application.live_charuco_isolation import isolate_charuco_object
 from scantopath.modules.geometry.application.live_geometry import (
     LiveCloudFrame, LiveGeometryError, LiveGeometryService,
 )
@@ -35,6 +36,10 @@ class LiveGeometryThread(QThread):
         self._scope_mode = "scene"  # FT-03/FT-05 compatibility; UI selects object
         self._scope_revision = 0
         self._last_isolation_status = "SCENE"
+        self._reference_mode = "depth"  # FT-05.7 compatibility, Qt opts into ChArUco
+        self._last_board_corners = 0
+        self._last_board_reprojection_px = None
+        self._last_board_support_fraction = None
         if not callable(self._processor):
             raise TypeError("processor must be callable")
         self._cv = Condition()
@@ -77,6 +82,9 @@ class LiveGeometryThread(QThread):
             self._last_submitted = -1
             self._last_output = -1
             self._last_error_code = None
+            self._last_board_corners = 0
+            self._last_board_reprojection_px = None
+            self._last_board_support_fraction = None
             self._cv.notify_all()
 
     def submit(self, generation: int, frame: LiveRgbdFrame,
@@ -126,6 +134,26 @@ class LiveGeometryThread(QThread):
             self._last_isolation_status = "PENDING" if mode == "object" else "SCENE"
             self._cv.notify_all()
 
+    def set_reference_mode(self, mode: str) -> None:
+        if type(mode) is not str or mode not in ("depth", "charuco"):
+            raise ValueError("REFERENCE_MODE_INVALID")
+        with self._cv:
+            if self._closing or mode == self._reference_mode:
+                return
+            self._reference_mode = mode
+            self._scope_revision += 1
+            if self._pending is not None:
+                self._counts["frames_dropped_input"] += 1
+            if self._latest is not None:
+                self._counts["frames_dropped_output"] += 1
+            self._pending = self._latest = None
+            self._notice_pending = False
+            self._last_isolation_status = "PENDING"
+            self._last_board_corners = 0
+            self._last_board_reprojection_px = None
+            self._last_board_support_fraction = None
+            self._cv.notify_all()
+
     def request_stop(self) -> None:
         """Nonblocking; inflight calculation may complete but cannot publish."""
         with self._cv:
@@ -153,6 +181,10 @@ class LiveGeometryThread(QThread):
                 "camera_generation": self._generation,
                 "denoise_mode": self._denoise_mode,
                 "scope_mode": self._scope_mode,
+                "reference_mode": self._reference_mode,
+                "board_corners": self._last_board_corners,
+                "board_reprojection_px": self._last_board_reprojection_px,
+                "board_support_fraction": self._last_board_support_fraction,
                 "last_isolation_status": self._last_isolation_status,
                 "pending_input": int(self._pending is not None),
                 "pending_output": int(self._latest is not None),
@@ -174,22 +206,31 @@ class LiveGeometryThread(QThread):
                 generation, index, frame, roi = self._pending
                 denoise_mode = self._denoise_mode
                 scope_mode = self._scope_mode
+                reference_mode = self._reference_mode
                 scope_revision = self._scope_revision
                 self._pending = None
             before = monotonic()
             cloud: LiveCloudFrame | None = None
             error: str | None = None
             isolation_status = "SCENE"
+            board_metrics = (0, None, None)
             try:
                 kw = {"camera_generation": generation, "depth_roi": roi}
                 if scope_mode == "object" and self._standard_processor:
                     calibration = frame.source.calibration
                     if calibration is None:
                         raise LiveGeometryError("LIVE_CALIBRATION_MISSING", "No calibration")
-                    isolated = isolate_object_depth(
-                        frame.depth_u16, frame.source.depth_scale_m_per_unit,
-                        calibration.depth_intrinsics, depth_roi=roi)
+                    if reference_mode == "charuco":
+                        isolated = isolate_charuco_object(
+                            frame.color_rgb, frame.depth_u16, calibration, depth_roi=roi)
+                    else:
+                        isolated = isolate_object_depth(
+                            frame.depth_u16, frame.source.depth_scale_m_per_unit,
+                            calibration.depth_intrinsics, depth_roi=roi)
                     isolation_status = isolated.status
+                    if reference_mode == "charuco":
+                        board_metrics = (isolated.corner_count, isolated.reprojection_px,
+                                         isolated.support_fraction)
                     if not isolated.usable:
                         raise LiveGeometryError(isolated.status, isolated.message)
                     kw["object_mask"] = isolated.object_mask
@@ -219,7 +260,9 @@ class LiveGeometryThread(QThread):
                     continue
                 self._last_output = index
                 self._last_isolation_status = isolation_status if error is None else (
-                    error if error.startswith("ISOLATION_") else "ERROR")
+                    error if error.startswith(("ISOLATION_", "CHARUCO_")) else "ERROR")
+                self._last_board_corners, self._last_board_reprojection_px, (
+                    self._last_board_support_fraction) = board_metrics
                 if self._latest is not None:
                     self._counts["frames_dropped_output"] += 1
                 if error is not None:

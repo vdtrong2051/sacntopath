@@ -30,7 +30,9 @@ class Live3DController(QObject):
         self._panel.camera_intent.connect(self._on_camera_intent)
         self._panel.denoise_mode_changed.connect(self._on_denoise_mode)
         self._panel.scope_mode_changed.connect(self._on_scope_mode)
+        self._panel.reference_mode_changed.connect(self._on_reference_mode)
         self._live.set_geometry_scope_mode(str(self._panel.scope_mode.currentData()))
+        self._live.set_geometry_reference_mode(str(self._panel.reference_mode.currentData()))
 
     @property
     def safe_to_dispose(self) -> bool:
@@ -88,7 +90,7 @@ class Live3DController(QObject):
     def _on_geometry_failed(self, code: str) -> None:
         if not self._closing:
             self._allow_rgb = False
-            self._panel.clear('Không tách được vật thể: ' + code if code.startswith("ISOLATION_")
+            self._panel.clear('Không tách được vật thể: ' + code if code.startswith(("ISOLATION_", "CHARUCO_"))
                               else 'Geometry: ' + code)
             if self._worker is not None:
                 self._worker.invalidate_scene()
@@ -100,6 +102,16 @@ class Live3DController(QObject):
         self._allow_rgb = False
         self._panel.clear("Đang đổi phạm vi quan sát…")
         self._live.set_geometry_scope_mode(mode)
+        if self._worker is not None:
+            self._worker.invalidate_scene()
+
+    @Slot(str)
+    def _on_reference_mode(self, mode: str) -> None:
+        if self._closing:
+            return
+        self._allow_rgb = False
+        self._panel.clear("Đang chuyển nguồn tham chiếu…")
+        self._live.set_geometry_reference_mode(mode)
         if self._worker is not None:
             self._worker.invalidate_scene()
 
@@ -131,6 +143,16 @@ class Live3DController(QObject):
                 f'ROI: ({roi.x}, {roi.y}, {roi.width}, {roi.height}) · Chế độ: '
                 + self._panel.scope_mode.currentText()
             )
+        # Small, status-only diagnostic; never transfer pixels through Qt status.
+        detail = self._live.geometry_statistics()
+        if self._panel.scope_mode.currentData() == "object":
+            ref = self._panel.reference_mode.currentText()
+            corners = detail.get("board_corners", 0)
+            reproj = detail.get("board_reprojection_px")
+            suffix = ((f" · {corners} góc" +
+                      (f" · RMSE {reproj:.2f}px" if type(reproj) in (int, float) else ""))
+                      if self._panel.reference_mode.currentData() == "charuco" else "")
+            self._panel.scope.setText(self._panel.scope.text() + " · " + ref + suffix)
         item = self._worker.take_latest_rgb()
         if not self._allow_rgb:
             return

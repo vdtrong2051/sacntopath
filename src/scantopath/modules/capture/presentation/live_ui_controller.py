@@ -49,6 +49,7 @@ class LiveCaptureUiController(QObject):
         self._last_analyzed_frame: int | None = None
         self._display_stabilizer = DepthDisplayStabilizer()
         self._geometry_scope_mode = "scene"  # FT-05.7 backend compatible; Qt explicitly opts into object
+        self._geometry_reference_mode = "depth"  # FT-05.7 backend compatibility
         self._geometry_denoise_mode = "standard"
 
         self._preview_timer = QTimer(self)
@@ -89,6 +90,7 @@ class LiveCaptureUiController(QObject):
             return
         thread = LiveGeometryThread()
         thread.set_scope_mode(self._geometry_scope_mode)
+        thread.set_reference_mode(self._geometry_reference_mode)
         thread.set_denoise_mode(self._geometry_denoise_mode)
         self._geometry = thread
         thread.result_available.connect(self._on_geometry_available)
@@ -121,6 +123,18 @@ class LiveCaptureUiController(QObject):
         self._geometry_last_error = None
         if self._geometry is not None:
             self._geometry.set_scope_mode(mode)
+
+    def set_geometry_reference_mode(self, mode: str) -> None:
+        self._assert_gui()
+        if type(mode) is not str or mode not in ("depth", "charuco"):
+            raise ValueError("REFERENCE_MODE_INVALID")
+        if mode == self._geometry_reference_mode:
+            return
+        self._geometry_reference_mode = mode
+        self._geometry_latest = None
+        self._geometry_last_error = None
+        if self._geometry is not None:
+            self._geometry.set_reference_mode(mode)
 
     def geometry_statistics(self) -> dict:
         self._assert_gui()
