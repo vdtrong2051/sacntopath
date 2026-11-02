@@ -43,6 +43,8 @@ class Live3DController(QObject):
     """GUI-only pump of fully-owned RGB snapshots; never waits on renderer."""
 
     snapshot_saved = Signal(str)  # emitted only after atomic snapshot save completes
+    sequence_completed = Signal(str, int, int, str)  # FT11 verified FT09/B02 sequence
+    sequence_processing_started = Signal(int)
 
     def __init__(self, view, *, worker_factory=None) -> None:
         super().__init__(view)
@@ -50,6 +52,8 @@ class Live3DController(QObject):
         self._live = view.capture_live
         self._panel = self._live.panel.cloud_view
         self._sequence_ui = SequenceCaptureUi(self._panel, self._live.camera, self)
+        self._sequence_ui.completed.connect(self.sequence_completed.emit)
+        self._sequence_ui.processing_started.connect(self.sequence_processing_started.emit)
         self._worker_factory = worker_factory
         self._worker: Live3DRenderWorker | None = None  # Lazy until actual STREAMING.
         self._closing = False

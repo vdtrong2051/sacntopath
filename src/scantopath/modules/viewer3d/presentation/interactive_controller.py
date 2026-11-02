@@ -136,6 +136,17 @@ class InteractiveViewer3DController(LiveViewer3DController):
             ('Đơn vị', 'Chưa xác nhận'),
             ('Hệ tọa độ', 'Chưa xác nhận'),
         )
+        ft11 = tuple(getattr(self, '_ft11_fields', ()))
+        if ft11:
+            # Verified bundle metadata authorizes source units and coordinate
+            # labels, not metric-accuracy certification. Avoid contradictions.
+            fields = tuple(
+                (key, 'm · chưa kiểm chứng độ chính xác') if key == 'Đơn vị' else
+                (key, 'depth_optical_of_sample_0') if key == 'Hệ tọa độ' else
+                (key, value)
+                for key, value in fields
+            )
+        fields = fields + ft11
         if self._selected is None:
             self.scene_inspection.emit({
                 'kind': 'MÔ HÌNH 3D', 'title': d.name, 'fields': fields,
@@ -158,7 +169,19 @@ class InteractiveViewer3DController(LiveViewer3DController):
                     ' Không có xác nhận đơn vị đo hoặc hiệu chuẩn.',
             'copy_xyz': ', '.join(repr(v) for v in s.xyz)})
 
+    def set_reconstruction_context(self, fields):
+        if (not isinstance(fields, tuple) or any(
+                not isinstance(item, tuple) or len(item) != 2 or
+                not all(isinstance(x, str) and len(x) <= 300 for x in item)
+                for item in fields)):
+            raise ValueError('FT11_INVALID_CONTEXT')
+        self._ft11_fields = fields
+        if self._descriptor is not None:
+            self._emit_scene()
+
     def load_ply(self, filename: str | Path) -> bool:
+        # External models are not implicitly certified as FT11 artifacts.
+        self._ft11_fields = ()
         self._pick_future = self._layer_future = self._grid_future = None
         self._selected = None
         self._inspected_scene = None

@@ -64,6 +64,8 @@ class SequenceCaptureUi(QObject):
     bounded to 20 frames; Finish may be pressed anytime after two frames.
     Processing takes place in a QThread AFTER sampling, so Qt remains responsive.
     """
+    completed = Signal(str, int, int, str)  # FT11: verified B02 artifact ready
+    processing_started = Signal(int)  # FT11: async FT09 computation started
 
     MAX_FRAMES = 20  # existing B02 contracts and SHA manifest, no change
 
@@ -85,9 +87,9 @@ class SequenceCaptureUi(QObject):
         self._timer.timeout.connect(self._request_sample)
 
         row = QHBoxLayout()
-        self.start_button = QPushButton('Bắt đầu chuỗi 6DoF', panel)
+        self.start_button = QPushButton('Bắt đầu quét đa góc', panel)
         self.start_button.setObjectName('ft0817SequenceStart')
-        self.stop_button = QPushButton('Dừng & xử lý', panel)
+        self.stop_button = QPushButton('Dừng & tái tạo', panel)
         self.stop_button.setObjectName('ft0817SequenceStop')
         self.interval = QComboBox(panel)
         self.interval.setObjectName('ft0817SequenceInterval')
@@ -98,13 +100,39 @@ class SequenceCaptureUi(QObject):
         row.addWidget(self.start_button)
         row.addWidget(self.stop_button)
         row.addWidget(self.interval)
-        self.status = QLabel('Chuỗi 6DoF: sẵn sàng sau khi Live ChArUco ổn định', panel)
+        self.folder_button = QPushButton('Thư mục…', panel)
+        self.folder_button.setObjectName('ft11SequenceFolder')
+        self.folder_button.setToolTip('Tùy chọn: đổi vị trí lưu RAW; mặc định tự lưu vào Documents/ScanToPath/Sequences.')
+        self.folder_button.clicked.connect(self._choose_output)
+        row.addWidget(self.folder_button)
+        self._chosen_output = None
+        self.status = QLabel('Quét đa góc: chọn Vật thể + ChArUco, kết nối camera rồi Bắt đầu', panel)
         self.status.setObjectName('ft0817SequenceStatus')
         self.status.setWordWrap(True)
         # Reuse existing Live 3D panel; do not create a second viewport or page.
         layout = panel.layout()
         layout.insertLayout(3, row)  # after existing action buttons
         layout.insertWidget(4, self.status)
+        # Primary scan actions stay on one line. Mode and advanced recording
+        # settings form a separate compact line instead of overflowing 3D.
+        row.removeWidget(self.interval)
+        row.removeWidget(self.folder_button)
+        config_row = QHBoxLayout()
+        self.capture_mode = QComboBox(panel)
+        self.capture_mode.setObjectName('ft11CaptureMode')
+        self.capture_mode.addItem('Quét đa góc', 'multi')
+        self.capture_mode.addItem('Chụp đơn', 'single')
+        self.capture_mode.currentIndexChanged.connect(self._sync_capture_mode)
+        config_row.addWidget(self.capture_mode)
+        config_row.addWidget(self.interval)
+        config_row.addWidget(self.folder_button)
+        config_row.addStretch(1)
+        layout.insertLayout(4, config_row)
+        self.details_toggle = QPushButton('Thông số Live 3D ▸', panel)
+        self.details_toggle.setObjectName('ft11LiveDetailsToggle')
+        self.details_toggle.setCheckable(True)
+        self.details_toggle.toggled.connect(self._sync_capture_mode)
+        layout.insertWidget(6, self.details_toggle)
 
         self.start_button.clicked.connect(self._start)
         self.stop_button.clicked.connect(self._stop)
@@ -114,6 +142,7 @@ class SequenceCaptureUi(QObject):
         panel.scope_mode_changed.connect(self._mode_changed)
         panel.reference_mode_changed.connect(self._mode_changed)
         self._update_controls()
+        self._sync_capture_mode()
 
     @property
     def safe_to_dispose(self) -> bool:
@@ -129,7 +158,8 @@ class SequenceCaptureUi(QObject):
         # its own finished signal; the parent shell already waits on safe_to_dispose.
 
     def _ready_to_start(self) -> bool:
-        return bool(not self._closing and not self._recording and self._job is None
+        return bool(self.capture_mode.currentData() == 'multi' and
+                    not self._closing and not self._recording and self._job is None
                     and self._camera.state is CameraState.STREAMING
                     and self._panel.scope_mode.currentData() == 'object'
                     and self._panel.reference_mode.currentData() == 'charuco')
@@ -138,16 +168,49 @@ class SequenceCaptureUi(QObject):
         self.start_button.setEnabled(self._ready_to_start())
         self.stop_button.setEnabled(self._recording and not self._stopping)
         self.interval.setEnabled(not self._recording and self._job is None)
+        self.folder_button.setEnabled(not self._recording and self._job is None)
+        self.capture_mode.setEnabled(not self._recording and self._job is None)
+
+    def _sync_capture_mode(self, *_args):
+        multi = self.capture_mode.currentData() == 'multi'
+        for widget in (self.start_button, self.stop_button, self.interval, self.folder_button):
+            widget.setVisible(multi)
+        # Retain all original Single-frame controls and their signal wiring.
+        # A stub panel in offscreen tests may not implement these optional UI items.
+        for name in ('freeze_button', 'resume_button', 'snapshot_button', 'enhance_toggle'):
+            widget = getattr(self._panel, name, None)
+            if widget is not None:
+                widget.setVisible(not multi)
+        for name in ('geometry_info', 'scope', 'help'):
+            widget = getattr(self._panel, name, None)
+            if widget is not None:
+                widget.setVisible(self.details_toggle.isChecked())
+        self.details_toggle.setText('Ẩn thông số Live 3D ▾' if self.details_toggle.isChecked()
+                                    else 'Thông số Live 3D ▸')
+        parent = self.parent()
+        capture = getattr(getattr(parent, '_live', None), 'panel', None)
+        if capture is not None:
+            for name in ('capture_button', 'auto_capture_button'):
+                widget = getattr(capture, name, None)
+                if widget is not None:
+                    widget.setVisible(not multi)
+        self._update_controls()
+
+    @Slot()
+    def _choose_output(self) -> None:
+        selected = QFileDialog.getExistingDirectory(
+            self._panel, 'Chọn thư mục RAW của phiên tái tạo',
+            str(self._chosen_output or (Path.home()/'Documents'/'ScanToPath'/'Sequences')))
+        if selected:
+            self._chosen_output = Path(selected)
 
     @Slot()
     def _start(self) -> None:
         if not self._ready_to_start():
             self.status.setText('Chuỗi: chọn Vật thể + ChArUco, rồi bật camera trước.')
             return
-        output = QFileDialog.getExistingDirectory(
-            self._panel, 'Chọn thư mục kết quả FT-08.17', str(Path.home()))
-        if not output:
-            return
+        # No repetitive folder dialog at every Start; optional override above.
+        output = self._chosen_output or (Path.home()/'Documents'/'ScanToPath'/'Sequences')
         # Reuse the proven output-location safeguard before a camera command.
         from scantopath.modules.reconstruction.infrastructure.live_artifact_writer import _safe_output_parent
         try:
@@ -249,6 +312,7 @@ class SequenceCaptureUi(QObject):
         self.status.setText(f'Chuỗi: đang tính pose {count} frame (FT-05.8 + B-01)…')
         self._update_controls()
         job.start()
+        self.processing_started.emit(count)
 
     @Slot(str, int, int, str)
     def _on_success(self, path: str, accepted: int, total: int, state: str) -> None:
@@ -256,6 +320,7 @@ class SequenceCaptureUi(QObject):
             self.status.setText(f'Chuỗi 6DoF: {state} · {accepted}/{total} pose · '
                                 f'Đã lưu: {Path(path).name}')
             self.status.setToolTip(path)
+            self.completed.emit(path, accepted, total, state)
 
     @Slot(str)
     def _on_failure(self, code: str) -> None:

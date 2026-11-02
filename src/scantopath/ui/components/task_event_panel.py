@@ -238,7 +238,7 @@ class TaskAndEventPanel(QWidget):
         The latest state is kept per source and the visible timeline is bounded.
         A completed or stopped operation remains in history until app exit.
         """
-        if (source not in {"Project", "Camera", "Capture", "Replay", "RAW Check"}
+        if (source not in {"Project", "Camera", "Capture", "Replay", "RAW Check", "Reconstruction"}
                 or state not in {"running", "succeeded", "failed", "idle"}
                 or not isinstance(detail, str) or not detail.strip()):
             raise ValueError("Invalid operation event")

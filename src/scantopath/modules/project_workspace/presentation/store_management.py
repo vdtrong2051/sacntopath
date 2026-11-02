@@ -137,6 +137,7 @@ class RecentStorePanel(QFrame):
         self.recent_list = QListWidget(self)
         self.recent_list.setObjectName("recentStoreList")
         self.recent_list.setMaximumHeight(130)
+        self.recent_list.setMinimumHeight(0)
         self.recent_list.itemDoubleClicked.connect(self._open_item)
         self.recent_list.itemSelectionChanged.connect(self._update_buttons)
         layout.addWidget(self.recent_list)
@@ -197,6 +198,8 @@ class RecentStorePanel(QFrame):
                 self.recent_list.setCurrentItem(item)
         self.empty_label.setVisible(not paths)
         self.recent_list.setVisible(bool(paths))
+        # One recent store should occupy one row, not a 130px blank list.
+        self.recent_list.setFixedHeight(min(130, max(46, 16 + len(paths) * 30)))
         self._update_buttons()
 
     def show_store(self, root: str, schema: int) -> None:

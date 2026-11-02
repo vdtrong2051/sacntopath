@@ -140,6 +140,11 @@ class ScanToPathMainWindow(ShellCompositionMixin, ProjectDelegatesMixin, QMainWi
         self.project_explorer.capture_open_requested.connect(self._open_capture_from_click)
         self.project_workspace.project_dashboard.panel.capture_open_requested.connect(
             self._open_capture_from_click)
+        # FT11: one Qt orchestration owner for FT09 → FT10 → Viewer → Export/Reopen.
+        from scantopath.modules.reconstruction.presentation.reconstruction_workflow import (
+            ReconstructionWorkflowController,
+        )
+        self.reconstruction = ReconstructionWorkflowController(self)
 
         self._install_task_controller()
         self._connect_workspace_actions()
@@ -259,6 +264,7 @@ class ScanToPathMainWindow(ShellCompositionMixin, ProjectDelegatesMixin, QMainWi
         live_stopped = self.capture_live.begin_shutdown()
         store_init_stopped = self.project_workspace.store_initializer.begin_shutdown()
         capture_action_stopped = self.capture_action.begin_shutdown()
+        reconstruction_stopped = self.reconstruction.begin_shutdown()
         if (
             tasks_stopped
             and project_stopped
@@ -272,6 +278,7 @@ class ScanToPathMainWindow(ShellCompositionMixin, ProjectDelegatesMixin, QMainWi
             and project_hub_stopped
             and store_init_stopped
             and capture_action_stopped
+            and reconstruction_stopped
         ):
             if self.viewer3d is not None:
                 self.viewer3d.dispose()
@@ -283,6 +290,8 @@ class ScanToPathMainWindow(ShellCompositionMixin, ProjectDelegatesMixin, QMainWi
         if not geometry_preview_stopped:
             QTimer.singleShot(120, self.close)
         if not project_hub_stopped:
+            QTimer.singleShot(120, self.close)
+        if not reconstruction_stopped:
             QTimer.singleShot(120, self.close)
 
     def _create_menus(self) -> None:
@@ -384,6 +393,12 @@ class ScanToPathMainWindow(ShellCompositionMixin, ProjectDelegatesMixin, QMainWi
         if key is WorkspaceId.INSPECT3D:
             self._ensure_viewer3d()
         self.workspace_stack.setCurrentWidget(self._pages[key])
+        # Only one primary create/open-store entry point in the Projects screen;
+        # Explorer still owns selection, search and refresh in every workspace.
+        self.project_explorer.open_button.setVisible(key is not WorkspaceId.PROJECTS)
+        self.project_explorer.add_button.setVisible(key is not WorkspaceId.PROJECTS)
+        if hasattr(self, 'reconstruction'):
+            self.reconstruction.sync_workspace_context(key)
         if key is WorkspaceId.INSPECT3D:
             self.viewer3d.activate()
         for item, button in self.nav_buttons.items():

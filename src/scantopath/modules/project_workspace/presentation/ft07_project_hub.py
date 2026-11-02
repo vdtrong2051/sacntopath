@@ -47,6 +47,17 @@ class _ArtifactJob(QThread):
             self.failed.emit(type(exc).__name__ + ': ' + str(exc)[:220])
 
 
+class _ContextNotice(QLabel):
+    # Empty notices must not reserve a blank highlighted panel. Keep async
+    # Snapshot updates visible even when the main selection has not changed.
+    def setText(self, message):
+        super().setText(message)
+        self.setVisible(bool(str(message).strip()))
+
+    def clear(self):
+        self.setText('')
+
+
 class ProjectHub(QFrame):
     """One central entity page; never a second all-project hierarchy."""
 
@@ -67,6 +78,7 @@ class ProjectHub(QFrame):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setObjectName('ft07ProjectHub')
+        self.setToolTip('Chọn đối tượng trong cây trái; các tác vụ chính hiển thị theo ngữ cảnh.')
         self._trees = ()
         self._selection = None
         self._current_artifact = None
@@ -100,6 +112,10 @@ class ProjectHub(QFrame):
         self.description = QLabel('Chọn một đối tượng trong cây dự án để xem chi tiết.', self)
         self.description.setWordWrap(True)
         root.addWidget(self.description)
+        self.workflow_hint = QLabel('Kho → Dự án → Vật mẫu → Phiên quét → Thu nhận', self)
+        self.workflow_hint.setObjectName('ft11ProjectWorkflowHint')
+        self.workflow_hint.setWordWrap(True)
+        root.addWidget(self.workflow_hint)
 
         actions = QHBoxLayout()
         self.primary = QPushButton('Tạo dự án', self)
@@ -136,32 +152,48 @@ class ProjectHub(QFrame):
         self.detail.setWordWrap(True)
         self.detail.setObjectName('ft07DetailSummary')
         root.addWidget(self.detail)
-        self.notice = QLabel('', self)
+        self.notice = _ContextNotice('', self)
+        self.notice.hide()
         self.notice.setObjectName('ft07InlineNotice')
         self.notice.setWordWrap(True)
         root.addWidget(self.notice)
+        # Connect once; never disconnect an unbound PySide6 signal on selection.
+        self._primary_action = None
+        self._secondary_action = None
+        self.primary.clicked.connect(self._run_primary_action)
+        self.secondary.clicked.connect(self._run_secondary_action)
         self.show_bundle(None)
 
+    def _run_primary_action(self):
+        action = self._primary_action
+        if not self._busy and callable(action):
+            action()
+
+    def _run_secondary_action(self):
+        action = self._secondary_action
+        if not self._busy and callable(action):
+            action()
+
     def _reset_button(self, button, text, action=None):
-        try:
-            button.clicked.disconnect()
-        except (RuntimeError, TypeError):
-            pass
+        # Dispatch the CURRENT selection only; no disconnect(), no old callbacks.
+        if button is self.primary:
+            self._primary_action = action
+        elif button is self.secondary:
+            self._secondary_action = action
+        else:
+            raise ValueError('FT11_UNKNOWN_ACTION_BUTTON')
         button.setText(text)
         button.setVisible(action is not None)
-        if action is not None:
-            button.clicked.connect(action)
 
     def _clicked(self, item, _column):
         if self._updating:
             return
         ref = item.data(0, Qt.UserRole)
         if isinstance(ref, SelectionRef):
-            # Let a real double-click arrive before changing the entire page.
-            self._pending_selection = ref
-            delay = (QApplication.instance().doubleClickInterval() if QApplication.instance()
-                     else 350) + 40
-            QTimer.singleShot(delay, lambda candidate=ref: self._commit_click(candidate))
+            # Immediate feedback: the explicit primary action opens RAW/snapshot.
+            # Do not impose a double-click timeout on ordinary project navigation.
+            self._pending_selection = None
+            QTimer.singleShot(0, lambda candidate=ref: self.selected.emit(candidate))
         elif isinstance(ref, DerivedSnapshot):
             self._current_artifact = ref
             self.detail.setText(
@@ -169,6 +201,12 @@ class ProjectHub(QFrame):
                 f'{"Có điểm ước lượng" if ref.estimated else "Không đánh dấu điểm ước lượng"}\n'
                 'Dữ liệu dẫn xuất: chưa xác minh độ chính xác hình học.')
             self._configure_artifact_actions()
+
+    def _open_capture_reference(self, reference):
+        # Select the real RAW identity before navigation; defer the route to
+        # the next Qt event loop as in the existing double-click workflow.
+        self.selected.emit(reference)
+        QTimer.singleShot(0, lambda ref=reference: self.capture_open_requested.emit(ref))
 
     def _commit_click(self, candidate):
         if self._pending_selection == candidate:
@@ -196,9 +234,10 @@ class ProjectHub(QFrame):
             return
         self._reset_button(self.primary, 'Kiểm tra 3D',
                            lambda: self.open_artifact_requested.emit(artifact))
-        self._reset_button(self.secondary, 'Chuyển sang Xử lý',
-                           lambda: self.process_artifact_requested.emit(artifact))
+        # A snapshot is not a valid FT09 trajectory. Remove misleading shortcut.
+        self._reset_button(self.secondary, '', None)
         self.import_button.show()
+        self.set_controls(self._can_write, self._selection, self._busy)
 
     def show_bundle(self, bundle):
         self._trees = bundle.trees if bundle is not None else ()
@@ -260,26 +299,57 @@ class ProjectHub(QFrame):
                 for t in self._trees:
                     self._row(t.project.storage.public_code or t.project.name, 'Dự án',
                               t.project.name, SelectionRef('project', t.project.project_id))
-                self._reset_button(self.primary, '+ Tạo dự án', self.create_project_requested.emit)
+                if self._trees:
+                    first = self._trees[0].project
+                    self._reset_button(self.primary, 'Mở dự án',
+                        lambda ref=SelectionRef('project', first.project_id): self.selected.emit(ref))
+                    self._reset_button(self.secondary, '+ Tạo dự án', self.create_project_requested.emit)
+                else:
+                    self._reset_button(self.primary, '+ Tạo dự án', self.create_project_requested.emit)
             elif node is None:
                 self.description.setText(tree.project.description or 'Dự án chưa có mô tả.')
                 self.list_title.setText(f'{len(tree.specimens)} vật mẫu trong dự án')
                 for n in tree.specimens:
                     self._row(n.specimen.label, 'Vật mẫu', f'{len(n.sessions)} phiên',
                               SelectionRef('specimen', n.specimen.specimen_id))
-                self._reset_button(self.primary, '+ Thêm vật mẫu', self.create_specimen_requested.emit)
+                if tree.specimens:
+                    first = tree.specimens[0].specimen
+                    self._reset_button(self.primary, 'Mở vật mẫu',
+                        lambda ref=SelectionRef('specimen', first.specimen_id): self.selected.emit(ref))
+                    self._reset_button(self.secondary, '+ Thêm vật mẫu', self.create_specimen_requested.emit)
+                else:
+                    self._reset_button(self.primary, '+ Thêm vật mẫu', self.create_specimen_requested.emit)
             elif session is None:
                 self.description.setText(node.specimen.description or 'Vật mẫu chưa có mô tả.')
                 self.list_title.setText(f'{len(node.sessions)} phiên quét của vật mẫu')
                 for s in node.sessions:
                     self._row(s.label, 'Phiên quét', 'Đang mở' if s.state == 'open' else 'Đã đóng',
                               SelectionRef('scan_session', s.session_id))
-                self._reset_button(self.primary, '+ Tạo phiên quét', self.create_session_requested.emit)
+                active_session = next((s for s in node.sessions if s.state == 'open'), None)
+                if active_session is not None:
+                    self._reset_button(self.primary, 'Tiếp tục phiên đang mở',
+                        lambda ref=SelectionRef('scan_session', active_session.session_id): self.selected.emit(ref))
+                    self._reset_button(self.secondary, '+ Tạo phiên quét', self.create_session_requested.emit)
+                elif node.sessions:
+                    first = node.sessions[0]
+                    self._reset_button(self.primary, 'Xem phiên đã có',
+                        lambda ref=SelectionRef('scan_session', first.session_id): self.selected.emit(ref))
+                    self._reset_button(self.secondary, '+ Tạo phiên quét', self.create_session_requested.emit)
+                else:
+                    self._reset_button(self.primary, '+ Tạo phiên quét', self.create_session_requested.emit)
             elif selection.entity_type == 'scan_session':
                 self.description.setText(f'Phiên: {session.label} · '
                                          + ('Đang mở' if session.state == 'open' else 'Đã đóng'))
                 self._populate_session(session)
-                self._reset_button(self.primary, 'Thu nhận RGB-D', self.capture_session_requested.emit)
+                if session.state == 'open':
+                    self._reset_button(self.primary, 'Thu nhận RGB-D', self.capture_session_requested.emit)
+                else:
+                    self._reset_button(self.primary, '', None)
+                if session.captures:
+                    last = session.captures[-1]
+                    ref = SelectionRef('capture', last.capture_id)
+                    self._reset_button(self.secondary, 'Phát lại RAW gần nhất',
+                        lambda source=ref: self._open_capture_reference(source))
                 self.import_button.show()
             elif selection.entity_type == 'capture':
                 cap = next(c for c in session.captures if c.capture_id == selection.entity_id)
@@ -296,6 +366,29 @@ class ProjectHub(QFrame):
                                     + '\nĐầu ra tham chiếu: ' + (', '.join(run.output_files) or 'Chưa có'))
                 self.list_title.setText('Lần xử lý được chọn')
                 self._reset_button(self.primary, '', None)
+            context = (selection.entity_type if selection else 'root')
+            messages = {
+                'root': 'Bắt đầu: mở dự án trong danh sách hoặc tạo dự án mới.',
+                'project': 'Bước tiếp theo: thêm vật mẫu vào dự án đã chọn.',
+                'specimen': 'Bước tiếp theo: tạo một phiên quét cho vật mẫu này.',
+                'scan_session': 'Bước tiếp theo: thu nhận RGB-D hoặc mở RAW đã lưu.',
+                'capture': 'Bản thu RAW: chọn “Phát lại RAW” để kiểm tra dữ liệu.',
+                'processing_run': 'Lần xử lý: xem trạng thái và đầu ra tham chiếu.',
+            }
+            if context == 'specimen' and node is not None:
+                if node.sessions:
+                    messages[context] = (
+                        f'Đã có {len(node.sessions)} phiên quét. Ưu tiên mở phiên hiện có; '
+                        'tạo phiên mới chỉ khi cần lần thu nhận khác.')
+                else:
+                    messages[context] = 'Vật mẫu chưa có phiên quét. Tạo phiên để bắt đầu thu nhận.'
+            elif context == 'project' and tree is not None:
+                messages[context] = ('Chọn vật mẫu đã có hoặc thêm vật mẫu mới.'
+                                     if tree.specimens else 'Dự án chưa có vật mẫu. Hãy thêm vật mẫu đầu tiên.')
+            elif context == 'scan_session' and session is not None:
+                messages[context] = ('Phiên có thể thu thêm RGB-D; mở bản RAW đã có để kiểm tra.'
+                                     if session.state == 'open' else 'Phiên đã đóng; có thể phát lại RAW.')
+            self.workflow_hint.setText(messages.get(context, 'Chọn đối tượng để tiếp tục.'))
             self.items.resizeColumnToContents(0)
             self.items.resizeColumnToContents(1)
         finally:
@@ -334,15 +427,15 @@ class ProjectHub(QFrame):
     def set_controls(self, writable, selection, busy):
         self._can_write, self._busy = bool(writable), bool(busy)
         self.change_button.setEnabled(not busy)
-        if self._current_artifact is not None:
-            self.primary.setEnabled(not busy)
-            self.secondary.setEnabled(not busy)
-        else:
-            if selection is not None and selection.entity_type == 'capture':
-                self.primary.setEnabled(not busy)
-            else:
-                can = selection is None or selection.entity_type in ('project', 'specimen', 'scan_session')
-                self.primary.setEnabled(writable and not busy and can)
+        def allowed(button, action):
+            if not callable(action) or busy:
+                return False
+            label = button.text()
+            # Opening existing objects and read-only RAW do not require write rights.
+            edit = label.startswith('+') or label.startswith('Thu nhận RGB-D')
+            return bool(writable or not edit)
+        self.primary.setEnabled(allowed(self.primary, self._primary_action))
+        self.secondary.setEnabled(allowed(self.secondary, self._secondary_action))
         self.import_button.setEnabled(writable and not busy and self.session_context() is not None)
 
 

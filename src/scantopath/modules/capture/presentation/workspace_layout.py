@@ -16,8 +16,8 @@ from scantopath.application.contracts import WorkspaceId
 class ResponsiveCaptureWorkflowBar(QFrame):
     """Presentation-only responsive heading, never owns camera or selection."""
 
-    FULL_HINT = "Session → Kết nối → Chụp và lưu → Capture → Phát lại"
-    COMPACT_HINT = "Session → Camera → RAW"
+    FULL_HINT = "Phiên quét → Gemini 2 → RAW / Quét đa góc → Tái tạo → Xem 3D"
+    COMPACT_HINT = "Camera → RAW → Tái tạo"
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
@@ -87,7 +87,7 @@ class CaptureWorkspaceLayout:
         label = QLabel("THU NHẬN RGB-D", self.workflow_bar)
         label.setObjectName("captureWorkflowHeading")
         workflow.addWidget(label)
-        hint = QLabel("Session → Kết nối → Chụp và lưu → Capture → Phát lại", self.workflow_bar)
+        hint = QLabel("Phiên quét → Gemini 2 → RAW / Quét đa góc → Tái tạo → Xem 3D", self.workflow_bar)
         hint.setObjectName("captureWorkflowHint")
         hint.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         hint.setWordWrap(True)

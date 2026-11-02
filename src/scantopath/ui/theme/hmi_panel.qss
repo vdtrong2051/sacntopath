@@ -542,3 +542,91 @@ QLabel#processingSourceNote { padding: 4px 12px 7px 12px; }
 QComboBox#processingProjectFilter, QComboBox#processingStateFilter {
     min-height: 24px; max-height: 32px;
 }
+
+/* FT-11: light industrial design, scoped to reconstruction and Project Hub. */
+QFrame#ft11ReconstructionPanel, QFrame#ft07ProjectHub {
+    background: #F6F8FC; color: #1D2B3A;
+}
+QLabel#ft11Heading, QLabel#ft07EntityTitle {
+    color: #183454; font-weight: 700; font-size: 15pt;
+}
+QLabel#ft11SectionTitle, QLabel#ft07ChildrenTitle {
+    color: #365675; font-size: 9pt; font-weight: 700;
+}
+QLabel#ft11Phase, QLabel#ft07InlineNotice {
+    background: #EAF1FB; color: #23476B; padding: 10px 12px;
+    border-radius: 6px;
+}
+QLabel#ft11Metric {
+    background: #FFFFFF; border: 1px solid #DAE4EF; color: #1B3859;
+    border-radius: 7px; padding: 12px; font-weight: 650;
+}
+QLabel#ft11ProjectWorkflowHint {
+    color: #345E86; background: #EAF1FC; border-radius: 6px;
+    font-size: 9pt; padding: 8px 10px;
+}
+QLabel#ft11Note, QLabel#ft07DetailSummary {
+    color: #61748B; font-size: 9pt; padding: 6px 1px;
+}
+QFrame#ft11ReconstructionPanel QPushButton, QFrame#ft07ProjectHub QPushButton,
+QPushButton#ft11ViewerMode, QPushButton#ft11ViewerExport, QPushButton#ft11ViewerPoses {
+    min-height: 29px; border-radius: 6px; padding: 4px 10px;
+    border: 1px solid #C7D6E6; background: #FFFFFF; color: #244260;
+}
+QFrame#ft11ReconstructionPanel QPushButton:hover, QFrame#ft07ProjectHub QPushButton:hover {
+    background: #EAF2FF; border-color: #95B4DC;
+}
+QPushButton#ft11View, QPushButton#ft07PrimaryAction, QPushButton#ft11ViewerExport {
+    color: #FFFFFF; background: #2563EB; border-color: #2563EB;
+    font-weight: 650;
+}
+QPushButton#ft11View:hover, QPushButton#ft07PrimaryAction:hover {
+    background: #1D4ED8;
+}
+QFrame#ft11ReconstructionPanel QPushButton:disabled, QFrame#ft07ProjectHub QPushButton:disabled {
+    background: #EEF2F7; color: #92A1B0; border-color: #DAE3EC;
+}
+QTreeWidget#ft11PoseTable, QTreeWidget#ft07EntityChildren, QListWidget#ft11History {
+    background: #FFFFFF; color: #243A53; border: 1px solid #D7E2EE;
+    border-radius: 6px; alternate-background-color: #F7FAFE;
+}
+QTreeWidget#ft11PoseTable::item, QTreeWidget#ft07EntityChildren::item,
+QListWidget#ft11History::item { min-height: 26px; padding: 3px 6px; }
+QTabWidget#ft11ProcessingTabs::pane { border: 1px solid #D7E2EE; background: #FFFFFF; }
+QTabWidget#ft11ProcessingTabs QTabBar::tab {
+    padding: 9px 16px; min-width: 110px; color: #4A6482;
+}
+QTabWidget#ft11ProcessingTabs QTabBar::tab:selected {
+    color: #1D4ED8; font-weight: 700; border-bottom: 2px solid #2563EB;
+}
+
+/* FT-11 R2: contextual navigation, compact workflow, consistent legibility. */
+QLabel#ft11ExplorerReconstructionContext {
+    background-color: #E8F1FD; color: #20466E;
+    border: 1px solid #C5D9F0; border-radius: 6px;
+    padding: 8px 10px; font-size: 9pt;
+}
+QLabel#ft11PoseEmpty, QLabel#ft11HistoryEmpty {
+    color: #637995; background-color: #F7FAFE;
+    border: 1px dashed #CEDBEC; border-radius: 6px;
+    padding: 12px; font-size: 9pt;
+}
+QComboBox#ft11CaptureMode { min-width: 126px; max-width: 180px; }
+QPushButton#ft11LiveDetailsToggle {
+    color: #3D6188; text-align: left;
+    background: transparent; border: 0px; padding: 4px 6px;
+}
+QPushButton#ft11LiveDetailsToggle:hover { color: #175EB7; }
+QLabel#ft11ProjectWorkflowHint { background: #EAF2FC;
+    color: #345D86; border-radius: 5px; padding: 7px 9px; }
+QPushButton#ft11ViewerExport, QPushButton#ft11Export {
+    background-color: #2563EB; color: #FFFFFF;
+    border: 1px solid #1D56D6; border-radius: 6px;
+    padding: 7px 11px; font-weight: 600;
+}
+QPushButton#ft11ViewerExport:hover, QPushButton#ft11Export:hover {
+    background-color: #1E55D1;
+}
+QPushButton#ft11ViewerExport:disabled, QPushButton#ft11Export:disabled {
+    background-color: #E6ECF4; color: #8BA0B8; border-color: #D7E1ED;
+}
