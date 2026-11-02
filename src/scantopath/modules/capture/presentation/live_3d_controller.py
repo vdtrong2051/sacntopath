@@ -41,6 +41,8 @@ from scantopath.modules.viewer3d.application.live_3d_runtime import Live3DRender
 class Live3DController(QObject):
     """GUI-only pump of fully-owned RGB snapshots; never waits on renderer."""
 
+    snapshot_saved = Signal(str)  # emitted only after atomic snapshot save completes
+
     def __init__(self, view, *, worker_factory=None) -> None:
         super().__init__(view)
         self._view = view
@@ -273,6 +275,7 @@ class Live3DController(QObject):
     @Slot(str)
     def _on_saved(self, folder: str) -> None:
         self._save_result = folder
+        self.snapshot_saved.emit(folder)
         self._panel.status.setText('Snapshot đã lưu: ' + Path(folder).name)
         self._panel.status.setToolTip(folder)
 

@@ -161,6 +161,11 @@ class ProcessingWorkspace(QFrame):
         self.note.setObjectName("processingSourceNote")
         self.note.setWordWrap(True)
         root.addWidget(self.note)
+        self.snapshot_source = QLabel('', self)
+        self.snapshot_source.setObjectName('ft07ProcessingSelectedSource')
+        self.snapshot_source.setWordWrap(True)
+        self.snapshot_source.hide()
+        root.addWidget(self.snapshot_source)
         self.setMinimumHeight(315)
         self._set_initial_filters()
 
@@ -310,6 +315,7 @@ class ProcessingWorkspacePresenter:
         self.view = view
         self.controller = controller
         self.panel = ProcessingWorkspace()
+        self._snapshot_input = None
         host = view.page_for(WorkspaceId.PROCESSING).findChild(QWidget, "workspaceScrollContent")
         if host is None:
             raise RuntimeError("Processing workspace host missing")
@@ -324,15 +330,31 @@ class ProcessingWorkspacePresenter:
         view.project_explorer.selection_changed.connect(self.panel.set_selection)
 
     def _on_loaded(self, bundle) -> None:
+        self.clear_snapshot_source()
         self.panel.show_bundle(bundle)
         self.panel.set_selection(self.view.project_explorer.selection)
 
     def _on_failed(self, _message: str) -> None:
+        self.clear_snapshot_source()
         self.panel.reset()
 
     def _on_busy(self, busy: bool) -> None:
         if busy:
+            self.clear_snapshot_source()
             self.panel.reset()  # never show stale results from a prior store
+
+    def set_snapshot_source(self, artifact_id: str, session_id: str, ply_path: str) -> None:
+        """Pinned verified Snapshot input; no ProcessingRun/algorithm execution."""
+        self._snapshot_input = (artifact_id, session_id, ply_path)
+        self.panel.snapshot_source.setText(
+            f'NGUỒN ĐANG CHỌN: Snapshot {artifact_id[:8]} · Phiên {session_id[:8]}\n'
+            f'{ply_path}\nĐã liên kết dữ liệu; chưa chạy thuật toán xử lý.')
+        self.panel.snapshot_source.show()
+
+    def clear_snapshot_source(self) -> None:
+        self._snapshot_input = None
+        self.panel.snapshot_source.clear()
+        self.panel.snapshot_source.hide()
 
     def _select_explorer(self, selection: SelectionRef) -> None:
         tree = self.view.project_explorer.tree

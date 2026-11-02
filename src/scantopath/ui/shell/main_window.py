@@ -124,6 +124,9 @@ class ScanToPathMainWindow(ShellCompositionMixin, ProjectDelegatesMixin, QMainWi
         # FT-05: one live 3D viewer inside the existing Capture tab.
         from scantopath.modules.capture.presentation.live_3d_controller import Live3DController
         self.live_3d = Live3DController(self)
+        # FT-07: attach completed FT-06 snapshots to selected real ScanSession.
+        self.live_3d.snapshot_saved.connect(
+            self.project_workspace.project_dashboard.on_snapshot_saved)
         # 09.09.4: controller signals -> real operational timeline.
         from scantopath.ui.tasks.operation_bridge import OperationActivityBridge
         self.operation_activity = OperationActivityBridge(self)
@@ -252,6 +255,7 @@ class ScanToPathMainWindow(ShellCompositionMixin, ProjectDelegatesMixin, QMainWi
         geometry_preview_stopped = self.geometry_preview.begin_shutdown()
         capture_stopped = self.capture_preview.begin_shutdown()
         live_3d_stopped = self.live_3d.begin_shutdown()
+        project_hub_stopped = self.project_workspace.project_dashboard.begin_shutdown()
         live_stopped = self.capture_live.begin_shutdown()
         store_init_stopped = self.project_workspace.store_initializer.begin_shutdown()
         capture_action_stopped = self.capture_action.begin_shutdown()
@@ -265,6 +269,7 @@ class ScanToPathMainWindow(ShellCompositionMixin, ProjectDelegatesMixin, QMainWi
             and capture_stopped
             and live_stopped
             and live_3d_stopped
+            and project_hub_stopped
             and store_init_stopped
             and capture_action_stopped
         ):
@@ -276,6 +281,8 @@ class ScanToPathMainWindow(ShellCompositionMixin, ProjectDelegatesMixin, QMainWi
         if not viewer_stopped and getattr(self.viewer3d, 'shutdown_pending', False):
             QTimer.singleShot(120, self.close)
         if not geometry_preview_stopped:
+            QTimer.singleShot(120, self.close)
+        if not project_hub_stopped:
             QTimer.singleShot(120, self.close)
 
     def _create_menus(self) -> None:

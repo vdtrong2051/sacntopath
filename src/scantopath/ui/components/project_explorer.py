@@ -4,7 +4,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtWidgets import QHBoxLayout, QLabel, QMenu, QPushButton, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QHBoxLayout, QLabel, QMenu, QPushButton, QLineEdit, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget
 
 from scantopath.application.contracts import SelectionRef
 
@@ -84,6 +84,12 @@ class ProjectExplorer(QWidget):
         self.empty_label.setObjectName("explorerEmptyLabel")
         self.empty_label.setWordWrap(True)
         layout.addWidget(self.empty_label)
+        self.search = QLineEdit(self)
+        self.search.setObjectName('ft07ProjectSearch')
+        self.search.setPlaceholderText('Tìm trong kho theo tên hoặc mã…')
+        self.search.setClearButtonEnabled(True)
+        self.search.textChanged.connect(self._filter_tree)
+        layout.addWidget(self.search)
 
         self.tree = QTreeWidget(self)
         self.tree.setObjectName("projectExplorerTree")
@@ -94,7 +100,7 @@ class ProjectExplorer(QWidget):
         self.tree.setVisible(False)
         self.tree.setEnabled(False)
         self.tree.currentItemChanged.connect(self._current_item_changed)
-        self.tree.itemClicked.connect(self._capture_item_clicked)
+        self.tree.itemDoubleClicked.connect(self._capture_item_clicked)
         layout.addWidget(self.tree, stretch=1)
         self._selection: SelectionRef | None = None
         self._store_root: str | None = None
@@ -156,6 +162,25 @@ class ProjectExplorer(QWidget):
         finally:
             self.tree.blockSignals(previous)
         self._update_selection(None)
+        self._filter_tree(self.search.text())
+
+    def _filter_tree(self, text: str) -> None:
+        """Local visual search. No SQLite, and parent path stays visible."""
+        term = str(text).casefold().strip()
+
+        def visit(item) -> bool:
+            own = term in item.text(0).casefold()
+            descendant = False
+            for i in range(item.childCount()):
+                descendant = visit(item.child(i)) or descendant
+            visible = not term or own or descendant
+            item.setHidden(not visible)
+            if term and descendant:
+                item.setExpanded(True)
+            return visible
+
+        for i in range(self.tree.topLevelItemCount()):
+            visit(self.tree.topLevelItem(i))
 
     def find_selection_item(self, ref: SelectionRef):
         """Resolve current tree identity after reload; never retain a stale Qt item."""

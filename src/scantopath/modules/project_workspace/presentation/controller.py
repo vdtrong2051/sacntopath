@@ -26,7 +26,7 @@ class ProjectWorkspaceController(QObject):
         self.store_initializer.stopped.connect(self.view.close)
         from .store_management import RecentStorePresenter
         self.recent_stores = RecentStorePresenter(self.view, self.project_loader, self)
-        from .dashboard import ProjectDashboardPresenter
+        from .ft07_project_hub import ProjectHubPresenter as ProjectDashboardPresenter
         self.project_dashboard = ProjectDashboardPresenter(self.view, self)
         from .processing_workspace import ProcessingWorkspacePresenter
         self.processing_workspace = ProcessingWorkspacePresenter(self.view, self)
