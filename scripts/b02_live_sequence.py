@@ -31,6 +31,8 @@ def parser() -> argparse.ArgumentParser:
     p.add_argument('--verify-artifact', type=Path)
     p.add_argument('--input-artifact', type=Path,
                    help='Reuse two verified B01 new-frame artifacts, NO camera')
+    p.add_argument('--input-sequence-artifact', type=Path,
+                   help='Re-evaluate checksum-verified FT-08.17 B02 RAW sequence with FT-09 recovery, no camera')
     p.add_argument('--frames', type=int, default=8, help='New camera samples, 2..20; default 8')
     p.add_argument('--interval-ms', type=int, default=350, help='Delay between capture calls, 150..2000')
     p.add_argument('--out', type=Path, help='Parent output outside Git working tree')
@@ -83,6 +85,41 @@ def _verified_b01_pair(path: Path):
     emit('SOURCE_VERIFIED', capture_ids=[x.metadata.capture_id for x in packets],
          verified_files=record['verified_files'])
     return packets
+
+
+
+def _verified_b02_sequence(path: Path):
+    """Replay only a checksum-verified B02 evidence folder, never old Project/SQLite.
+
+    A NEW output is created. The original RAW bytes and manifest remain intact.
+    """
+    from scantopath.acquisition.raw_rgbd import RawRgbdCapture
+    from scantopath.domain.raw_rgbd import RawRgbdCaptureMetadataV2
+    from scantopath.modules.reconstruction.application.live_pair import validate_live_pair
+    original = path.resolve(strict=True)
+    if path.is_symlink():
+        raise ValueError('B02_SOURCE_SYMLINK_REFUSED')
+    check = verify_artifact(original)
+    frames = []
+    for i in range(check['source_frame_count']):
+        stem = f'frame_{i:02d}'
+        meta = RawRgbdCaptureMetadataV2.model_validate_json(
+            (original / (stem + '_metadata.json')).read_bytes())
+        packet = RawRgbdCapture(
+            meta, (original / (stem + '_color.mjpg')).read_bytes(),
+            (original / (stem + '_depth.y16')).read_bytes())
+        if frames:
+            validate_live_pair(frames[0], packet)
+            if (packet.metadata.depth.frame_index <= frames[-1].metadata.depth.frame_index
+                    or packet.metadata.depth.timestamp_us <= frames[-1].metadata.depth.timestamp_us):
+                raise ValueError('B02_SOURCE_NON_MONOTONIC')
+        frames.append(packet)
+    # Fail closed if an artifact changed during loading.
+    verify_artifact(original)
+    emit('SOURCE_VERIFIED', source_kind='B02_CHECKSUM_VERIFIED_SEQUENCE',
+         source_frames=len(frames), verified_files=check['verified_files'],
+         artifact_dir=str(original))
+    return frames
 
 
 def _dump(obj: object) -> bytes:
@@ -187,7 +224,12 @@ def main(argv=None) -> int:
         raise ValueError('B02_FRAMES_OR_CADENCE_OUT_OF_RANGE')
     if not 0 < args.min_depth_m < args.max_depth_m < 50:
         raise ValueError('B02_DEPTH_RANGE_INVALID')
-    if args.input_artifact:
+    if args.input_artifact and args.input_sequence_artifact:
+        raise ValueError('B02_INPUT_MODES_MUTUALLY_EXCLUSIVE')
+    if args.input_sequence_artifact:
+        packets = _verified_b02_sequence(args.input_sequence_artifact)
+        source_mode = 'CHECKSUM_VERIFIED_FT0817_SEQUENCE_REEVALUATED_FT09'
+    elif args.input_artifact:
         packets = _verified_b01_pair(args.input_artifact)
         source_mode = 'CHECKSUM_VERIFIED_B01_EVIDENCE'
     else:
@@ -204,7 +246,7 @@ def main(argv=None) -> int:
     record = track_sequence(packets, min_depth_m=args.min_depth_m,
                             max_depth_m=args.max_depth_m, on_event=event)
     record['source_mode'] = source_mode
-    record['capture_interval_requested_ms'] = args.interval_ms if not args.input_artifact else None
+    record['capture_interval_requested_ms'] = (args.interval_ms if not (args.input_artifact or args.input_sequence_artifact) else None)
     folder = save_evidence(args.out, packets, record)
     verified = verify_artifact(folder)
     emit('FINISHED', artifact_dir=str(folder), **verified, metric_accuracy_verified=False,

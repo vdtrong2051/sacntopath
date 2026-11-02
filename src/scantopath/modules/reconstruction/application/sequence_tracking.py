@@ -1,12 +1,13 @@
-"""FT-08.17: sampled freehand RGB-D 6DoF sequence, based entirely on B-01.
+"""FT-09.18/19: quality classification and bounded keyframe recovery for FT-08.17.
 
-No new pose estimator, segmentation, ICP backend, camera owner or fused map.
-World = first accepted depth optical frame, metres; T_A_B maps B -> A.
-Any rejected edge fails closed (LOST); recovery and fusion belong to FT-09/10.
+Reuses FT-05.8 ChArUco, B-01 ICP, adaptive voxel and FT-08.17 RAW evidence.
+Does NOT estimate poses from an untrusted frame, interpolate trajectories,
+continue previous camera pose as a new measurement, or change camera/Qt/SQLite.
+Offline sampled-keyframe tracking only; not real-time 6DoF odometry.
 """
 from __future__ import annotations
 
-from dataclasses import asdict, replace
+from dataclasses import asdict, dataclass, replace
 from math import isfinite
 from typing import Callable
 
@@ -19,8 +20,25 @@ from scantopath.modules.reconstruction.application.live_pair import (
 )
 
 
-def _identity() -> list[list[float]]:
-    return np.eye(4, dtype=np.float64).tolist()
+@dataclass(frozen=True)
+class TrackingQualityPolicy:
+    """Conservative state policy; NEVER overrides B-01 geometric acceptance."""
+
+    degraded_frames_before_lost: int = 2
+    max_recovery_references: int = 3
+    stationary_translation_m: float = .006
+    stationary_rotation_deg: float = 1.0
+    stationary_min_overlap: float = .50
+    stationary_max_rmse_m: float = .006
+
+    def __post_init__(self):
+        if (not 1 <= self.degraded_frames_before_lost <= 5 or
+                not 1 <= self.max_recovery_references <= 5 or
+                not 0 < self.stationary_translation_m < .03 or
+                not 0 < self.stationary_rotation_deg < 3.0 or
+                not 0 < self.stationary_min_overlap <= 1.0 or
+                not 0 < self.stationary_max_rmse_m <= .009):
+            raise ValueError('FT09_POLICY_INVALID')
 
 
 def _is_se3(T: object) -> bool:
@@ -49,6 +67,45 @@ def _frame_id(packet: RawRgbdCapture, index: int) -> dict:
     }
 
 
+def _exception_code(exc: Exception) -> str:
+    return str(getattr(exc, 'code', None) or str(exc).split(':')[0] or type(exc).__name__)[:120]
+
+
+def _quality_dict(result) -> dict:
+    data = result.quality.to_json()
+    return dict(data) if isinstance(data, dict) else {}
+
+
+def _is_stationary(result, policy: TrackingQualityPolicy) -> bool:
+    """Only a B-01-validated pair may be held as stationary.
+
+    Exact-zero movement is rejected by B-01's distinct-view demonstration gate.
+    Such a rejection is stationary ONLY when it is the sole failure reason.
+    An accepted near-zero edge must additionally have well-supported geometry.
+    """
+    q = result.quality
+    reasons = tuple(q.reject_reasons)
+    if not result.accepted:
+        return reasons == ('NO_DISTINCT_VIEW_MOTION',)
+    if result.T_world_depth_1 is None or not _is_se3(result.T_world_depth_1):
+        return False
+    T = np.asarray(result.T_world_depth_1, dtype=np.float64)
+    translation = float(np.linalg.norm(T[:3, 3]))
+    angle = float(np.degrees(np.arccos(np.clip((np.trace(T[:3, :3])-1.)/2., -1., 1.))))
+    rmse = getattr(q, 'inlier_rmse_m', None)
+    overlap = getattr(q, 'overlap', None)
+    inliers = getattr(q, 'inlier_count', None)
+    # B-01's accepted flag already enforces min_correspondences and degeneracy;
+    # this extra classification only avoids generating redundant keyframes.
+    return bool(translation < policy.stationary_translation_m and
+                angle < policy.stationary_rotation_deg and
+                type(overlap) in (float, int) and isfinite(overlap) and
+                overlap >= policy.stationary_min_overlap and
+                type(rmse) in (float, int) and isfinite(rmse) and
+                rmse <= policy.stationary_max_rmse_m and
+                (inliers is None or inliers >= 80))
+
+
 def track_sequence(
     packets: list[RawRgbdCapture], *,
     config: RegistrationConfig | None = None,
@@ -56,12 +113,13 @@ def track_sequence(
     max_depth_m: float = 1.20,
     pair_processor: Callable | None = None,
     on_event: Callable[[dict], None] | None = None,
+    quality_policy: TrackingQualityPolicy | None = None,
 ) -> dict:
-    """Evaluate measured frames in order and chain ONLY accepted B-01 edges.
+    """Chain accepted measured poses and retry failed intervals against trusted keyframes.
 
-    Distinct-view criterion from B-01 is not a tracking quality gate: a still
-    camera may legitimately produce another frame. All geometric/pose gates
-    and the FT-05.8 ChArUco--ICP cross-check stay untouched.
+    A rejected frame NEVER becomes a reference; LOST does not stop input.
+    Reference world transforms are saved only for accepted keyframes. ChArUco
+    seed, isolation, ICP, board/ICP consistency are all B-01's existing gates.
     """
     if not isinstance(packets, list) or not 2 <= len(packets) <= 20:
         raise ValueError('B02_SEQUENCE_LENGTH_INVALID: expected 2..20 frames')
@@ -71,8 +129,12 @@ def track_sequence(
     if any(not isinstance(packet, RawRgbdCapture) or not packet.metadata.measured
            for packet in packets):
         raise ValueError('B02_MEASURED_RAW_REQUIRED')
-    # Preserve all ICP validation thresholds. Only B01's pairwise demonstration
-    # requirement for distinct motion is not relevant to sequence tracking.
+    policy = quality_policy or TrackingQualityPolicy()
+    if not isinstance(policy, TrackingQualityPolicy):
+        raise ValueError('FT09_POLICY_INVALID')
+
+    # B-01 distinct motion is a demonstration requirement, not a tracking gate.
+    # All ICP/degeneracy/ChArUco thresholds remain exactly as in B-01.
     base = config or RegistrationConfig()
     tracking_cfg = replace(base, min_distinct_view_translation_m=1e-6,
                            min_distinct_view_rotation_deg=1e-5)
@@ -84,90 +146,189 @@ def track_sequence(
         if on_event is not None:
             on_event(dict(row))
 
-    world_pose = np.eye(4, dtype=np.float64)
-    first = dict(_frame_id(packets[0], 0), status='ANCHOR',
-                 T_world_depth=_identity(),
-                 accepted_for_trajectory=True,
-                 pose_origin='identity_anchor_depth_optical', quality=None)
-    record(first)
+    ident = np.eye(4, dtype=np.float64)
+    # (sample index, immutable RAW, verified T_world_from_depth)
+    keyframes: list[tuple[int, RawRgbdCapture, np.ndarray]] = [(0, packets[0], ident)]
+    record(dict(_frame_id(packets[0], 0), status='ANCHOR',
+                T_world_depth=ident.tolist(), accepted_for_trajectory=True,
+                pose_origin='identity_anchor_depth_optical', quality=None))
+
     accepted = 1
-    last_packet = packets[0]
-    lost = False
+    failures = 0
+    state = 'TRACKING'
+    recovery_attempt_count = 0
+    recovered_count = 0
+    stationary_count = 0
+    degraded_count = 0
+    lost_count = 0
+    prev_source = packets[0]
+
     for i in range(1, len(packets)):
         packet = packets[i]
-        row = _frame_id(packet, i)
-        if lost:
-            record(dict(row, status='LOST_NO_RECOVERY', accepted_for_trajectory=False,
-                        T_world_depth=None, reject_code='WAIT_FOR_FT09_RECOVERY', quality=None))
-            continue
-        diagnostics: dict = {}
+        base_row = _frame_id(packet, i)
+        attempts: list[dict] = []
+        selected = None
+        last_quality = None
+        last_diagnostics = {}
+        reject_code = 'NO_VERIFIED_POSE'
+        hard_source_failure = False
+
+        # Validate against both the preceding RAW and fixed source anchor.
+        # A skipped/bad sample cannot make a later chronology check disappear.
         try:
-            # Reuse B01's metadata/lineage protections even for skipped motion.
-            validate_live_pair(last_packet, packet)
-            if packet.metadata.depth.frame_index <= last_packet.metadata.depth.frame_index:
+            validate_live_pair(packets[0], packet)
+            if (packet.metadata.depth.frame_index <= prev_source.metadata.depth.frame_index
+                    or packet.metadata.depth.timestamp_us <= prev_source.metadata.depth.timestamp_us):
                 raise ValueError('B02_NON_MONOTONIC_DEPTH_FRAME')
-            a, b, result = processor(
-                last_packet, packet, reference_mode='charuco',
-                min_depth_m=min_depth_m, max_depth_m=max_depth_m,
-                config=tracking_cfg, diagnostics=diagnostics)
-            quality = result.quality.to_json()
-            row.update(quality=quality, object_points=[a.selected_points, b.selected_points],
-                       isolation_status=[a.source_ref['isolation_status'],
-                                         b.source_ref['isolation_status']],
-                       registration_backend=result.backend,
-                       pose_source='B01_ICP_WITH_FT058_CHARUCO_BOARD_SEED',
-                       diagnostics=diagnostics)
-            if not result.accepted or result.T_world_depth_1 is None:
-                # A truly stationary frame is not a LOST event and adds no
-                # trajectory step. Keep the last accepted reference.
-                reasons = result.quality.reject_reasons
-                if reasons == ('NO_DISTINCT_VIEW_MOTION',):
-                    record(dict(row, status='HELD_STATIONARY',
-                                accepted_for_trajectory=False, T_world_depth=None,
-                                reject_code='NO_DISTINCT_VIEW_MOTION'))
-                    continue
-                reason = '|'.join(reasons) or 'B02_POSE_REJECTED'
-                record(dict(row, status='LOST', accepted_for_trajectory=False,
-                            T_world_depth=None, reject_code=reason))
-                lost = True
+        except (RuntimeError, ValueError, TypeError) as exc:
+            hard_source_failure = True
+            reject_code = _exception_code(exc)
+        prev_source = packet
+
+        if not hard_source_failure:
+            # Normal tracking: latest accepted keyframe. After failure,
+            # attempt bounded relocalization newest -> older trusted keyframes.
+            references = keyframes[-1:] if failures == 0 else keyframes[-policy.max_recovery_references:][::-1]
+            for ref_index, ref_packet, ref_world in references:
+                diagnostic = {}
+                recovery_attempt_count += int(failures > 0)
+                try:
+                    validate_live_pair(ref_packet, packet)
+                    a, b, result = processor(
+                        ref_packet, packet, reference_mode='charuco',
+                        min_depth_m=min_depth_m, max_depth_m=max_depth_m,
+                        config=tracking_cfg, diagnostics=diagnostic)
+                    quality = _quality_dict(result)
+                    last_quality, last_diagnostics = quality, diagnostic
+                    reasons = tuple(result.quality.reject_reasons)
+                    attempt = {'reference_sample_index': ref_index,
+                               'reference_capture_id': ref_packet.metadata.capture_id,
+                               'overlap': quality.get('overlap'),
+                               'rmse_m': quality.get('inlier_rmse_m'),
+                               'inlier_count': quality.get('inlier_count'),
+                               'reject_reasons': list(reasons)}
+                    if _is_stationary(result, policy):
+                        # A stationary pair still has a trusted reference and
+                        # must not shift world frame or add a duplicate keyframe.
+                        attempt['decision'] = 'STATIONARY'
+                        attempts.append(attempt)
+                        selected = (ref_index, ref_packet, ref_world, a, b, result,
+                                    diagnostic, quality, None, 'STATIONARY')
+                        break
+                    if not result.accepted or result.T_world_depth_1 is None:
+                        reject_code = '|'.join(reasons) or 'B02_POSE_REJECTED'
+                        attempt['decision'] = 'REJECT'
+                        attempts.append(attempt)
+                        continue
+                    if not _is_se3(result.T_world_depth_1):
+                        raise ValueError('B02_POSE_NOT_SE3')
+                    candidate = ref_world @ np.asarray(result.T_world_depth_1, dtype=np.float64)
+                    if not _is_se3(candidate):
+                        raise ValueError('B02_CHAIN_NOT_SE3')
+                    attempt['decision'] = 'ACCEPT'
+                    attempts.append(attempt)
+                    selected = (ref_index, ref_packet, ref_world, a, b, result,
+                                diagnostic, quality, candidate, 'POSE')
+                    break
+                except (RuntimeError, ValueError, TypeError) as exc:
+                    reject_code = _exception_code(exc)
+                    attempts.append({'reference_sample_index': ref_index,
+                                     'reference_capture_id': ref_packet.metadata.capture_id,
+                                     'decision': 'ERROR', 'reject_code': reject_code})
+                    # Invalid SE3 is a hard rejection, NEVER fall back to a
+                    # different keyframe to rescue untrusted numeric transforms.
+                    if reject_code in ('B02_POSE_NOT_SE3', 'B02_CHAIN_NOT_SE3'):
+                        hard_source_failure = True
+                        break
+
+        if selected is not None:
+            ref_i, ref_packet, ref_world, a, b, result, diag, quality, world, kind = selected
+            info = dict(base_row,
+                        quality=quality,
+                        object_points=[a.selected_points, b.selected_points],
+                        isolation_status=[a.source_ref['isolation_status'],
+                                          b.source_ref['isolation_status']],
+                        registration_backend=result.backend,
+                        pose_source='B01_ICP_WITH_FT058_CHARUCO_BOARD_SEED',
+                        diagnostics=diag,
+                        reference_sample_index=ref_i,
+                        reference_capture_id=ref_packet.metadata.capture_id,
+                        recovery_attempts=attempts)
+            if kind == 'STATIONARY':
+                stationary_count += 1
+                failures = 0
+                state = 'STATIONARY'
+                record(dict(info, status='STATIONARY', accepted_for_trajectory=False,
+                            T_world_depth=None, reject_code=None,
+                            disposition='SKIP_REDUNDANT_MEASURED_FRAME'))
                 continue
-            edge = result.T_world_depth_1  # maps CURRENT depth -> PREVIOUS depth
-            if not _is_se3(edge):
-                raise ValueError('B02_POSE_NOT_SE3')
-            candidate = world_pose @ edge   # maps CURRENT depth -> ANCHOR depth
-            if not _is_se3(candidate):
-                raise ValueError('B02_CHAIN_NOT_SE3')
-            world_pose = candidate
+
+            was_recovery = failures > 0
+            failures = 0
+            state = 'TRACKING'
             accepted += 1
-            last_packet = packet
-            record(dict(row, status='TRACKING', accepted_for_trajectory=True,
-                        T_world_depth=world_pose.tolist(),
-                        T_prev_depth_from_curr_depth=edge.tolist()))
-        except (ValueError, RuntimeError, TypeError) as exc:
-            # No pose is emitted on ChArUco failure, unsupported calibration,
-            # poor geometry, native error or source contract violation.
-            code = str(getattr(exc, 'code', None) or str(exc).split(':')[0] or type(exc).__name__)
-            record(dict(row, status='LOST', accepted_for_trajectory=False,
-                        T_world_depth=None, reject_code=code, quality=None,
-                        diagnostics=diagnostics))
-            lost = True
+            if was_recovery:
+                recovered_count += 1
+            keyframes.append((i, packet, world))
+            row = dict(info,
+                       status='RECOVERED' if was_recovery else 'TRACKING',
+                       accepted_for_trajectory=True,
+                       T_world_depth=world.tolist(),
+                       T_reference_depth_from_curr_depth=result.T_world_depth_1.tolist(),
+                       reject_code=None)
+            # Historical field is correct only for adjacent accepted samples.
+            if ref_i == i - 1:
+                row['T_prev_depth_from_curr_depth'] = result.T_world_depth_1.tolist()
+            record(row)
+            continue
+
+        failures += 1
+        state = ('LOST' if hard_source_failure or
+                 failures >= policy.degraded_frames_before_lost else 'DEGRADED')
+        if state == 'LOST':
+            lost_count += 1
+        else:
+            degraded_count += 1
+        record(dict(base_row, status=state, accepted_for_trajectory=False,
+                    T_world_depth=None, reject_code=reject_code,
+                    quality=last_quality, diagnostics=last_diagnostics,
+                    recovery_attempts=attempts,
+                    last_trusted_sample_index=keyframes[-1][0],
+                    disposition='DO_NOT_PUBLISH_UNTRUSTED_POSE'))
+
+    if state == 'LOST':
+        final = 'LOST'
+    elif state == 'DEGRADED':
+        final = 'DEGRADED'
+    elif accepted == 1:
+        final = 'STATIONARY' if stationary_count else 'INSUFFICIENT_MOTION'
+    else:
+        final = 'TRACKING'  # latest good pose, even if stationary after it
+
     return {
         'schema': 'scantopath.ft08.17.sampled_pose_sequence.v1',
-        'status': ('LOST' if lost else 'INSUFFICIENT_MOTION' if accepted < 2 else 'TRACKING'),
+        'ft09_extension': 'scantopath.ft09.quality_recovery.v1',
+        'status': final,
         'trajectory_frame': 'depth_optical_of_sample_0',
         'matrix_convention': 'T_A_B maps coordinates B into A; column homogeneous vectors',
         'units': 'm',
-        'method': 'FT05.8_CHARUCO + B01_BOUNDED_ICP',
+        'method': 'FT05.8_CHARUCO + B01_BOUNDED_ICP + FT09_QUALITY_RECOVERY',
         'tracking_mode': 'SAMPLED_NEW_RAW_KEYFRAMES_OFFLINE_CPU',
         'live_preview_tracking_claimed': False,
         'ft061_optical_flow_claimed': False,
-        'recovery_implemented': False,
+        'recovery_implemented': True,
         'fusion_implemented': False,
         'metric_accuracy_verified': False,
         'robot_executable': False,
         'source_frame_count': len(packets),
         'accepted_poses': accepted,
         'rejected_or_untracked_frames': len(packets) - accepted,
+        'recovered_poses': recovered_count,
+        'stationary_frames': stationary_count,
+        'degraded_frames': degraded_count,
+        'lost_frames': lost_count,
+        'recovery_pair_attempts': recovery_attempt_count,
+        'quality_policy': asdict(policy),
         'registration_config': asdict(tracking_cfg),
         'frames': rows,
     }

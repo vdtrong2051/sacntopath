@@ -64,9 +64,9 @@ def test_reject_enters_lost_and_never_publishes_later_pose(monkeypatch):
         return a, b, _result(accepted=False, reasons=('HIGH_REGISTRATION_RMSE',))
     data = sut.track_sequence([FakeRaw(i) for i in range(4)], pair_processor=processor)
     assert data['status'] == 'LOST'
-    assert len(calls) == 1
+    assert len(calls) == 3  # Retry every subsequent measured frame.
     assert [x['status'] for x in data['frames']] == [
-        'ANCHOR', 'LOST', 'LOST_NO_RECOVERY', 'LOST_NO_RECOVERY']
+        'ANCHOR', 'DEGRADED', 'LOST', 'LOST']
     assert all(x['T_world_depth'] is None for x in data['frames'][1:])
 
 
@@ -80,7 +80,7 @@ def test_stationary_frame_is_held_without_corrupting_reference(monkeypatch):
             return a, b, _result(accepted=False, reasons=('NO_DISTINCT_VIEW_MOTION',))
         return a, b, _result()
     data = sut.track_sequence([FakeRaw(i) for i in range(3)], pair_processor=processor)
-    assert data['frames'][1]['status'] == 'HELD_STATIONARY'
+    assert data['frames'][1]['status'] == 'STATIONARY'
     assert data['frames'][1]['T_world_depth'] is None
     assert data['frames'][2]['status'] == 'TRACKING'
     assert calls == [('capture0','capture1'), ('capture0','capture2')]
