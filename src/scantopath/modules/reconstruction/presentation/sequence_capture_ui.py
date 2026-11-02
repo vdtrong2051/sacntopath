@@ -20,10 +20,12 @@ from scantopath.modules.reconstruction.application.keyframe_sampling import reta
 class _SequenceProcessThread(QThread):
     success = Signal(str, int, int, str)
     failure = Signal(str)
+    registration_progress = Signal(int, int)
 
     def __init__(self, packets: list[RawRgbdCapture], output: Path, parent=None,
                  *, captured_total: int | None = None, failed_attempts: int = 0,
-                 interval_ms: int | None = None, stop_reason: str = 'unknown'):
+                 interval_ms: int | None = None, stop_reason: str = 'unknown',
+                 project_context: dict | None = None):
         super().__init__(parent)
         self._packets = list(packets)  # owned RAW-v2 immutable bytes; no SDK references
         self._output = output
@@ -31,6 +33,7 @@ class _SequenceProcessThread(QThread):
         self._failed_attempts = failed_attempts
         self._interval_ms = interval_ms
         self._stop_reason = stop_reason
+        self._project_context = project_context
 
     def run(self) -> None:
         try:
@@ -53,6 +56,8 @@ class _SequenceProcessThread(QThread):
             record['source_mode'] = 'LIVE_3D_EXISTING_CAMERA_KEYFRAMES'
             record['capture_interval_requested_ms'] = self._interval_ms
             record['ui_capture'] = True
+            if self._project_context is not None:
+                record['project_context'] = self._project_context
             # Capture may continue past the 96-frame FT09/FT10 input budget.
             # Only the retained real RAW keyframes are serialized to B02.
             record['operator_stop_requested'] = (self._stop_reason == 'operator')
@@ -63,7 +68,14 @@ class _SequenceProcessThread(QThread):
             record['discarded_keyframes_from_memory'] = self._captured_total - len(self._packets)
             record['failed_capture_attempts'] = self._failed_attempts
             output = save_evidence(self._output, self._packets, record)
+
             verified = verify_artifact(output)
+            if self._project_context is not None:
+                from scantopath.modules.reconstruction.application.project_sessions import register_raw
+                # Per-capture numbered v2 RAW commit and SQLite audit; performed
+                # entirely on the existing background sequence worker.
+                register_raw(self._project_context, self._packets,
+                             progress=lambda n, total: self.registration_progress.emit(n,total))
             self.success.emit(str(output), int(verified['accepted_poses']),
                               int(verified['source_frame_count']), str(verified['status']))
         except Exception as exc:
@@ -100,6 +112,7 @@ class SequenceCaptureUi(QObject):
         self._stop_reason = 'unknown'
         self._session_id = ''
         self._specimen_id = ''
+        self._project_context: dict | None = None
         self._output: Path | None = None
         self._job: _SequenceProcessThread | None = None
         self._timer = QTimer(self)
@@ -239,8 +252,23 @@ class SequenceCaptureUi(QObject):
             self.status.setText('Thư mục kết quả không hợp lệ: ' + str(getattr(exc, 'code', type(exc).__name__)))
             return
         token = uuid4().hex[:16]
-        self._session_id = 'b02ui_' + token
-        self._specimen_id = 'b02spec_' + token
+        self._project_context = None
+        view = getattr(self.parent(), '_view', None)
+        if view is not None:
+            try:
+                from scantopath.modules.reconstruction.application.project_sessions import active_ui_session, project_pipeline_root
+                self._project_context = active_ui_session(view)
+                if self._project_context is not None:
+                    output = project_pipeline_root(self._project_context, create=True) / '00_RAW_SEQUENCES'
+                    self._output = _safe_output_parent(output)
+            except (ValueError, OSError, RuntimeError) as exc:
+                self.status.setText('Phiên Project không hợp lệ: ' + str(exc)[:160])
+                return
+        if self._project_context is None:
+            self.status.setText('Hãy mở kho, chọn một PHIÊN QUÉT đang mở trong Cây dự án rồi bắt đầu.')
+            return
+        self._session_id = self._project_context['session_id']
+        self._specimen_id = self._project_context['specimen_id']
         self._packets = []
         self._captured_total = 0
         self._failed_attempts = 0
@@ -248,7 +276,8 @@ class SequenceCaptureUi(QObject):
         self._recording = True
         self._stopping = False
         self._inflight = False
-        self.status.setText('ĐANG THU · bạn chủ động nhấn Dừng & tái tạo · giữ tối đa 96 frame (ưu tiên giữ nguyên)')
+        self.status.setText('ĐANG THU · RAW sẽ lưu vào phiên Project' if self._project_context else
+                            'ĐANG THU (ngoài Project) · hãy chọn phiên quét để RAW và mesh đồng bộ')
         self._update_controls()
         QTimer.singleShot(0, self._request_sample)
 
@@ -343,16 +372,22 @@ class SequenceCaptureUi(QObject):
             captured_total=self._captured_total,
             failed_attempts=self._failed_attempts,
             interval_ms=int(self.interval.currentData()),
-            stop_reason=self._stop_reason)
+            stop_reason=self._stop_reason,
+            project_context=self._project_context)
         self._job = job
         self._packets.clear()
         job.success.connect(self._on_success)
         job.failure.connect(self._on_failure)
+        job.registration_progress.connect(self._registration_progress)
         job.finished.connect(self._on_finished)
         self.status.setText(f'Đã dừng · xử lý {count} frame đại diện từ {self._captured_total} frame đã chụp…')
         self._update_controls()
         job.start()
         self.processing_started.emit(count)
+
+    @Slot(int, int)
+    def _registration_progress(self, done: int, total: int) -> None:
+        self.status.setText(f'Đang đưa RAW vào phiên SQLite: {done}/{total} · xin giữ ứng dụng mở')
 
     @Slot(str, int, int, str)
     def _on_success(self, path: str, accepted: int, total: int, state: str) -> None:
@@ -361,6 +396,14 @@ class SequenceCaptureUi(QObject):
                                 f'Đã lưu: {Path(path).name}')
             self.status.setToolTip(path)
             self.completed.emit(path, accepted, total, state)
+            if self._project_context is not None:
+                view = getattr(self.parent(), '_view', None)
+                if view is not None:
+                    # Update SQLite Explorer after worker registered all RAW.
+                    try:
+                        view._reload_project_store()
+                    except AttributeError:
+                        pass
 
     @Slot(str)
     def _on_failure(self, code: str) -> None:

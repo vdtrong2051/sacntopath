@@ -204,7 +204,7 @@ def load_scene(source: SceneSource) -> LoadedScene:
     actor = vtkActor()
     actor.SetMapper(mapper)
     if n_faces == 0:
-        actor.GetProperty().SetPointSize(4 if n_points > 100_000 else 6)
+        actor.GetProperty().SetPointSize(2 if n_points > 100_000 else 3)
     if not has_rgb:
         actor.GetProperty().SetColor(.12, .52, .87)
     after = path.stat()

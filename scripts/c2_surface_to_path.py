@@ -238,12 +238,20 @@ def main(argv=None):
     parser.add_argument('--c1',type=Path)
     parser.add_argument('--out',type=Path)
     parser.add_argument('--verify',type=Path)
+    parser.add_argument('--mesh-spacing-mm',type=float,default=6.0)
     args=parser.parse_args(argv)
     if args.verify:
         emit('VERIFIED',artifact_dir=str(args.verify),**verify(args.verify));return 0
     if not args.c1 or not args.out:
         emit('BLOCKED',code='C2_ARGUMENTS_REQUIRED');return 2
-    result=execute(args.c1,args.out)
+    mm=args.mesh_spacing_mm
+    cfg=C2Config(mesh_spacing_m=mm/1000.0,
+                 support_radius_m=(0.010 if mm<5 else 0.014),
+                 max_edge_m=(0.022 if mm<5 else 0.032),
+                 zigzag_step_m=(0.006 if mm<5 else 0.009),
+                 contour_step_m=(0.006 if mm<5 else 0.009),
+                 path_sample_m=(0.003 if mm<5 else 0.004))
+    result=execute(args.c1,args.out,cfg=cfg)
     emit('READY',artifact_dir=str(result),**verify(result),
          underside_coverage_verified=False,robot_executable=False)
     return 0

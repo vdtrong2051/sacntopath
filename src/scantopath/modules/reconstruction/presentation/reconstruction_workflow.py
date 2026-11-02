@@ -15,7 +15,7 @@ from PySide6.QtWidgets import (
     QAbstractItemView, QFileDialog, QFrame, QHBoxLayout, QLabel, QListWidget,
     QMessageBox, QPushButton, QTabWidget, QTreeWidget, QTreeWidgetItem,
     QVBoxLayout, QWidget, QDialog, QDialogButtonBox, QFormLayout, QDoubleSpinBox,
-    QLineEdit, QCheckBox,
+    QLineEdit, QCheckBox, QComboBox,
 )
 
 from scantopath.application.contracts import WorkspaceId
@@ -35,6 +35,8 @@ class ReconstructionPanel(QFrame):
     c2_open_requested = Signal()
     c2_source_requested = Signal()
     c2_view_requested = Signal(str)
+    session_raw_requested = Signal()
+    session_result_requested = Signal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -126,6 +128,23 @@ class ReconstructionPanel(QFrame):
             c2_actions.addWidget(button)
         c2_actions.addStretch(1)
         root.addLayout(c2_actions)
+        session_row = QHBoxLayout()
+        self.quality = QComboBox(self)
+        self.quality.setObjectName('finalReconstructionDensity')
+        self.quality.addItem('Mịn · voxel 2 mm', 'fine')
+        self.quality.addItem('Cân bằng · voxel 4 mm', 'balanced')
+        self.quality.setToolTip('Chọn trước khi mở chuỗi RAW/chạy lại. Dữ liệu đo thật không nội suy thêm điểm.')
+        session_row.addWidget(self.quality)
+        self.session_raw = QPushButton('RAW của phiên Project', self)
+        self.session_raw.setObjectName('finalProjectRaw')
+        self.session_raw.clicked.connect(self.session_raw_requested.emit)
+        self.session_result = QPushButton('Mesh/Path của phiên Project', self)
+        self.session_result.setObjectName('finalProjectResult')
+        self.session_result.clicked.connect(self.session_result_requested.emit)
+        session_row.addWidget(self.session_raw)
+        session_row.addWidget(self.session_result)
+        session_row.addStretch(1)
+        root.addLayout(session_row)
         self.c2_status = QLabel('C2: cần cloud C1; đường dẫn chỉ là hình học, chưa điều khiển robot.', self)
         self.c2_status.setObjectName('c2SurfacePathStatus')
         self.c2_status.setWordWrap(True)
@@ -274,7 +293,10 @@ class ReconstructionWorkflowController(QObject):
         self._closing = False
         self._viewer_actions_installed = False
         self._tracking: dict = {}
-        self._last_output = Path.home()/'Documents'/'ScanToPath'/'Reconstruction'
+        self._default_output = Path.home()/'Documents'/'ScanToPath'/'Reconstruction'
+        self._last_output = self._default_output
+        self._project_context = None
+        self._fine = True  # measured point density: 2 mm, not viewer point size
         self._attach_processing_tab()
         self._wire()
         # Context hint shares the existing Explorer; it is NOT a fake SQLite entity.
@@ -315,6 +337,8 @@ class ReconstructionWorkflowController(QObject):
         self.panel.c2_open_requested.connect(self._choose_c2)
         self.panel.c2_source_requested.connect(self._choose_c1)
         self.panel.c2_view_requested.connect(self._view_c2)
+        self.panel.session_raw_requested.connect(self._open_session_raw)
+        self.panel.session_result_requested.connect(self._open_session_result)
         self.panel.pose_selected.connect(self._show_pose)
         self.view.live_3d.sequence_completed.connect(self._sequence_complete)
         self.view.live_3d.sequence_processing_started.connect(self._tracking_started)
@@ -356,8 +380,49 @@ class ReconstructionWorkflowController(QObject):
             source = self._c2 or self._bundle or self._c1 or self._cloud
             self.explorer_context.setText(
                 'PHIÊN TÁI TẠO ĐANG MỞ\n' + source.name +
-                '\nCloud bên ngoài · không thuộc kho SQLite đang chọn')
+                ('\nGắn với phiên Project và RAW đã lưu' if self._project_context else
+                 '\nDữ liệu ngoài Project · cần chọn phiên để lưu đồng bộ'))
             self.explorer_context.setToolTip(str(source))
+
+    def _selected_session(self):
+        from scantopath.modules.reconstruction.application.project_sessions import selected_ui_session
+        return selected_ui_session(self.view)
+
+    def _open_session_raw(self):
+        from scantopath.modules.reconstruction.application.project_sessions import latest_raw_sequence
+        try:
+            context = self._selected_session()
+            if context is None:
+                self._status('Chọn phiên quét trong Cây dự án trước khi mở RAW.')
+                return
+            self._start_merge(latest_raw_sequence(context))
+        except (OSError, ValueError, KeyError) as exc:
+            self._status('Không tìm thấy RAW của phiên: ' + str(exc)[:140])
+
+    def _open_session_result(self):
+        from scantopath.modules.reconstruction.application.project_sessions import latest_result
+        try:
+            context = self._selected_session()
+            if context is None:
+                self._status('Chọn phiên quét trong Cây dự án trước khi mở mesh/path.')
+                return
+            self._verify_project_c2(context, latest_result(context))
+        except (OSError, ValueError, KeyError) as exc:
+            self._status('Không tìm thấy mesh/path của phiên: ' + str(exc)[:140])
+
+    def _verify_project_c2(self, context, folder):
+        if self._job is not None:
+            return
+        self._project_context = context
+        from scantopath.modules.reconstruction.application.project_sessions import project_pipeline_root
+        self._last_output = project_pipeline_root(context)/'03_RECONSTRUCTION'
+        self._choose_c2_folder(folder)
+
+    def _choose_c2_folder(self, folder):
+        if self._job is not None:
+            return
+        self._start('c2_verify', 'c2_surface_to_path.py', ['--verify', str(folder)])
+        self._status('Đang xác minh kết quả Mesh/Path theo SHA-256…')
 
     def _load_history(self):
         history = self.settings.value('portable_bundles', [], type=list)
@@ -393,7 +458,17 @@ class ReconstructionWorkflowController(QObject):
         if not (source/'tracking_sequence.json').is_file():
             self._status('Chuỗi không hợp lệ: thiếu tracking_sequence.json')
             return
+        from scantopath.modules.reconstruction.application.project_sessions import sequence_context, project_pipeline_root
+        try:
+            context = sequence_context(source)
+        except (ValueError, OSError, KeyError) as exc:
+            self._status('RAW không có quyền sở hữu phiên hợp lệ: ' + str(exc)[:140])
+            return
         self._sequence = source
+        self._project_context = context
+        self._last_output = (project_pipeline_root(self._project_context,create=True)/'03_RECONSTRUCTION'
+                             if self._project_context else self._default_output)
+        self._fine = self.panel.quality.currentData() == 'fine'
         self._cloud = self._bundle = self._c1 = self._c2 = self._reference = None
         self.panel.set_c2_available(False, False)
         self.panel.c2_status.setText('C2: đang chờ cloud C1 từ phiên quét mới.')
@@ -403,7 +478,8 @@ class ReconstructionWorkflowController(QObject):
         self.panel.clear_tracking()
         self.sync_workspace_context(self.view.active_workspace)
         self._start('merge', 'ft10_merge_multiview.py', [
-            '--input-sequence', str(source), '--out', str(self._last_output)])
+            '--input-sequence', str(source), '--out', str(self._last_output),
+            '--voxel-mm', '2.0' if self._fine else '4.0'])
         self._status('Đang ghép cloud · FT-09 pose → FT-10 accumulation…')
 
     def _enter_metric_reference(self):
@@ -455,12 +531,30 @@ class ReconstructionWorkflowController(QObject):
         self._status('Đã nhập kích thước chuẩn · chạy lại C1 để kiểm tra gate 10 mm.')
         self._start_c1()
 
+    def _context_for_c1(self, source):
+        from scantopath.modules.reconstruction.application.project_sessions import (
+            context_for_c1, project_pipeline_root)
+        context = context_for_c1(source)
+        self._project_context = context
+        if context is not None:
+            record = json.loads((Path(source)/'processing_run.json').read_text(encoding='utf8'))
+            self._sequence = Path(record['input_source']['ft09_dir'])
+        else:
+            self._sequence = None
+        self._last_output = (project_pipeline_root(context,create=True)/'03_RECONSTRUCTION'
+                             if context else self._default_output)
+
     def _choose_c1(self):
         if self._job is not None:
             return
         folder = QFileDialog.getExistingDirectory(
             self.panel, 'Chọn cloud C1 đã lưu để dựng mesh/path', str(self._last_output/'C1_Results'))
         if not folder:
+            return
+        try:
+            self._context_for_c1(Path(folder))
+        except (OSError, ValueError, KeyError) as exc:
+            self._status('Cloud C1 không khớp phiên: ' + str(exc)[:140])
             return
         self._start('c1_verify', 'c1_trusted_cloud.py', ['--verify', folder])
         self._status('C2: đang xác minh C1 SHA-256 trước khi dựng mesh…')
@@ -472,6 +566,8 @@ class ReconstructionWorkflowController(QObject):
             self.panel, 'Chọn artifact C2 đã lưu', str(self._last_output/'C2_Results'))
         if not folder:
             return
+        self._project_context = None  # external reopen cannot inherit previous Project owner
+        self._last_output = self._default_output
         self._start('c2_verify', 'c2_surface_to_path.py', ['--verify', folder])
         self._status('C2: đang xác minh SHA-256 và đường dẫn đã lưu…')
 
@@ -482,7 +578,8 @@ class ReconstructionWorkflowController(QObject):
         self.panel.set_c2_available(True, False)
         self.panel.c2_status.setText('C2: đang dựng mesh, sinh Zigzag và Contour…')
         self._start('c2', 'c2_surface_to_path.py', [
-            '--c1', str(self._c1), '--out', str(self._last_output/'C2_Results')])
+            '--c1', str(self._c1), '--out', str(self._last_output/'C2_Results'),
+            '--mesh-spacing-mm', '3.5' if self._fine else '6.0'])
         self._status('C2: FT-16 Mesh → FT-17 Zigzag → FT-18 Contour & Export…')
 
     def _view_c2(self, kind):
@@ -503,6 +600,10 @@ class ReconstructionWorkflowController(QObject):
                 '--out', str(self._last_output/'C1_Results')]
         if self._reference is not None:
             args += ['--reference', str(self._reference)]
+        if self._project_context:
+            args += ['--store-root', self._project_context['store_root']]
+        args += ['--voxel-mm', '2.0' if self._fine else '4.0',
+                 '--sor-sigma', '3.2' if self._fine else '2.5']
         self._start('c1', 'c1_trusted_cloud.py', args)
         self._status('C1: đang tách vật thể, ước lượng normal, kiểm tra pose và provenance…')
 
@@ -622,6 +723,8 @@ class ReconstructionWorkflowController(QObject):
                 self._start_c1()  # C1 follows FT10 automatically, but FT10 remains viewable on failure.
             elif kind in ('verify', 'export') and message.get('FT11_STATUS') in ('VERIFIED', 'EXPORTED'):
                 self._bundle = Path(message['artifact_dir'])
+                self._project_context = None
+                self._last_output = self._default_output
                 self._c1 = self._c2 = self._reference = None
                 self.panel.set_c2_available(False, False)
                 self.panel.c1_status.setText('C1: không có RAW để xử lý lại phiên portable này.')
@@ -661,13 +764,24 @@ class ReconstructionWorkflowController(QObject):
                 self._start_c2()
             elif kind in ('c2', 'c2_verify') and message.get('C2_STATUS') in ('READY', 'VERIFIED'):
                 self._c2 = Path(message['artifact_dir'])
+                project_warning = ''
+                if kind == 'c2' and self._project_context is not None and self._sequence is not None and self._c1 is not None:
+                    try:
+                        from scantopath.modules.reconstruction.application.project_sessions import record_c2
+                        record_c2(self._project_context,self._sequence,self._c1,self._c2)
+                        # Refresh the existing Project tree after SQLite run publication.
+                        # Do not manufacture a second Explorer or alter its owner.
+                        QTimer.singleShot(0, self.view._reload_project_store)
+                    except (OSError, ValueError, RuntimeError, KeyError) as exc:
+                        project_warning = ' · CHƯA GẮN VÀO PROJECT: ' + str(exc)[:100]
                 self._c2_display = 'mesh'
                 self.panel.set_c2_available(self._c1 is not None, True)
                 self.panel.c2_status.setText(
                     f'C2: {message["faces"]} tam giác · Zigzag {message["zigzag_points"]} điểm · '
                     f'Contour {message["contour_points"]} điểm · Mặt dưới chưa kiểm chứng')
                 self.panel.set_ready(True, False)
-                self._status('C2 hoàn thành · Mesh và đường dẫn XYZ + normal đã lưu · Chưa chứng nhận metric')
+                self._status('C2 hoàn thành · Mesh và đường dẫn XYZ + normal đã lưu'
+                             + project_warning + ' · Chưa chứng nhận metric')
                 self.sync_workspace_context(self.view.active_workspace)
                 self._view_current()
             else:

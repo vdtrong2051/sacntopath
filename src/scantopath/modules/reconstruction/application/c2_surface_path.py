@@ -107,7 +107,7 @@ def reconstruct_surface(points, normals, cfg: C2Config | None = None):
     cloud.SetPoints(points_vtk)
     surface = vtkSurfaceReconstructionFilter()
     surface.SetInputData(cloud)
-    surface.SetNeighborhoodSize(16)
+    surface.SetNeighborhoodSize(24)  # reduce depth speckle; retain support gates
     surface.SetSampleSpacing(cfg.mesh_spacing_m)
     surface.Update()
     contour = vtkContourFilter()

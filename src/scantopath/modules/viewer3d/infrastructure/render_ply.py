@@ -67,7 +67,7 @@ def render_ply(input_path: Path, output_path: Path, metadata_path: Path, *,
         mapper.ScalarVisibilityOff()
     actor = vtkActor()
     actor.SetMapper(mapper)
-    actor.GetProperty().SetPointSize(4 if count > 100_000 else 6)
+    actor.GetProperty().SetPointSize(2 if count > 100_000 else 3)
     if not rgb:
         actor.GetProperty().SetColor(.12, .52, .87)
     renderer = vtkRenderer()

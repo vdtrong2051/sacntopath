@@ -302,6 +302,8 @@ def main(argv=None):
     p.add_argument('--out',type=Path)
     p.add_argument('--reference',type=Path,help='Optional operator-measured x/y/z mm JSON')
     p.add_argument('--store-root',type=Path,help='OPTIONAL existing SQLite store where captures are registered')
+    p.add_argument('--voxel-mm',type=float,default=4.0)
+    p.add_argument('--sor-sigma',type=float,default=2.5)
     p.add_argument('--verify',type=Path)
     a=p.parse_args(argv)
     if a.verify:
@@ -310,7 +312,8 @@ def main(argv=None):
     if not a.sequence or not a.cloud or not a.out:
         emit('INPUT_MISSING',required='--sequence FT09 --cloud FT10 --out OUT')
         return 2
-    result=execute(a.sequence,a.cloud,a.out,reference_file=a.reference,store_root=a.store_root)
+    config=C1Config(voxel_m=a.voxel_mm/1000.0,sor_sigma=a.sor_sigma)
+    result=execute(a.sequence,a.cloud,a.out,reference_file=a.reference,store_root=a.store_root,config=config)
     metric=json.loads((result/'metric_validation.json').read_text(encoding='utf8'))
     emit('READY',artifact_dir=str(result),metric_gate=metric['gate'],
          **verify(result),physical_accuracy_verified=False)
