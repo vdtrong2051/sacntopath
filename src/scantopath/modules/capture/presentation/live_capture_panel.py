@@ -14,6 +14,7 @@ from .depth_roi_overlay import DepthRoiOverlay
 from .live_3d_panel import Live3DPanel
 from .preview_widget import owned_rgb_image
 from .preview_widget import depth_display_u8
+from scantopath.modules.geometry.application.live_visual_depth import StableDepthScale
 
 from PySide6.QtGui import QPixmap
 
@@ -27,6 +28,7 @@ class LiveCapturePanel(QFrame):
         self._manual: DepthRoi | None = None
         self._auto: DepthRoi | None = None
         self._rgb_original: QPixmap | None = None
+        self._stable_depth_scale = StableDepthScale()
         self._live = False
 
         layout = QVBoxLayout(self)
@@ -66,7 +68,11 @@ class LiveCapturePanel(QFrame):
         self._camera_column = QWidget(panes)
         camera_layout = QVBoxLayout(self._camera_column)
         camera_layout.setContentsMargins(0, 0, 0, 0)
-        camera_layout.setSpacing(4)
+        camera_layout.setSpacing(3)
+        self.camera_panes = QSplitter(Qt.Vertical, self._camera_column)
+        self.camera_panes.setObjectName('captureLiveCameraSplitter')
+        self.camera_panes.setChildrenCollapsible(False)
+        camera_layout.addWidget(self.camera_panes, 1)
         left = QFrame(self._camera_column)
         left_layout = QVBoxLayout(left)
         left_layout.setContentsMargins(0, 0, 0, 0)
@@ -74,11 +80,11 @@ class LiveCapturePanel(QFrame):
         self.rgb_image = QLabel("Chưa kết nối", left)
         self.rgb_image.setObjectName("captureLiveRgbImage")
         self.rgb_image.setAlignment(Qt.AlignCenter)
-        self.rgb_image.setMinimumSize(150, 200)
+        self.rgb_image.setMinimumSize(135, 110)
         self.rgb_image.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.rgb_image.setStyleSheet("background:#171c24; color:#bec7d2;")
         left_layout.addWidget(self.rgb_image, 1)
-        camera_layout.addWidget(left, 1)
+        self.camera_panes.addWidget(left)
 
         right = QFrame(self._camera_column)
         right_layout = QVBoxLayout(right)
@@ -87,12 +93,18 @@ class LiveCapturePanel(QFrame):
         self.depth_overlay = DepthRoiOverlay(right)
         self.depth_overlay.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         right_layout.addWidget(self.depth_overlay, 1)
-        camera_layout.addWidget(right, 1)
+        self.camera_panes.addWidget(right)
+        self.camera_panes.setStretchFactor(0, 1)
+        self.camera_panes.setStretchFactor(1, 1)
+        self.camera_panes.setSizes([240, 240])
         panes.addWidget(self._camera_column)
         self.cloud_view = Live3DPanel(panes)
         panes.addWidget(self.cloud_view)
+        panes.setObjectName('captureLiveMainSplitter')
+        self.main_splitter = panes
         panes.setStretchFactor(0, 2)
-        panes.setStretchFactor(1, 3)
+        panes.setStretchFactor(1, 5)
+        panes.setSizes([300, 700])
         panes.setChildrenCollapsible(False)
         layout.addWidget(panes, 1)
 
@@ -133,10 +145,27 @@ class LiveCapturePanel(QFrame):
         self.auto_capture_status.setObjectName("captureLiveAutoKeyframeStatus")
         self.auto_capture_status.setWordWrap(True)
         layout.addWidget(self.auto_capture_status)
+        # Keep essential ROI actions visible; collapse verbose diagnostics to
+        # preserve usable RGB/Depth/3D area on 125%/150% DPI Windows screens.
+        self.details_button = QPushButton('Thông tin chi tiết camera / ROI ▸', self)
+        self.details_button.setObjectName('captureLiveDetailsToggle')
+        self.details_button.setCheckable(True)
+        layout.addWidget(self.details_button)
+        self._detail_labels = (self.roi_label, self.state_label,
+                               self.roi_safety_status, self.auto_capture_status)
+        for label in self._detail_labels:
+            label.setVisible(False)
+        self.details_button.toggled.connect(self._toggle_details)
         self.manual_button.toggled.connect(self.depth_overlay.set_manual_enabled)
         self.depth_overlay.manual_roi_selected.connect(self._on_manual_selected)
         self.auto_button.clicked.connect(self.use_auto)
         self.set_state(CameraState.IDLE)
+
+    def _toggle_details(self, visible: bool) -> None:
+        for label in self._detail_labels:
+            label.setVisible(visible)
+        self.details_button.setText('Ẩn thông tin chi tiết ▾' if visible
+                                    else 'Thông tin chi tiết camera / ROI ▸')
 
     @property
     def manual_roi(self) -> DepthRoi | None:
@@ -195,7 +224,7 @@ class LiveCapturePanel(QFrame):
             self.manual_button.setChecked(False)
         self._rgb_original = QPixmap.fromImage(owned_rgb_image(frame.color_rgb))
         self._fit_rgb()
-        self.depth_overlay.set_depth_image(depth_display_u8(frame.depth_u16))
+        self.depth_overlay.set_depth_image(self._stable_depth_scale.update(frame.depth_u16))
         self._show_roi()
 
     def _fit_rgb(self) -> None:
@@ -211,6 +240,7 @@ class LiveCapturePanel(QFrame):
             QTimer.singleShot(0, self._fit_rgb)
 
     def clear_live(self) -> None:
+        self._stable_depth_scale.reset()
         self._rgb_original = None
         self.rgb_image.clear()
         self.rgb_image.setText("Chưa kết nối")

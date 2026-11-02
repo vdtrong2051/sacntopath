@@ -6,6 +6,7 @@ No file, SDK, SQLite, RAW, VTK, or shared-memory I/O is performed here.
 """
 from __future__ import annotations
 
+from dataclasses import replace
 from collections import deque
 from collections.abc import Callable
 from math import isfinite
@@ -16,8 +17,10 @@ from time import monotonic
 from PySide6.QtCore import QThread, Signal
 
 from scantopath.modules.capture.application.live_stream import LiveRgbdFrame
+from scantopath.modules.geometry.application.live_visual_depth import VisualDepthEnhancer
 from scantopath.modules.geometry.application.live_object_isolation import isolate_object_depth
 from scantopath.modules.geometry.application.live_charuco_isolation import isolate_charuco_object
+from scantopath.modules.geometry.application.live_charuco_pose_tracker import TemporalCharucoPoseTracker
 from scantopath.modules.geometry.application.live_geometry import (
     LiveCloudFrame, LiveGeometryError, LiveGeometryService,
 )
@@ -33,6 +36,8 @@ class LiveGeometryThread(QThread):
         self._standard_processor = processor is None
         self._processor = processor or LiveGeometryService.process
         self._denoise_mode = "standard" if processor is None else "off"
+        self._enhancement_mode = 'visual' if processor is None else 'off'
+        self._visual_depth = VisualDepthEnhancer()  # owned by this QThread only
         self._scope_mode = "scene"  # FT-03/FT-05 compatibility; UI selects object
         self._scope_revision = 0
         self._last_isolation_status = "SCENE"
@@ -40,12 +45,17 @@ class LiveGeometryThread(QThread):
         self._last_board_corners = 0
         self._last_board_reprojection_px = None
         self._last_board_support_fraction = None
+        self._last_board_pose_source = 'none'
+        self._last_board_pose_age_frames = 0
+        self._pose_bridge = TemporalCharucoPoseTracker()
+        self._pose_bridge_key = None  # reset on any camera generation/mode change
         if not callable(self._processor):
             raise TypeError("processor must be callable")
         self._cv = Condition()
         self._generation = 0
         self._pending: tuple[int, int, LiveRgbdFrame, tuple[int, int, int, int] | None] | None = None
         self._latest: tuple[int, int, LiveCloudFrame | None, str | None] | None = None
+        self._latest_context = None  # same-frame read-only LiveRgbdFrame + processing provenance
         self._notice_pending = False
         self._closing = False
         self._last_submitted = -1
@@ -78,6 +88,7 @@ class LiveGeometryThread(QThread):
             self._generation = generation
             self._pending = None
             self._latest = None
+            self._latest_context = None
             self._notice_pending = False
             self._last_submitted = -1
             self._last_output = -1
@@ -113,9 +124,26 @@ class LiveGeometryThread(QThread):
         if type(mode) is not str or mode not in ("standard", "off"):
             raise ValueError("DENOISE_MODE_INVALID")
         with self._cv:
-            if self._closing:
+            if self._closing or self._denoise_mode == mode:
                 return
             self._denoise_mode = mode
+            # Do not publish a geometry frame processed under a prior filter.
+            self._scope_revision += 1
+            self._pending = self._latest = self._latest_context = None
+            self._notice_pending = False
+            self._cv.notify_all()
+
+    def set_enhancement_mode(self, mode: str) -> None:
+        if mode not in ('off', 'visual') or type(mode) is not str:
+            raise ValueError('ENHANCEMENT_MODE_INVALID')
+        with self._cv:
+            if self._closing or mode == self._enhancement_mode:
+                return
+            self._enhancement_mode = mode
+            self._scope_revision += 1
+            self._pending = self._latest = self._latest_context = None
+            self._notice_pending = False
+            self._cv.notify_all()
 
     def set_scope_mode(self, mode: str) -> None:
         if type(mode) is not str or mode not in ("scene", "object"):
@@ -130,6 +158,7 @@ class LiveGeometryThread(QThread):
             if self._latest is not None:
                 self._counts["frames_dropped_output"] += 1
             self._pending = self._latest = None
+            self._latest_context = None
             self._notice_pending = False
             self._last_isolation_status = "PENDING" if mode == "object" else "SCENE"
             self._cv.notify_all()
@@ -147,6 +176,7 @@ class LiveGeometryThread(QThread):
             if self._latest is not None:
                 self._counts["frames_dropped_output"] += 1
             self._pending = self._latest = None
+            self._latest_context = None
             self._notice_pending = False
             self._last_isolation_status = "PENDING"
             self._last_board_corners = 0
@@ -160,15 +190,25 @@ class LiveGeometryThread(QThread):
             self._closing = True
             self._pending = None
             self._latest = None
+            self._latest_context = None
             self._notice_pending = False
             self._cv.notify_all()
 
-    def take_latest_result(self) -> tuple[int, int, LiveCloudFrame | None, str | None] | None:
+    def take_latest_result_bundle(self):
+        """Atomically consume a result plus its exact owned input frame."""
         with self._cv:
             value = self._latest
-            self._latest = None
+            context = self._latest_context
+            self._latest = self._latest_context = None
             self._notice_pending = False
-            return value
+            if value is None:
+                return None
+            return (*value, context)
+
+    def take_latest_result(self) -> tuple[int, int, LiveCloudFrame | None, str | None] | None:
+        """FT-03 compatibility: older callers only consume the four-field result."""
+        packet = self.take_latest_result_bundle()
+        return packet[:4] if packet is not None else None
 
     def statistics(self) -> dict[str, int | float | str | None]:
         """Thread-safe aggregate; no camera timestamp used as a wall clock."""
@@ -180,11 +220,14 @@ class LiveGeometryThread(QThread):
                 **self._counts,
                 "camera_generation": self._generation,
                 "denoise_mode": self._denoise_mode,
+                "enhancement_mode": self._enhancement_mode,
                 "scope_mode": self._scope_mode,
                 "reference_mode": self._reference_mode,
                 "board_corners": self._last_board_corners,
                 "board_reprojection_px": self._last_board_reprojection_px,
                 "board_support_fraction": self._last_board_support_fraction,
+                "board_pose_source": self._last_board_pose_source,
+                "board_pose_age_frames": self._last_board_pose_age_frames,
                 "last_isolation_status": self._last_isolation_status,
                 "pending_input": int(self._pending is not None),
                 "pending_output": int(self._latest is not None),
@@ -205,6 +248,7 @@ class LiveGeometryThread(QThread):
                     return
                 generation, index, frame, roi = self._pending
                 denoise_mode = self._denoise_mode
+                enhancement_mode = self._enhancement_mode
                 scope_mode = self._scope_mode
                 reference_mode = self._reference_mode
                 scope_revision = self._scope_revision
@@ -214,7 +258,26 @@ class LiveGeometryThread(QThread):
             error: str | None = None
             isolation_status = "SCENE"
             board_metrics = (0, None, None)
+            board_pose_source = 'none'
+            board_pose_age_frames = 0
             try:
+                # Enhancement is display geometry only; original frame is kept
+                # for FT-06 Snapshot/RAW and the original camera timestamps.
+                processed_frame = frame
+                inferred_source = modified_source = None
+                # The pose tracker is owned and reset ONLY by the worker thread.
+                # Clear tracked feature history across camera/mode/filter epochs.
+                bridge_key = (generation, scope_revision)
+                if bridge_key != self._pose_bridge_key:
+                    self._pose_bridge.reset()
+                    self._pose_bridge_key = bridge_key
+                if self._standard_processor:
+                    visual_depth, inferred_source, modified_source = self._visual_depth.process(
+                        frame.depth_u16, generation=generation, frame_index=index,
+                        mode=enhancement_mode)
+                    if enhancement_mode == 'visual':
+                        processed_frame = LiveRgbdFrame(frame.source, frame.color_rgb,
+                                                       visual_depth)
                 kw = {"camera_generation": generation, "depth_roi": roi}
                 if scope_mode == "object" and self._standard_processor:
                     calibration = frame.source.calibration
@@ -222,21 +285,39 @@ class LiveGeometryThread(QThread):
                         raise LiveGeometryError("LIVE_CALIBRATION_MISSING", "No calibration")
                     if reference_mode == "charuco":
                         isolated = isolate_charuco_object(
-                            frame.color_rgb, frame.depth_u16, calibration, depth_roi=roi)
+                            processed_frame.color_rgb, processed_frame.depth_u16,
+                            calibration, depth_roi=roi,
+                            pose_provider=self._pose_bridge.estimate,
+                            timestamp_us=frame.source.color_timestamp_us)
                     else:
                         isolated = isolate_object_depth(
-                            frame.depth_u16, frame.source.depth_scale_m_per_unit,
+                            processed_frame.depth_u16, frame.source.depth_scale_m_per_unit,
                             calibration.depth_intrinsics, depth_roi=roi)
                     isolation_status = isolated.status
                     if reference_mode == "charuco":
                         board_metrics = (isolated.corner_count, isolated.reprojection_px,
                                          isolated.support_fraction)
+                        board_pose_source = isolated.pose_source
+                        board_pose_age_frames = isolated.pose_age_frames
+                        # Reject bad Depth support: optical flow alone never
+                        # authorizes a new object cloud or Snapshot.
+                        if isolated.status in ('CHARUCO_DEPTH_PLANE_UNVERIFIED',
+                                               'CHARUCO_FOREGROUND_AMBIGUOUS',
+                                               'CHARUCO_AMBIGUOUS_OBJECTS'):
+                            self._pose_bridge.reset()
                     if not isolated.usable:
                         raise LiveGeometryError(isolated.status, isolated.message)
                     kw["object_mask"] = isolated.object_mask
                 if self._standard_processor:
                     kw["denoise_mode"] = denoise_mode
-                cloud = self._processor(frame, **kw)
+                cloud = self._processor(processed_frame, **kw)
+                if (cloud is not None and isinstance(cloud, LiveCloudFrame) and
+                        self._standard_processor and enhancement_mode == 'visual'):
+                    uv = cloud.depth_source_uv
+                    flags_inferred = inferred_source[uv[:, 1], uv[:, 0]]
+                    flags_modified = modified_source[uv[:, 1], uv[:, 0]]
+                    cloud = replace(cloud, inferred_depth_mask=flags_inferred,
+                                    smoothed_depth_mask=flags_modified)
                 if (not isinstance(cloud, LiveCloudFrame)
                         or cloud.camera_generation != generation
                         or cloud.depth_frame_index != index):
@@ -263,6 +344,8 @@ class LiveGeometryThread(QThread):
                     error if error.startswith(("ISOLATION_", "CHARUCO_")) else "ERROR")
                 self._last_board_corners, self._last_board_reprojection_px, (
                     self._last_board_support_fraction) = board_metrics
+                self._last_board_pose_source = board_pose_source
+                self._last_board_pose_age_frames = board_pose_age_frames
                 if self._latest is not None:
                     self._counts["frames_dropped_output"] += 1
                 if error is not None:
@@ -274,6 +357,17 @@ class LiveGeometryThread(QThread):
                     self._last_error_code = None
                     self._last_point_count = int(cloud.statistics.output_points)
                 self._latest = (generation, index, cloud, error)
+                self._latest_context = ((frame, {
+                    'roi': roi, 'scope_mode': scope_mode,
+                    'reference_mode': reference_mode, 'denoise_mode': denoise_mode,
+                    'depth_enhancement_mode': enhancement_mode,
+                    'isolation_status': isolation_status,
+                    'board_corners': board_metrics[0],
+                    'board_reprojection_px': board_metrics[1],
+                    'board_support_fraction': board_metrics[2],
+                    'board_pose_source': board_pose_source,
+                    'board_pose_age_frames': board_pose_age_frames,
+                }) if error is None and cloud is not None else None)
                 if not self._notice_pending:
                     self._notice_pending = True
                     notify = True

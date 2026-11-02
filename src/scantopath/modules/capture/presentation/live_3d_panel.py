@@ -79,6 +79,10 @@ class Live3DPanel(QFrame):
     denoise_mode_changed = Signal(str)
     scope_mode_changed = Signal(str)
     reference_mode_changed = Signal(str)
+    enhancement_mode_changed = Signal(str)
+    freeze_requested = Signal()
+    resume_requested = Signal()
+    snapshot_requested = Signal()
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
@@ -110,14 +114,14 @@ class Live3DPanel(QFrame):
         self.scope_mode.currentIndexChanged.connect(
             lambda _i: self.reference_mode.setEnabled(self.scope_mode.currentData() == "object"))
         header.addWidget(self.reference_mode)
-        self.denoise_toggle = QCheckBox("Lọc nhiễu 3D", self)
+        self.denoise_toggle = QCheckBox("Lọc 3D", self)
         self.denoise_toggle.setObjectName("captureLive3DDenoise")
         self.denoise_toggle.setChecked(True)
         self.denoise_toggle.setToolTip("Chỉ lọc Live 3D; RAW gốc không đổi")
         self.denoise_toggle.toggled.connect(
             lambda checked: self.denoise_mode_changed.emit("standard" if checked else "off"))
         header.addWidget(self.denoise_toggle)
-        self.reset_button = QPushButton('Đặt lại góc nhìn', self)
+        self.reset_button = QPushButton('Góc mặc định', self)
         self.reset_button.setObjectName('captureLive3DResetButton')
         self.reset_button.clicked.connect(lambda: self.camera_intent.emit('reset', 0.0, 0.0))
         header.addWidget(self.reset_button)
@@ -126,6 +130,38 @@ class Live3DPanel(QFrame):
         self.image.setObjectName('captureLive3DImage')
         self.image.intent.connect(self.camera_intent.emit)
         lay.addWidget(self.image, 1)
+        # Main workflow actions stay next to the viewer, visible without scrolling.
+        actions = QHBoxLayout()
+        self.freeze_button = QPushButton('Đóng băng', self)
+        self.freeze_button.setObjectName('captureLiveFreezeButton')
+        self.freeze_button.clicked.connect(self.freeze_requested.emit)
+        self.resume_button = QPushButton('Tiếp tục Live', self)
+        self.resume_button.setObjectName('captureLiveResumeButton')
+        self.resume_button.clicked.connect(self.resume_requested.emit)
+        self.snapshot_button = QPushButton('Lưu Snapshot (.ply)', self)
+        self.snapshot_button.setObjectName('captureLiveSnapshotButton')
+        self.snapshot_button.clicked.connect(self.snapshot_requested.emit)
+        for widget in (self.freeze_button, self.resume_button, self.snapshot_button):
+            actions.addWidget(widget)
+        self.enhance_toggle = QCheckBox('Mượt + lấp lỗ', self)
+        self.enhance_toggle.setObjectName('captureLiveVisualDepthEnhancement')
+        self.enhance_toggle.setChecked(True)
+        self.enhance_toggle.setToolTip('Chỉ Geometry hiển thị; điểm bổ sung được đánh dấu trong Snapshot; RAW không đổi')
+        self.enhance_toggle.toggled.connect(
+            lambda enabled: self.enhancement_mode_changed.emit('visual' if enabled else 'off'))
+        actions.addWidget(self.enhance_toggle)
+        actions.addStretch(1)
+        lay.addLayout(actions)
+        self.geometry_info = QLabel('Điểm: —  •  Kích thước XYZ: —  •  Chưa đóng băng', self)
+        self.geometry_info.setObjectName('captureLiveGeometryInspection')
+        self.geometry_info.setWordWrap(True)
+        self.geometry_info.setToolTip('Kích thước bao của bề mặt thấy trong frame, không phải kích thước vật thể hoàn chỉnh')
+        lay.addWidget(self.geometry_info)
+        self.tracking_info = QLabel('Vật thể: chưa theo dõi', self)
+        self.tracking_info.setObjectName('captureLiveObjectTrackingStatus')
+        self.tracking_info.setToolTip('Khung xanh lam chỉ phục vụ quan sát; Auto Keyframe vẫn dùng ROI Safety cũ')
+        self.tracking_info.setWordWrap(True)
+        lay.addWidget(self.tracking_info)
         self.status = QLabel('Viewer: chưa kết nối', self)
         self.status.setObjectName('captureLive3DStatus')
         self.status.setWordWrap(True)
@@ -139,14 +175,23 @@ class Live3DPanel(QFrame):
         self.help.setWordWrap(True)
         lay.addWidget(self.help)
         self.set_ready(False)
+        self.set_snapshot_state('idle')
 
     def set_ready(self, ready: bool) -> None:
         self.reset_button.setEnabled(ready)
+
+    def set_snapshot_state(self, state: str) -> None:
+        self.freeze_button.setEnabled(state == 'live')
+        self.resume_button.setEnabled(state == 'frozen')
+        self.snapshot_button.setEnabled(state == 'frozen')
+        self.snapshot_button.setText('Lưu Snapshot (.ply)' if state != 'saving' else 'Đang lưu…')
 
     def clear(self, reason: str = 'Chưa kết nối') -> None:
         self.image.clear('Chưa có Live Point Cloud')
         self.status.setText('Viewer: ' + reason)
         self.set_ready(False)
+        self.set_snapshot_state('idle')
+        self.geometry_info.setText('Điểm: —  •  Kích thước XYZ: —  •  Chưa đóng băng')
 
     def show_frame(self, rgb: bytes, width: int, height: int, points: int | None = None) -> None:
         self.image.set_render(rgb, width, height)

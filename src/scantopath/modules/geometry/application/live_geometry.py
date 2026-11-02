@@ -49,6 +49,9 @@ class LiveCloudFrame:
     source_kind: str = "LIVE_NATIVE_FRAME"
     color_status: str = "XYZ_ONLY"
     metric_validated: bool = False
+    # FT-06.1 R1: per-vertex provenance, NOT a physical measurement certificate.
+    inferred_depth_mask: np.ndarray | None = None
+    smoothed_depth_mask: np.ndarray | None = None
 
     def __post_init__(self) -> None:
         xyz = self.points_xyz_m
@@ -69,6 +72,15 @@ class LiveCloudFrame:
                 or self.metric_validated is not False
                 or len(self.calibration_fingerprint) != 64):
             raise LiveGeometryError("CLOUD_CONTEXT_INVALID", "Invalid cloud context")
+        for field in ('inferred_depth_mask', 'smoothed_depth_mask'):
+            flags = getattr(self, field)
+            if flags is not None:
+                if (not isinstance(flags, np.ndarray) or flags.dtype != np.bool_ or
+                        flags.shape != (xyz.shape[0],)):
+                    raise LiveGeometryError('CLOUD_PROVENANCE_INVALID', field)
+                arr = np.array(flags, dtype=np.bool_, copy=True)
+                arr.setflags(write=False)
+                object.__setattr__(self, field, arr)
         owned_xyz = np.array(xyz, dtype="<f4", order="C", copy=True)
         owned_uv = np.array(uv, dtype=np.int32, order="C", copy=True)
         owned_xyz.setflags(write=False)

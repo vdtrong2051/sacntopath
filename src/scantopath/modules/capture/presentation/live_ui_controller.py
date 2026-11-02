@@ -42,6 +42,8 @@ class LiveCaptureUiController(QObject):
         self._analysis: DepthAnalysisThread | None = None
         self._geometry: LiveGeometryThread | None = None
         self._geometry_latest = None
+        self._geometry_bundle_latest = None
+        self._preview_frozen = False
         self._geometry_last_error: str | None = None
         self._generation = 0
         self._closing = False
@@ -51,6 +53,7 @@ class LiveCaptureUiController(QObject):
         self._geometry_scope_mode = "scene"  # FT-05.7 backend compatible; Qt explicitly opts into object
         self._geometry_reference_mode = "depth"  # FT-05.7 backend compatibility
         self._geometry_denoise_mode = "standard"
+        self._geometry_enhancement_mode = 'visual'
 
         self._preview_timer = QTimer(self)
         self._preview_timer.setInterval(100)  # 10 Hz, UI never follows native FPS
@@ -92,6 +95,7 @@ class LiveCaptureUiController(QObject):
         thread.set_scope_mode(self._geometry_scope_mode)
         thread.set_reference_mode(self._geometry_reference_mode)
         thread.set_denoise_mode(self._geometry_denoise_mode)
+        thread.set_enhancement_mode(self._geometry_enhancement_mode)
         self._geometry = thread
         thread.result_available.connect(self._on_geometry_available)
         thread.finished.connect(self._on_geometry_finished)
@@ -104,6 +108,31 @@ class LiveCaptureUiController(QObject):
         self._geometry_latest = None
         return cloud if self.camera.state is CameraState.STREAMING else None
 
+    def take_latest_geometry_bundle(self):
+        """For FT-06, transfer cloud + original owned same-frame RGB-D atomically."""
+        self._assert_gui()
+        bundle = self._geometry_bundle_latest
+        self._geometry_bundle_latest = None
+        self._geometry_latest = None
+        return bundle if self.camera.state is CameraState.STREAMING else None
+
+    def set_preview_frozen(self, frozen: bool, *, source_frame=None, depth_mask=None, frozen_roi=None) -> None:
+        """Affect only preview. Never pause camera/analysis/RAW."""
+        self._assert_gui()
+        self._preview_frozen = bool(frozen)
+        if frozen:
+            if source_frame is None or depth_mask is None:
+                raise ValueError('FT06_FREEZE_FRAME_REQUIRED')
+            self.panel.show_live_frame(source_frame)
+            from scantopath.modules.capture.domain.models import DepthRoi, RoiSource
+            frozen_rect = (DepthRoi(*frozen_roi, source_frame.source.depth_width,
+                                    source_frame.source.depth_height, RoiSource.DEPTH_SUGGESTION)
+                           if frozen_roi is not None else None)
+            self.panel.depth_overlay.set_roi(frozen_rect)
+            self.panel.depth_overlay.set_sampled_mask(depth_mask)
+        else:
+            self.panel.depth_overlay.set_sampled_mask(None)
+
     def set_geometry_denoise_mode(self, mode: str) -> None:
         self._assert_gui()
         if type(mode) is not str or mode not in ("standard", "off"):
@@ -111,6 +140,16 @@ class LiveCaptureUiController(QObject):
         self._geometry_denoise_mode = mode
         if self._geometry is not None:
             self._geometry.set_denoise_mode(mode)
+
+    def set_geometry_enhancement_mode(self, mode: str) -> None:
+        self._assert_gui()
+        if type(mode) is not str or mode not in ('off', 'visual'):
+            raise ValueError('ENHANCEMENT_MODE_INVALID')
+        self._geometry_enhancement_mode = mode
+        self._geometry_bundle_latest = self._geometry_latest = None
+        self._geometry_last_error = None
+        if self._geometry is not None:
+            self._geometry.set_enhancement_mode(mode)
 
     def set_geometry_scope_mode(self, mode: str) -> None:
         self._assert_gui()
@@ -120,7 +159,9 @@ class LiveCaptureUiController(QObject):
             return
         self._geometry_scope_mode = mode
         self._geometry_latest = None
+        self._geometry_bundle_latest = None
         self._geometry_last_error = None
+        self.panel.depth_overlay.set_sampled_mask(None)
         if self._geometry is not None:
             self._geometry.set_scope_mode(mode)
 
@@ -132,7 +173,9 @@ class LiveCaptureUiController(QObject):
             return
         self._geometry_reference_mode = mode
         self._geometry_latest = None
+        self._geometry_bundle_latest = None
         self._geometry_last_error = None
+        self.panel.depth_overlay.set_sampled_mask(None)
         if self._geometry is not None:
             self._geometry.set_reference_mode(mode)
 
@@ -144,6 +187,8 @@ class LiveCaptureUiController(QObject):
         self._generation += 1
         self._last_analyzed_frame = None
         self._geometry_latest = None
+        self._geometry_bundle_latest = None
+        self._preview_frozen = False
         self._geometry_last_error = None
         self._display_stabilizer.reset()
         if self._geometry is not None:
@@ -196,13 +241,20 @@ class LiveCaptureUiController(QObject):
         frame = self.camera.take_latest()
         if frame is None:
             return
-        self.panel.show_live_frame(frame)
+        if not self._preview_frozen:
+            self.panel.show_live_frame(frame)
         if self._analysis is not None:
             self._analysis.submit(self._generation, frame)
         # One controller owns take_latest(); other consumers share owned frame.
         worker = self._geometry
         if worker is not None:
-            roi = self.panel.displayed_roi
+            # FT-06.1: ChArUco has its OWN 3D board footprint and object search.
+            # Do not let a broad or lost legacy auto-ROI clip the ChArUco object.
+            # An explicitly drawn manual ROI remains an intentional constraint.
+            roi = (self.panel.manual_roi if
+                   self._geometry_scope_mode == 'object' and
+                   self._geometry_reference_mode == 'charuco'
+                   else self.panel.displayed_roi)
             rect = None
             if (roi is not None and
                     (roi.frame_width, roi.frame_height) ==
@@ -218,8 +270,9 @@ class LiveCaptureUiController(QObject):
         if self._last_analyzed_frame is not None and frame_index <= self._last_analyzed_frame:
             return
         self._last_analyzed_frame = frame_index
-        self.panel.set_auto_result(
-                result, display_roi=self._display_stabilizer.update(frame_index, result))
+        stabilized = self._display_stabilizer.update(frame_index, result)
+        if not self._preview_frozen:
+            self.panel.set_auto_result(result, display_roi=stabilized)
 
     @Slot()
     def _on_analysis_available(self) -> None:
@@ -237,8 +290,9 @@ class LiveCaptureUiController(QObject):
             return
         if self._last_analyzed_frame != frame_index:
             self._last_analyzed_frame = frame_index
-            self.panel.set_auto_result(
-                result, display_roi=self._display_stabilizer.update(frame_index, result))
+            stabilized = self._display_stabilizer.update(frame_index, result)
+            if not self._preview_frozen:
+                self.panel.set_auto_result(result, display_roi=stabilized)
         self.analysis_ready.emit(frame, result)
 
     @Slot()
@@ -246,15 +300,18 @@ class LiveCaptureUiController(QObject):
         worker = self._geometry
         if worker is None:
             return
-        packet = worker.take_latest_result()
+        packet = worker.take_latest_result_bundle()
         if packet is None:
             return
-        generation, frame_index, cloud, error = packet
+        generation, frame_index, cloud, error, context = packet
         if (self._closing or generation != self._generation or
                 self.camera.state is not CameraState.STREAMING):
             return
         if error is not None:
             self._geometry_latest = None
+            self._geometry_bundle_latest = None
+            if not self._preview_frozen:
+                self.panel.depth_overlay.set_sampled_mask(None)
             if error != self._geometry_last_error:
                 self._geometry_last_error = error
                 self.geometry_failed.emit(error)
@@ -263,6 +320,24 @@ class LiveCaptureUiController(QObject):
             return
         self._geometry_last_error = None
         self._geometry_latest = cloud
+        if context is not None:
+            src_frame, provenance = context
+            self._geometry_bundle_latest = (cloud, src_frame, provenance)
+        else:
+            self._geometry_bundle_latest = None
+        # GUI-side object inspection uses the exact selected XYZ lineage.
+        # Throttled: 2.5 Hz; the full-depth QPixmap is never repainted at camera FPS.
+        if not self._preview_frozen and context is not None:
+            from time import monotonic
+            now = monotonic()
+            if now - getattr(self, '_last_mask_overlay_at', 0.0) >= 0.4:
+                self._last_mask_overlay_at = now
+                h, w = context[0].depth_u16.shape
+                import numpy as np
+                sampled = np.zeros((h, w), dtype=np.uint8)
+                uv = cloud.depth_source_uv
+                sampled[uv[:, 1], uv[:, 0]] = 255
+                self.panel.depth_overlay.set_sampled_mask(sampled)
         self.geometry_available.emit()
 
     def begin_navigation_away(self) -> None:
@@ -313,6 +388,7 @@ class LiveCaptureUiController(QObject):
             return
         self._geometry = None
         self._geometry_latest = None
+        self._geometry_bundle_latest = None
         thread.deleteLater()
         self._maybe_close()
 

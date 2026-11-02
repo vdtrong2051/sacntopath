@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from math import isfinite
 
 import numpy as np
+from .charuco_search_region import projected_board_depth_rect, intersect_depth_rect
 
 BOARD_SQUARES = (6, 8)
 SQUARE_M = 0.045
@@ -57,6 +58,8 @@ class CharucoIsolationResult:
     support_fraction: float
     selected_pixels: int
     message: str
+    pose_source: str = 'detected'
+    pose_age_frames: int = 0
 
     @property
     def usable(self) -> bool:
@@ -94,7 +97,7 @@ def _board():
     return board, cv2.aruco.CharucoDetector(board)
 
 
-def detect_charuco_pose(color_rgb: np.ndarray, calibration, cfg: CharucoIsolationConfig):
+def detect_charuco_pose(color_rgb: np.ndarray, calibration, cfg: CharucoIsolationConfig, *, feature_sink=None):
     """Returns (R_C_B, t_C_B, markers, corners, reproj) or a stable failure code."""
     import cv2
     if (not isinstance(color_rgb, np.ndarray) or color_rgb.dtype != np.uint8 or
@@ -130,8 +133,17 @@ def detect_charuco_pose(color_rgb: np.ndarray, calibration, cfg: CharucoIsolatio
     # Require 2-D spatial spread of the detected board corners, not a tight cluster.
     obj_xy = np.asarray(obj, dtype=np.float64).reshape(-1, 3)[:, :2]
     spread = np.ptp(obj_xy, axis=0)
-    if spread[0] < .07 or spread[1] < .09:
+    # A shallow camera angle often leaves an elongated, partially visible board.
+    # Relax spatial coverage ONLY with >=9 corners and subpixel-ish reprojection.
+    # Collinearity was already rejected above. Depth-plane support is checked
+    # again downstream before ANY object may be published.
+    narrow = spread[0] < .07 or spread[1] < .09
+    too_narrow = spread[0] < .045 or spread[1] < .06
+    if too_narrow or (narrow and (num < 9 or err > 1.2)):
         return _fail('CHARUCO_POSE_UNTRUSTED', markers, num, err)
+    if feature_sink is not None:
+        feature_sink['object_points'] = np.array(obj, dtype=np.float32, copy=True).reshape(-1, 3)
+        feature_sink['image_points'] = np.array(img, dtype=np.float32, copy=True).reshape(-1, 1, 2)
     return R, t, markers, num, err
 
 
@@ -143,7 +155,8 @@ def _coords(depth: np.ndarray, ys, xs, intr, scale):
 
 def isolate_charuco_object(color_rgb: np.ndarray, depth_u16: np.ndarray,
                            calibration, *, depth_roi=None,
-                           config: CharucoIsolationConfig | None = None):
+                           config: CharucoIsolationConfig | None = None,
+                           pose_provider=None, timestamp_us: int = 0):
     """Map calibrated RGB board plane to native Depth; produce Depth-native mask.
 
     Only per-frameset calibration. No temporal pose reuse, RGB/Depth pixel alignment,
@@ -172,8 +185,14 @@ def isolate_charuco_object(color_rgb: np.ndarray, depth_u16: np.ndarray,
         x, y, rw, rh = depth_roi
         if x < 0 or y < 0 or rw < 4 or rh < 4 or x + rw > width or y + rh > height:
             raise ValueError('CHARUCO_ROI_INVALID')
+    pose_source = 'detected'
+    pose_age_frames = 0
     try:
-        pose = detect_charuco_pose(color_rgb, calibration, cfg)
+        if pose_provider is None:
+            pose = detect_charuco_pose(color_rgb, calibration, cfg)
+        else:
+            pose, pose_source, pose_age_frames = pose_provider(
+                color_rgb, calibration, cfg, timestamp_us=timestamp_us)
     except ImportError:
         return _fail('CHARUCO_OPENCV_MISSING')
     except ValueError as exc:
@@ -192,6 +211,18 @@ def isolate_charuco_object(color_rgb: np.ndarray, depth_u16: np.ndarray,
         normal = -normal
     k = calibration.depth_intrinsics
     scale = float(calibration.depth_scale_m_per_unit)
+    # Native Depth projection of the known 3D board + maximum object height.
+    # A genuine manual ROI is intersected with this region.  If the projection
+    # is numerically uncertain, keep the full initial ROI and still classify
+    # every candidate in board-local 3D (never fall back to unbounded geometry).
+    projected = projected_board_depth_rect(
+        R_CB, t_CB, calibration, board_wh_m=BOARD_M,
+        max_height_m=cfg.max_object_height_m)
+    if projected is not None:
+        constrained = intersect_depth_rect((x, y, rw, rh), projected)
+        if constrained is None:
+            return _fail('CHARUCO_ROI_BOARD_DISJOINT', markers, corners, err)
+        x, y, rw, rh = constrained
 
     def classify(ys, xs):
         pd = _coords(depth_u16, ys, xs, k, scale)
@@ -206,9 +237,15 @@ def isolate_charuco_object(color_rgb: np.ndarray, depth_u16: np.ndarray,
                  (pd[..., 2] >= 0.18) & (pd[..., 2] <= 3.0))
         return inside & valid, h
 
-    step = cfg.sample_step
-    yy, xx = np.mgrid[y:y+rh:step, x:x+rw:step]
+    # Denser sampling when board normal is nearly perpendicular to the
+    # optical axis; no invented depth, same hard geometry acceptance rules.
+    step = max(2, cfg.sample_step - 1) if abs(float(normal[2])) < .30 else cfg.sample_step
+    # Preserve a global sampling grid even when the projected search ROI shifts.
+    sample_x0 = x - x % step
+    sample_y0 = y - y % step
+    yy, xx = np.mgrid[sample_y0:y+rh:step, sample_x0:x+rw:step]
     inside, heights = classify(yy, xx)
+    inside &= (xx >= x) & (xx < x+rw) & (yy >= y) & (yy < y+rh)
     near = inside & (np.abs(heights) <= cfg.support_tolerance_m)
     fg = inside & (heights > cfg.object_clearance_m) & (heights <= cfg.max_object_height_m)
     count = int(inside.sum())
@@ -231,7 +268,9 @@ def isolate_charuco_object(color_rgb: np.ndarray, depth_u16: np.ndarray,
         return _fail('CHARUCO_AMBIGUOUS_OBJECTS', markers, corners, err, support)
     component = labels == large[0]
     # Do not invent depth: keep only native measurements meeting plane/footprint constraints.
-    expanded = np.repeat(np.repeat(component, step, 0), step, 1)[:rh, :rw]
+    expanded_grid = np.repeat(np.repeat(component, step, 0), step, 1)
+    expanded = expanded_grid[y-sample_y0:y-sample_y0+rh,
+                             x-sample_x0:x-sample_x0+rw]
     yf, xf = np.mgrid[y:y+rh, x:x+rw]
     good, high = classify(yf, xf)
     local = expanded & good & (high > cfg.object_clearance_m) & (high <= cfg.max_object_height_m)
@@ -242,4 +281,5 @@ def isolate_charuco_object(color_rgb: np.ndarray, depth_u16: np.ndarray,
     mask[y:y+rh, x:x+rw] = local
     mask.setflags(write=False)
     return CharucoIsolationResult('CHARUCO_OBJECT_FOUND', mask, markers, corners, err,
-                                  round(support, 4), selected, 'CHARUCO_OBJECT_FOUND')
+                                  round(support, 4), selected, 'CHARUCO_OBJECT_FOUND',
+                                  pose_source, pose_age_frames)

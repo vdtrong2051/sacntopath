@@ -213,7 +213,8 @@ class Live3DRenderWorker:
                         frame = None
                     if frame is not None:
                         with self._cv:
-                            if not self._closing and self._desired_generation == active:
+                            if (not self._closing and self._desired_generation == active
+                                    and self._active_scene_epoch == self._scene_epoch):
                                 if self._latest is not None:
                                     self._counts['rgb_dropped_output'] += 1
                                 self._latest = (active, frame)

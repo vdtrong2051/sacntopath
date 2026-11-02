@@ -22,12 +22,15 @@ class DepthRoiOverlay(QWidget):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setObjectName("captureLiveDepthOverlay")
-        self.setMinimumSize(150, 200)
+        self.setMinimumSize(135, 110)
         self.setMouseTracking(True)
         self.setCursor(Qt.CrossCursor)
+        self._selected_pixmap: QPixmap | None = None
         self._pixmap: QPixmap | None = None
         self._size: tuple[int, int] | None = None
         self._roi: DepthRoi | None = None
+        self._object_bbox: tuple[int, int, int, int] | None = None
+        self._object_bbox_state = 'LOST'
         self._manual_enabled = False
         self._drag_start: QPointF | None = None
         self._drag_current: QPointF | None = None
@@ -80,11 +83,47 @@ class DepthRoiOverlay(QWidget):
             raise ValueError("empty depth visualization")
         dimensions = (width, height)
         if self._size is not None and self._size != dimensions:
+            self._selected_pixmap = None
             self._roi = None
+            self._object_bbox = None
+            self._object_bbox_state = 'LOST'
             self._drag_start = self._drag_current = None
         self._size = dimensions
         # The QImage function returns an owning copy; QPixmap owns its pixels.
         self._pixmap = QPixmap.fromImage(owned_depth_image(gray))
+        self.update()
+
+    def set_sampled_mask(self, mask: np.ndarray | None) -> None:
+        """Overlay cloud-selected post-sampling pixels; never claim raw segmentation."""
+        if mask is None:
+            self._selected_pixmap = None
+        else:
+            if (self._size is None or not isinstance(mask, np.ndarray) or
+                    mask.dtype != np.uint8 or mask.shape != (self._size[1], self._size[0])):
+                raise ValueError('FT06_MASK_GRID_MISMATCH')
+            # RGBA8888 is stable across Windows endian ordering.
+            rgba = np.zeros((mask.shape[0], mask.shape[1], 4), dtype=np.uint8)
+            rgba[mask != 0] = (50, 221, 150, 140)
+            image = QImage(rgba.data, mask.shape[1], mask.shape[0],
+                           mask.shape[1]*4, QImage.Format_RGBA8888).copy()
+            self._selected_pixmap = QPixmap.fromImage(image)
+        self.update()
+
+    def set_object_bbox(self, rect: tuple[int, int, int, int] | None,
+                            state: str = 'LOST') -> None:
+        """FT-06.1 cyan object ROI is DISPLAY ONLY; does not change ROI Safety."""
+        if state not in ('TRACKING', 'DEGRADED', 'REACQUIRING',
+                         'TEMPORARILY_LOST', 'LOST'):
+            raise ValueError('FT061_OBJECT_ROI_STATE_INVALID')
+        if rect is not None:
+            if (self._size is None or not isinstance(rect, tuple) or
+                    len(rect) != 4 or any(type(v) is not int for v in rect)):
+                raise ValueError('FT061_OBJECT_ROI_INVALID')
+            x, y, w, h = rect
+            if x < 0 or y < 0 or w <= 0 or h <= 0 or (
+                    x+w > self._size[0] or y+h > self._size[1]):
+                raise ValueError('FT061_OBJECT_ROI_INVALID')
+        self._object_bbox, self._object_bbox_state = rect, state
         self.update()
 
     def set_roi(self, roi: DepthRoi | None) -> None:
@@ -103,9 +142,13 @@ class DepthRoiOverlay(QWidget):
         self.update()
 
     def clear(self) -> None:
+        self._selected_pixmap = None
         self._pixmap = None
         self._size = None
         self._roi = None
+        self._object_bbox = None
+        self._object_bbox_state = 'LOST'
+
         self._drag_start = self._drag_current = None
         self._manual_enabled = False
         self.update()
@@ -168,6 +211,19 @@ class DepthRoiOverlay(QWidget):
         rect = self.image_rect()
         painter.setRenderHint(QPainter.SmoothPixmapTransform)
         painter.drawPixmap(rect, self._pixmap, QRectF(self._pixmap.rect()))
+        if self._selected_pixmap is not None:
+            painter.drawPixmap(rect, self._selected_pixmap,
+                               QRectF(self._selected_pixmap.rect()))
+
+        if self._object_bbox is not None:
+            x, y, w, h = self._object_bbox
+            p0 = self.image_to_widget(x, y)
+            p1 = self.image_to_widget(x+w, y+h)
+            color = QColor('#00c8e8') if self._object_bbox_state in ('TRACKING', 'DEGRADED') else QColor('#f2a84d')
+            style = Qt.SolidLine if self._object_bbox_state in ('TRACKING', 'DEGRADED') else Qt.DashLine
+            painter.setPen(QPen(color, 2, style))
+            painter.setBrush(Qt.NoBrush)
+            painter.drawRect(QRectF(p0, p1).normalized())
 
         if self._roi is not None:
             roi = self._roi
