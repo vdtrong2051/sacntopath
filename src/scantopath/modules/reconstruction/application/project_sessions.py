@@ -246,7 +246,7 @@ def record_c2(context: dict, sequence: Path, c1: Path, c2: Path) -> dict:
 
 
 def latest_result(context: dict, kind: str='c2') -> Path:
-    if kind not in ('sequence','c1','c2'):
+    if kind not in ('sequence','c1','c2','tsdf'):
         raise ProjectLinkError('INVALID_RESULT_KIND')
     pipeline=project_pipeline_root(context)
     index=pipeline/'reconstruction_index.json'
@@ -265,3 +265,72 @@ def latest_result(context: dict, kind: str='c2') -> Path:
             raise ProjectLinkError('RESULT_SHA256_MISMATCH')
         return p
     raise ProjectLinkError('NO_RESULT_FOR_KIND')
+
+
+def record_tsdf(context: dict, sequence: Path, c1: Path, tsdf: Path) -> dict:
+    """Publish verified TSDF result as a session-scoped SQLite ProcessingRun.
+
+    Does not rewrite RAW or previous C2 runs. The two-tier poses remain within the
+    verified B02 and are evaluated under one global board-anchored frame.
+    """
+    from uuid import uuid4
+    from scantopath.metadata.store import MetadataStore
+    from scantopath.storage.numbered import NumberedStorageRegistry
+    ctx = sequence_context(sequence)
+    if ctx is None or ctx['session_id'] != context['session_id'] or ctx['store_root'] != context['store_root']:
+        raise ProjectLinkError('TSDF_SOURCE_SESSION_MISMATCH')
+    for folder in (c1, tsdf):
+        _verify_files(Path(folder))
+    pipeline = project_pipeline_root(context, create=True).resolve(strict=True)
+    for path in (sequence, c1, tsdf):
+        if not Path(path).resolve(strict=True).is_relative_to(pipeline):
+            raise ProjectLinkError('TSDF_ARTIFACT_OUTSIDE_SESSION')
+    fusion = json.loads((Path(tsdf)/'fusion_report.json').read_text(encoding='utf8'))
+    source = Path(fusion['source_sequence']).resolve(strict=True)
+    if (source != Path(sequence).resolve(strict=True) or
+            fusion.get('source_sha256') != _digest(Path(sequence)/'sha256_manifest.json') or
+            fusion.get('c1_manifest_sha256') != _digest(Path(c1)/'sha256_manifest.json') or
+            fusion.get('metric_accuracy_verified') is not False):
+        raise ProjectLinkError('TSDF_LINEAGE_MISMATCH')
+    c1doc = json.loads((Path(c1)/'processing_run.json').read_text(encoding='utf8'))
+    if Path(c1doc['input_source']['ft09_dir']).resolve(strict=True) != source:
+        raise ProjectLinkError('TSDF_C1_SOURCE_MISMATCH')
+    ids = c1doc.get('accepted_capture_ids') or []
+    if not ids:
+        raise ProjectLinkError('TSDF_NO_REGISTERED_CAPTURES')
+    run_id = uuid4().hex
+    with MetadataStore(context['store_root']) as db:
+        for identity in ids:
+            row = db.get_capture(identity, verify_raw=False)
+            if row['session_id'] != context['session_id']:
+                raise ProjectLinkError('TSDF_CAPTURE_WRONG_SESSION')
+        db.create_processing_run(run_id=run_id, session_id=context['session_id'],
+            stage='RAW_TSDF_RECONSTRUCTION', algorithm='PROJECTIVE_TSDF_MASKED_RAW_DEPTH',
+            version='RAW_TSDF.1', input_capture_ids=list(ids),
+            parameters={'voxel_mm':fusion['parameters']['voxel_mm'],
+                        'metric_verified':False, 'robot_executable':False,
+                        'views_fused':int(fusion['views_fused'])})
+        db.start_processing_run(run_id)
+        db.finish_processing_run(run_id, state='succeeded', output_files=[str(tsdf)])
+    NumberedStorageRegistry(context['store_root']).assign('run',run_id)
+    idx = pipeline/'reconstruction_index.json'
+    if idx.is_file():
+        previous=json.loads(idx.read_text(encoding='utf8'))
+        if (previous.get('schema')!='scantopath.project.pipeline_index.v1' or
+                previous.get('session_id')!=context['session_id']):
+            raise ProjectLinkError('TSDF_INDEX_INVALID')
+        rows=previous.get('runs',[])
+    else:
+        rows=[]
+    def artifact(path):
+        p=Path(path).resolve(strict=True)
+        return {'relative_path':p.relative_to(pipeline).as_posix(),
+                'sha256_manifest':_digest(p/'sha256_manifest.json')}
+    entry={'run_id':run_id,'created_utc':datetime.now(timezone.utc).isoformat(),
+           'sequence':artifact(sequence),'c1':artifact(c1),'tsdf':artifact(tsdf),
+           'input_capture_ids':ids, 'metric_verified':False,'robot_executable':False}
+    rows.append(entry)
+    _atomic_json(idx,{'schema':'scantopath.project.pipeline_index.v1',
+        'project_id':context['project_id'],'specimen_id':context['specimen_id'],
+        'session_id':context['session_id'],'runs':rows})
+    return entry

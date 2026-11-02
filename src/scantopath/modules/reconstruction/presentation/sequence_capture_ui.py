@@ -25,7 +25,7 @@ class _SequenceProcessThread(QThread):
     def __init__(self, packets: list[RawRgbdCapture], output: Path, parent=None,
                  *, captured_total: int | None = None, failed_attempts: int = 0,
                  interval_ms: int | None = None, stop_reason: str = 'unknown',
-                 project_context: dict | None = None):
+                 project_context: dict | None = None, tier_split: int | None = None):
         super().__init__(parent)
         self._packets = list(packets)  # owned RAW-v2 immutable bytes; no SDK references
         self._output = output
@@ -34,6 +34,7 @@ class _SequenceProcessThread(QThread):
         self._interval_ms = interval_ms
         self._stop_reason = stop_reason
         self._project_context = project_context
+        self._tier_split = tier_split
 
     def run(self) -> None:
         try:
@@ -52,7 +53,11 @@ class _SequenceProcessThread(QThread):
             b02 = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(b02)
             save_evidence, verify_artifact = b02.save_evidence, b02.verify_artifact
-            record = track_sequence(self._packets)
+            if self._tier_split is None:
+                record = track_sequence(self._packets)
+            else:
+                from scantopath.modules.reconstruction.application.guided_two_tier import track_two_tier
+                record = track_two_tier(self._packets, self._tier_split)
             record['source_mode'] = 'LIVE_3D_EXISTING_CAMERA_KEYFRAMES'
             record['capture_interval_requested_ms'] = self._interval_ms
             record['ui_capture'] = True
@@ -113,6 +118,9 @@ class SequenceCaptureUi(QObject):
         self._session_id = ''
         self._specimen_id = ''
         self._project_context: dict | None = None
+        self._tier = 1
+        self._tier_paused = False
+        self._tier_1_packets: list[RawRgbdCapture] = []
         self._output: Path | None = None
         self._job: _SequenceProcessThread | None = None
         self._timer = QTimer(self)
@@ -146,6 +154,10 @@ class SequenceCaptureUi(QObject):
         layout = panel.layout()
         layout.insertLayout(3, row)  # after existing action buttons
         layout.insertWidget(4, self.status)
+        self.tier_guide = QLabel('', panel)
+        self.tier_guide.setObjectName('twoTierTrajectoryGuide')
+        self.tier_guide.setWordWrap(True)
+        layout.insertWidget(5, self.tier_guide)
         # Primary scan actions stay on one line. Mode and advanced recording
         # settings form a separate compact line instead of overflowing 3D.
         row.removeWidget(self.interval)
@@ -154,6 +166,7 @@ class SequenceCaptureUi(QObject):
         self.capture_mode = QComboBox(panel)
         self.capture_mode.setObjectName('ft11CaptureMode')
         self.capture_mode.addItem('Quét đa góc', 'multi')
+        self.capture_mode.addItem('Hai tầng · pose độc lập', 'two_tier')
         self.capture_mode.addItem('Chụp đơn', 'single')
         self.capture_mode.currentIndexChanged.connect(self._sync_capture_mode)
         config_row.addWidget(self.capture_mode)
@@ -186,12 +199,14 @@ class SequenceCaptureUi(QObject):
         self._timer.stop()
         self._recording = self._stopping = self._inflight = False
         self._packets.clear()
+        self._tier_1_packets.clear()
+        self._tier_paused = False
         self._update_controls()
         # The active processing thread is allowed to finish and is reaped by
         # its own finished signal; the parent shell already waits on safe_to_dispose.
 
     def _ready_to_start(self) -> bool:
-        return bool(self.capture_mode.currentData() == 'multi' and
+        return bool(self.capture_mode.currentData() in ('multi', 'two_tier') and
                     not self._closing and not self._recording and self._job is None
                     and self._camera.state is CameraState.STREAMING
                     and self._panel.scope_mode.currentData() == 'object'
@@ -199,13 +214,30 @@ class SequenceCaptureUi(QObject):
 
     def _update_controls(self) -> None:
         self.start_button.setEnabled(self._ready_to_start())
+        self.start_button.setText('Bắt đầu tầng 2 · mặt trên' if self._tier_paused else
+                                  'Bắt đầu quét hai tầng' if self.capture_mode.currentData() == 'two_tier'
+                                  else 'Bắt đầu quét đa góc')
+        self.stop_button.setText('Kết thúc tầng 1' if self.capture_mode.currentData() == 'two_tier' and
+                                 self._tier == 1 else 'Dừng & tái tạo')
+        two_tier = self.capture_mode.currentData() == 'two_tier'
+        self.tier_guide.setVisible(two_tier)
+        if two_tier:
+            if self._tier_paused:
+                self.tier_guide.setText('CHUYỂN TẦNG · Đã giữ RAW tầng 1 trong bộ nhớ. ChArUco và vật phải đứng yên. '
+                                        'Nâng camera lên tầng 2 (60–70°), sau đó nhấn Bắt đầu tầng 2.')
+            elif self._tier == 1:
+                self.tier_guide.setText('TẦNG 1 · Quét thân: nâng 40–50°, bán kính 0,5–0,7 m, đi vòng 0→360° '
+                                        '(6–8°/frame). Giữ vật và ChArUco đủ rõ. Nhấn Kết thúc tầng 1.')
+            else:
+                self.tier_guide.setText('TẦNG 2 · Mặt trên: nâng 60–70°, đi cung 0→180° '
+                                        '(8–10°/frame). Giữ bảng ChArUco cố định và trong khung hình.')
         self.stop_button.setEnabled(self._recording and not self._stopping)
-        self.interval.setEnabled(not self._recording and self._job is None)
-        self.folder_button.setEnabled(not self._recording and self._job is None)
-        self.capture_mode.setEnabled(not self._recording and self._job is None)
+        self.interval.setEnabled(not self._recording and not self._tier_paused and self._job is None)
+        self.folder_button.setEnabled(not self._recording and not self._tier_paused and self._job is None)
+        self.capture_mode.setEnabled(not self._recording and not self._tier_paused and self._job is None)
 
     def _sync_capture_mode(self, *_args):
-        multi = self.capture_mode.currentData() == 'multi'
+        multi = self.capture_mode.currentData() in ('multi', 'two_tier')
         for widget in (self.start_button, self.stop_button, self.interval, self.folder_button):
             widget.setVisible(multi)
         # Retain all original Single-frame controls and their signal wiring.
@@ -242,6 +274,25 @@ class SequenceCaptureUi(QObject):
         if not self._ready_to_start():
             self.status.setText('Chuỗi: chọn Vật thể + ChArUco, rồi bật camera trước.')
             return
+        if self._tier_paused:
+            # Never resume into another Project or scan session.
+            view = getattr(self.parent(), '_view', None)
+            try:
+                from scantopath.modules.reconstruction.application.project_sessions import active_ui_session
+                context = active_ui_session(view)
+                if context is None or context != self._project_context:
+                    raise ValueError('TWO_TIER_SESSION_CHANGED')
+            except (ValueError, OSError, RuntimeError) as exc:
+                self.status.setText('Không thể tiếp tục tầng 2: ' + str(exc)[:100])
+                return
+            self._tier_paused = False
+            self._recording = True
+            self._stopping = self._inflight = False
+            self.status.setText('TẦNG 2/2 · nâng camera 60–70°, giữ đủ ChArUco; '
+                                'thu vòng cung mặt trên và nhấn Dừng & tái tạo.')
+            self._update_controls()
+            QTimer.singleShot(0, self._request_sample)
+            return
         # No repetitive folder dialog at every Start; optional override above.
         output = self._chosen_output or (Path.home()/'Documents'/'ScanToPath'/'Sequences')
         # Reuse the proven output-location safeguard before a camera command.
@@ -270,6 +321,9 @@ class SequenceCaptureUi(QObject):
         self._session_id = self._project_context['session_id']
         self._specimen_id = self._project_context['specimen_id']
         self._packets = []
+        self._tier_1_packets = []
+        self._tier = 1
+        self._tier_paused = False
         self._captured_total = 0
         self._failed_attempts = 0
         self._stop_reason = 'unknown'
@@ -306,20 +360,23 @@ class SequenceCaptureUi(QObject):
             self.status.setText('Chuỗi: Camera trả về dữ liệu RAW không hợp lệ')
         elif (packet.metadata.session_id != self._session_id or
               packet.metadata.specimen_id != self._specimen_id or
-              (self._packets and (
-                  packet.metadata.depth.frame_index <= self._packets[-1].metadata.depth.frame_index
+              ((self._packets or self._tier_1_packets) and (
+                  packet.metadata.depth.frame_index <=
+                  (self._packets or self._tier_1_packets)[-1].metadata.depth.frame_index
                   or packet.metadata.depth.timestamp_us <=
-                     self._packets[-1].metadata.depth.timestamp_us))):
+                  (self._packets or self._tier_1_packets)[-1].metadata.depth.timestamp_us))):
             self._stopping = True
             self._stop_reason = 'capture_identity_or_order_invalid'
             self.status.setText('Chuỗi: dữ liệu không cùng phiên hoặc sai thứ tự frame')
         else:
             self._captured_total += 1
-            retain_spaced_frame(self._packets, packet, limit=self.MAX_FRAMES)
+            budget = self.MAX_FRAMES // 2 if self.capture_mode.currentData() == 'two_tier' else self.MAX_FRAMES
+            retain_spaced_frame(self._packets, packet, limit=budget)
             count = len(self._packets)
-            self.status.setText(
-                f'ĐANG THU · đã chụp {self._captured_total} frame, giữ {count}/{self.MAX_FRAMES} '
-                f'frame đại diện · lỗi tạm: {self._failed_attempts} · Nhấn Dừng khi quét xong')
+            prefix = f'TẦNG {self._tier}/2' if self.capture_mode.currentData() == 'two_tier' else 'ĐANG THU'
+            self.status.setText(f'{prefix} · đã chụp {self._captured_total} frame, '
+                                f'giữ {count}/{budget} frame đại diện · lỗi tạm: '
+                                f'{self._failed_attempts} · Nhấn Dừng khi đủ góc')
         if self._stopping:
             self._finish_capture()
         else:
@@ -359,6 +416,7 @@ class SequenceCaptureUi(QObject):
         self._recording = self._stopping = self._inflight = False
         if self._closing:
             self._packets.clear()
+            self._tier_1_packets.clear()
             return
         if len(self._packets) < 2:
             self.status.setText(f'Chuỗi: chỉ có {len(self._packets)} frame; cần tối thiểu 2. '
@@ -366,16 +424,43 @@ class SequenceCaptureUi(QObject):
             self._packets.clear()
             self._update_controls()
             return
-        count = len(self._packets)
+        if self.capture_mode.currentData() == 'two_tier' and self._tier == 1 and self._stop_reason == 'operator':
+            if len(self._packets) < 2:
+                self.status.setText('Tầng 1 cần ít nhất 2 frame; chưa thể chuyển sang tầng 2.')
+                self._recording = True
+                self._stopping = False
+                self._update_controls()
+                self._timer.start(int(self.interval.currentData()))
+                return
+            self._tier_1_packets = list(self._packets)
+            self._packets = []
+            self._tier = 2
+            self._tier_paused = True
+            self.status.setText(f'ĐÃ LƯU TRONG BỘ NHỚ {len(self._tier_1_packets)} RAW tầng 1. '
+                                'Nâng camera 60–70° giữ ChArUco, rồi nhấn Bắt đầu tầng 2. '
+                                'KHÔNG di chuyển bảng/vật thể.')
+            self._update_controls()
+            return
+        split = len(self._tier_1_packets) if self._tier_1_packets else None
+        if split is not None and len(self._packets) < 2:
+            self.status.setText('Tầng 2 cần ít nhất 2 frame, chưa xử lý.')
+            self._recording = True
+            self._stopping = False
+            self._timer.start(int(self.interval.currentData()))
+            self._update_controls()
+            return
+        packets = self._tier_1_packets + self._packets
+        count = len(packets)
         job = _SequenceProcessThread(
-            self._packets, self._output, self,
+            packets, self._output, self,
             captured_total=self._captured_total,
             failed_attempts=self._failed_attempts,
             interval_ms=int(self.interval.currentData()),
             stop_reason=self._stop_reason,
-            project_context=self._project_context)
+            project_context=self._project_context, tier_split=split)
         self._job = job
         self._packets.clear()
+        self._tier_1_packets.clear()
         job.success.connect(self._on_success)
         job.failure.connect(self._on_failure)
         job.registration_progress.connect(self._registration_progress)

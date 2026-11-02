@@ -105,6 +105,12 @@ class ReconstructionPanel(QFrame):
         root.addLayout(c1_actions)
 
         c2_actions = QHBoxLayout()
+        self.backend = QComboBox(self)
+        self.backend.setObjectName('reconstructionSurfaceBackend')
+        self.backend.addItem('RAW Depth → TSDF (ưu tiên)', 'tsdf')
+        self.backend.addItem('C2 Cloud → VTK (đối chứng)', 'c2')
+        self.backend.setToolTip('TSDF dùng RAW + pose FT09; C2 dùng cloud C1. Cả hai giữ nguyên RAW.')
+        c2_actions.addWidget(self.backend)
         self.c2_button = QPushButton('C2 · Tạo mesh & đường dẫn', self)
         self.c2_button.setObjectName('c2RunSurfacePath')
         self.c2_button.setToolTip('FT-16–18: mesh chỉ dùng mặt có hỗ trợ dữ liệu đo; đường dẫn tham chiếu XYZ + normal.')
@@ -199,6 +205,7 @@ class ReconstructionPanel(QFrame):
         self.c1_button.setEnabled(ready and not busy)
         self.metric_button.setEnabled(ready and not busy)
         self.c2_button.setEnabled(getattr(self, '_has_c1', False) and not busy)
+        self.backend.setEnabled(not busy)
         self.c2_open.setEnabled(not busy)
         self.c2_source.setEnabled(not busy)
         for button in (self.c2_mesh, self.c2_zigzag, self.c2_contour):
@@ -287,6 +294,7 @@ class ReconstructionWorkflowController(QObject):
         self._c1: Path | None = None
         self._c2: Path | None = None
         self._c2_display = 'mesh'
+        self._c2_backend = 'c2'
         self._reference: Path | None = None
         self._bundle: Path | None = None
         self._debug = False
@@ -406,9 +414,25 @@ class ReconstructionWorkflowController(QObject):
             if context is None:
                 self._status('Chọn phiên quét trong Cây dự án trước khi mở mesh/path.')
                 return
-            self._verify_project_c2(context, latest_result(context))
+            try:
+                result = latest_result(context, 'tsdf')
+            except ValueError as exc:
+                if str(exc) != 'NO_RESULT_FOR_KIND':
+                    raise
+                self._verify_project_c2(context, latest_result(context))
+            else:
+                self._verify_project_tsdf(context, result)
         except (OSError, ValueError, KeyError) as exc:
             self._status('Không tìm thấy mesh/path của phiên: ' + str(exc)[:140])
+
+    def _verify_project_tsdf(self, context, folder):
+        if self._job is not None:
+            return
+        self._project_context = context
+        from scantopath.modules.reconstruction.application.project_sessions import project_pipeline_root
+        self._last_output = project_pipeline_root(context)/'03_RECONSTRUCTION'
+        self._start('tsdf_verify', 'raw_tsdf_fusion.py', ['--verify', str(folder)])
+        self._status('Đang xác minh TSDF RAW theo SHA-256 của phiên Project…')
 
     def _verify_project_c2(self, context, folder):
         if self._job is not None:
@@ -444,11 +468,48 @@ class ReconstructionWorkflowController(QObject):
             return
         self._start_merge(Path(folder))
 
+    def _project_dialog_directory(self, kind: str) -> str:
+        """Open the selected Project session, never a stale global home folder.
+
+        Nonexistent stage folders fall back to their nearest existing parent.
+        A Project session is read-only resolved; this does not switch context.
+        """
+        from scantopath.modules.reconstruction.application.project_sessions import (
+            selected_ui_session, project_pipeline_root,
+        )
+        try:
+            context = selected_ui_session(self.view)
+            if context is not None:
+                pipeline = project_pipeline_root(context)
+                candidates = {
+                    'raw': pipeline / '00_RAW_SEQUENCES',
+                    'c1': pipeline / '03_RECONSTRUCTION' / 'C1_Results',
+                    'c2': pipeline / '03_RECONSTRUCTION' / 'C2_Results',
+                    'tsdf': pipeline / '03_RECONSTRUCTION' / 'TSDF_Results',
+                    'bundle': pipeline / '03_RECONSTRUCTION',
+                    'export': pipeline / '03_RECONSTRUCTION',
+                }
+                folder = candidates.get(kind, pipeline)
+                while not folder.is_dir() and folder != pipeline.parent:
+                    folder = folder.parent
+                if folder.is_dir():
+                    return str(folder)
+        except (OSError, RuntimeError, ValueError, KeyError):
+            pass  # No selected project; use explicitly opened reconstruction.
+        fallback = (self._last_output / 'C1_Results' if kind == 'c1' else
+                    self._last_output / 'TSDF_Results' if kind == 'tsdf' else
+                    self._last_output / 'C2_Results' if kind == 'c2' else
+                    self._last_output if kind in ('bundle', 'export') else
+                    Path.home() / 'Documents' / 'ScanToPath' / 'Sequences')
+        while not fallback.is_dir() and fallback != fallback.parent:
+            fallback = fallback.parent
+        return str(fallback)
+
     def _choose_sequence(self):
         if self._job is not None:
             return
         folder = QFileDialog.getExistingDirectory(
-            self.panel, 'Chọn chuỗi FT-09/FT-08.17 đã lưu', str(Path.home()))
+            self.panel, 'Chọn chuỗi FT-09/FT-08.17 đã lưu', self._project_dialog_directory('raw'))
         if folder:
             self._start_merge(Path(folder))
 
@@ -548,7 +609,7 @@ class ReconstructionWorkflowController(QObject):
         if self._job is not None:
             return
         folder = QFileDialog.getExistingDirectory(
-            self.panel, 'Chọn cloud C1 đã lưu để dựng mesh/path', str(self._last_output/'C1_Results'))
+            self.panel, 'Chọn cloud C1 đã lưu để dựng mesh/path', self._project_dialog_directory('c1'))
         if not folder:
             return
         try:
@@ -562,14 +623,20 @@ class ReconstructionWorkflowController(QObject):
     def _choose_c2(self):
         if self._job is not None:
             return
+        is_tsdf = self.panel.backend.currentData() == 'tsdf'
         folder = QFileDialog.getExistingDirectory(
-            self.panel, 'Chọn artifact C2 đã lưu', str(self._last_output/'C2_Results'))
+            self.panel, 'Chọn kết quả TSDF đã lưu' if is_tsdf else 'Chọn artifact C2 đã lưu',
+            self._project_dialog_directory('tsdf' if is_tsdf else 'c2'))
         if not folder:
             return
         self._project_context = None  # external reopen cannot inherit previous Project owner
         self._last_output = self._default_output
-        self._start('c2_verify', 'c2_surface_to_path.py', ['--verify', folder])
-        self._status('C2: đang xác minh SHA-256 và đường dẫn đã lưu…')
+        if is_tsdf:
+            self._start('tsdf_verify', 'raw_tsdf_fusion.py', ['--verify', folder])
+            self._status('TSDF: đang xác minh SHA-256 của kết quả đã lưu…')
+        else:
+            self._start('c2_verify', 'c2_surface_to_path.py', ['--verify', folder])
+            self._status('C2: đang xác minh SHA-256 và đường dẫn đã lưu…')
 
     def _start_c2(self):
         if self._closing or self._job is not None or self._c1 is None:
@@ -577,16 +644,31 @@ class ReconstructionWorkflowController(QObject):
         self._c2 = None
         self.panel.set_c2_available(True, False)
         self.panel.c2_status.setText('C2: đang dựng mesh, sinh Zigzag và Contour…')
-        self._start('c2', 'c2_surface_to_path.py', [
-            '--c1', str(self._c1), '--out', str(self._last_output/'C2_Results'),
-            '--mesh-spacing-mm', '3.5' if self._fine else '6.0'])
-        self._status('C2: FT-16 Mesh → FT-17 Zigzag → FT-18 Contour & Export…')
+        if self.panel.backend.currentData() == 'tsdf':
+            if self._sequence is None:
+                self._status('TSDF yêu cầu chuỗi RAW/FT09 đã xác minh, không thể dựng chỉ từ cloud C1.')
+                self.panel.set_ready(True, False)
+                return
+            self._start('tsdf', 'raw_tsdf_fusion.py', [
+                '--repo', str(self.repo), '--sequence', str(self._sequence),
+                '--c1', str(self._c1), '--out', str(self._last_output/'TSDF_Results'),
+                '--voxel-mm', '2.5' if self._fine else '4.0'])
+            self._status('TSDF: tích hợp RAW Depth + pose vào thể tích → Mesh → Zigzag/Contour…')
+        else:
+            self._start('c2', 'c2_surface_to_path.py', [
+                '--c1', str(self._c1), '--out', str(self._last_output/'C2_Results'),
+                '--mesh-spacing-mm', '3.5' if self._fine else '6.0'])
+            self._status('C2 đối chứng: VTK Surface → Zigzag → Contour…')
 
     def _view_c2(self, kind):
         if self._c2 is None or kind not in ('mesh', 'zigzag', 'contour'):
             return
         self._c2_display = kind
         self._debug = False
+        target=self._main_ply()
+        if target is None or not target.is_file():
+            self._status('Không có artifact ' + kind + ' hợp lệ để mở.')
+            return
         self._view_current()
 
     def _start_c1(self):
@@ -611,7 +693,7 @@ class ReconstructionWorkflowController(QObject):
         if self._cloud is None or self._sequence is None or self._job is not None:
             return
         destination = QFileDialog.getExistingDirectory(
-            self.panel, 'Chọn vị trí lưu phiên tái tạo', str(Path.home()/'Documents'))
+            self.panel, 'Chọn vị trí lưu phiên tái tạo', self._project_dialog_directory('export'))
         if destination:
             self._start('export', 'ft11_bundle.py', [
                 '--export', '--source-sequence', str(self._sequence),
@@ -622,7 +704,7 @@ class ReconstructionWorkflowController(QObject):
         if self._job is not None:
             return
         folder = QFileDialog.getExistingDirectory(
-            self.panel, 'Mở phiên ScanToPath_Reconstruction đã lưu', str(Path.home()/'Documents'))
+            self.panel, 'Mở phiên ScanToPath_Reconstruction đã lưu', self._project_dialog_directory('bundle'))
         if folder:
             self._verify_bundle(folder)
 
@@ -667,8 +749,12 @@ class ReconstructionWorkflowController(QObject):
                 if (obj.get('FT10_STATUS') in ('ACCEPTED', 'BLOCKED') or
                     obj.get('FT11_STATUS') in ('VERIFIED', 'EXPORTED', 'BLOCKED') or
                     obj.get('C1_STATUS') in ('READY', 'VERIFIED', 'BLOCKED') or
-                    obj.get('C2_STATUS') in ('READY', 'VERIFIED', 'BLOCKED')):
+                    obj.get('C2_STATUS') in ('READY', 'VERIFIED', 'BLOCKED') or
+                    obj.get('RAW_TSDF') in ('READY', 'VERIFIED', 'BLOCKED')):
                     self._message = obj
+                elif obj.get('RAW_TSDF') == 'FUSING':
+                    self.panel.c2_status.setText(
+                        f'TSDF: đang hợp nhất góc {obj.get("view", 0)}/{obj.get("total", "—")}…')
                 elif obj.get('FT10_STATUS') == 'VIEW_ACCUMULATED':
                     self.panel.points.setText('Voxel: ' + str(obj.get('merged_voxels', '—')))
 
@@ -702,11 +788,13 @@ class ReconstructionWorkflowController(QObject):
         if (not good or message.get('FT10_STATUS') == 'BLOCKED'
                 or message.get('FT11_STATUS') == 'BLOCKED'
                 or message.get('C1_STATUS') == 'BLOCKED'
-                or message.get('C2_STATUS') == 'BLOCKED'):
+                or message.get('C2_STATUS') == 'BLOCKED'
+                 or message.get('RAW_TSDF') == 'BLOCKED'):
             self.panel.set_ready(self._cloud is not None or self._bundle is not None, False)
             if kind == 'c1':
                 self.panel.c1_status.setText('C1 từ chối: ' + str(message.get('code','PROCESS_FAILED')))
-            self._status('Không thể hoàn tất ' + kind + ': ' + str(message.get('code', 'PROCESS_FAILED')))
+            self._status('Không thể hoàn tất ' + kind + ': ' + str(
+                message.get('error_code', message.get('code', 'PROCESS_FAILED'))))
             return
         try:
             if kind == 'merge' and message.get('FT10_STATUS') == 'ACCEPTED':
@@ -762,8 +850,33 @@ class ReconstructionWorkflowController(QObject):
                 self.panel.set_c2_available(True, False)
                 self._status('Đã xác minh cloud C1; bắt đầu dựng C2 từ artifact đã lưu.')
                 self._start_c2()
+            elif kind in ('tsdf', 'tsdf_verify') and message.get('RAW_TSDF') in ('READY', 'VERIFIED'):
+                self._c2 = Path(message['artifact_dir'])
+                self._c2_backend = 'tsdf'
+                warning = ''
+                if kind == 'tsdf' and self._project_context is not None and self._sequence is not None and self._c1 is not None:
+                    try:
+                        from scantopath.modules.reconstruction.application.project_sessions import record_tsdf
+                        record_tsdf(self._project_context, self._sequence, self._c1, self._c2)
+                        QTimer.singleShot(0, self.view._reload_project_store)
+                    except (OSError, ValueError, RuntimeError, KeyError) as exc:
+                        warning = ' · CHƯA GẮN PROJECT: ' + str(exc)[:100]
+                self._c2_display = 'mesh'
+                report = json.loads((self._c2/'path_quality.json').read_text(encoding='utf8'))
+                self.panel.set_c2_available(self._c1 is not None, True)
+                self.panel.c2_zigzag.setEnabled((self._c2/'zigzag_preview.ply').is_file())
+                self.panel.c2_contour.setEnabled((self._c2/'contour_preview.ply').is_file())
+                self.panel.c2_status.setText(
+                    f'TSDF: {message.get("faces", "—")} tam giác · '
+                    f'Zigzag {report.get("zigzag",{}).get("status", "SKIPPED")} · '
+                    f'Contour {report.get("contour",{}).get("status", "SKIPPED")}')
+                self.panel.set_ready(True, False)
+                self._status('TSDF hoàn thành · Mesh và đường dẫn trên RAW thật' + warning)
+                self.sync_workspace_context(self.view.active_workspace)
+                self._view_current()
             elif kind in ('c2', 'c2_verify') and message.get('C2_STATUS') in ('READY', 'VERIFIED'):
                 self._c2 = Path(message['artifact_dir'])
+                self._c2_backend = 'c2'
                 project_warning = ''
                 if kind == 'c2' and self._project_context is not None and self._sequence is not None and self._c1 is not None:
                     try:
@@ -793,7 +906,7 @@ class ReconstructionWorkflowController(QObject):
 
     def _main_ply(self):
         if self._c2 is not None and not self._debug:
-            name = {'mesh': 'surface_mesh.ply',
+            name = {'mesh': 'tsdf_fused_mesh.ply' if self._c2_backend == 'tsdf' else 'surface_mesh.ply',
                     'zigzag': 'zigzag_preview.ply',
                     'contour': 'contour_preview.ply'}[self._c2_display]
             return self._c2/name
