@@ -14,16 +14,23 @@ from PySide6.QtWidgets import QFileDialog, QComboBox, QHBoxLayout, QLabel, QPush
 
 from scantopath.acquisition.raw_rgbd import RawRgbdCapture
 from scantopath.modules.capture.domain.models import CameraState
+from scantopath.modules.reconstruction.application.keyframe_sampling import retain_spaced_frame
 
 
 class _SequenceProcessThread(QThread):
     success = Signal(str, int, int, str)
     failure = Signal(str)
 
-    def __init__(self, packets: list[RawRgbdCapture], output: Path, parent=None):
+    def __init__(self, packets: list[RawRgbdCapture], output: Path, parent=None,
+                 *, captured_total: int | None = None, failed_attempts: int = 0,
+                 interval_ms: int | None = None, stop_reason: str = 'unknown'):
         super().__init__(parent)
         self._packets = list(packets)  # owned RAW-v2 immutable bytes; no SDK references
         self._output = output
+        self._captured_total = len(packets) if captured_total is None else captured_total
+        self._failed_attempts = failed_attempts
+        self._interval_ms = interval_ms
+        self._stop_reason = stop_reason
 
     def run(self) -> None:
         try:
@@ -44,8 +51,17 @@ class _SequenceProcessThread(QThread):
             save_evidence, verify_artifact = b02.save_evidence, b02.verify_artifact
             record = track_sequence(self._packets)
             record['source_mode'] = 'LIVE_3D_EXISTING_CAMERA_KEYFRAMES'
-            record['capture_interval_requested_ms'] = None  # user-controlled cadence
+            record['capture_interval_requested_ms'] = self._interval_ms
             record['ui_capture'] = True
+            # Capture may continue past the 96-frame FT09/FT10 input budget.
+            # Only the retained real RAW keyframes are serialized to B02.
+            record['operator_stop_requested'] = (self._stop_reason == 'operator')
+            record['stop_reason'] = self._stop_reason
+            record['online_keyframe_policy'] = 'TEMPORAL_SPACING_FIRST_LAST_MAX_96'
+            record['captured_keyframes_total'] = self._captured_total
+            record['retained_keyframes'] = len(self._packets)
+            record['discarded_keyframes_from_memory'] = self._captured_total - len(self._packets)
+            record['failed_capture_attempts'] = self._failed_attempts
             output = save_evidence(self._output, self._packets, record)
             verified = verify_artifact(output)
             self.success.emit(str(output), int(verified['accepted_poses']),
@@ -60,14 +76,15 @@ class _SequenceProcessThread(QThread):
 class SequenceCaptureUi(QObject):
     """Small controls added to an existing panel. No camera/geometry ownership.
 
-    Start only while Live 3D shows an object with ChArUco reference. Sampling is
-    bounded to 20 frames; Finish may be pressed anytime after two frames.
-    Processing takes place in a QThread AFTER sampling, so Qt remains responsive.
+    Start only while Live 3D shows an object with ChArUco reference. The
+    operator controls stop; an online sampler retains at most 96 real frames
+    spanning the sweep for the existing FT09/FT10 contracts. Processing runs
+    in a QThread only after Stop or a terminal camera/stream failure.
     """
     completed = Signal(str, int, int, str)  # FT11: verified B02 artifact ready
     processing_started = Signal(int)  # FT11: async FT09 computation started
 
-    MAX_FRAMES = 20  # existing B02 contracts and SHA manifest, no change
+    MAX_FRAMES = 96  # B02/FT09/FT10 input limit; NOT a capture stop threshold
 
     def __init__(self, panel, camera, parent=None):
         super().__init__(parent)
@@ -78,6 +95,9 @@ class SequenceCaptureUi(QObject):
         self._stopping = False
         self._inflight = False
         self._packets: list[RawRgbdCapture] = []
+        self._captured_total = 0
+        self._failed_attempts = 0
+        self._stop_reason = 'unknown'
         self._session_id = ''
         self._specimen_id = ''
         self._output: Path | None = None
@@ -96,7 +116,7 @@ class SequenceCaptureUi(QObject):
         self.interval.addItem('1,2 giây/frame', 1200)
         self.interval.addItem('2 giây/frame', 2000)
         self.interval.setCurrentIndex(1)
-        self.interval.setToolTip('Lấy tối đa 20 frame. Bạn quyết định thời điểm bắt đầu và dừng.')
+        self.interval.setToolTip('Không tự dừng ở 96 frame. Giữ tối đa 96 khung hình đo thật; chỉ xử lý khi bạn nhấn Dừng.')
         row.addWidget(self.start_button)
         row.addWidget(self.stop_button)
         row.addWidget(self.interval)
@@ -222,10 +242,13 @@ class SequenceCaptureUi(QObject):
         self._session_id = 'b02ui_' + token
         self._specimen_id = 'b02spec_' + token
         self._packets = []
+        self._captured_total = 0
+        self._failed_attempts = 0
+        self._stop_reason = 'unknown'
         self._recording = True
         self._stopping = False
         self._inflight = False
-        self.status.setText('Chuỗi: ĐANG THU · di chuyển camera chậm, nhấn Dừng khi hoàn tất')
+        self.status.setText('ĐANG THU · bạn chủ động nhấn Dừng & tái tạo · giữ tối đa 96 frame (ưu tiên giữ nguyên)')
         self._update_controls()
         QTimer.singleShot(0, self._request_sample)
 
@@ -250,20 +273,24 @@ class SequenceCaptureUi(QObject):
         self._inflight = False
         if not isinstance(packet, RawRgbdCapture):
             self._stopping = True
+            self._stop_reason = 'invalid_raw'
             self.status.setText('Chuỗi: Camera trả về dữ liệu RAW không hợp lệ')
         elif (packet.metadata.session_id != self._session_id or
               packet.metadata.specimen_id != self._specimen_id or
-              (self._packets and packet.metadata.depth.frame_index <=
-               self._packets[-1].metadata.depth.frame_index)):
+              (self._packets and (
+                  packet.metadata.depth.frame_index <= self._packets[-1].metadata.depth.frame_index
+                  or packet.metadata.depth.timestamp_us <=
+                     self._packets[-1].metadata.depth.timestamp_us))):
             self._stopping = True
+            self._stop_reason = 'capture_identity_or_order_invalid'
             self.status.setText('Chuỗi: dữ liệu không cùng phiên hoặc sai thứ tự frame')
         else:
-            self._packets.append(packet)
+            self._captured_total += 1
+            retain_spaced_frame(self._packets, packet, limit=self.MAX_FRAMES)
             count = len(self._packets)
-            self.status.setText(f'Chuỗi: đã thu {count}/{self.MAX_FRAMES} frame · '
-                                'di chuyển từ từ; có thể bấm Dừng & xử lý')
-            if count >= self.MAX_FRAMES:
-                self._stopping = True
+            self.status.setText(
+                f'ĐANG THU · đã chụp {self._captured_total} frame, giữ {count}/{self.MAX_FRAMES} '
+                f'frame đại diện · lỗi tạm: {self._failed_attempts} · Nhấn Dừng khi quét xong')
         if self._stopping:
             self._finish_capture()
         else:
@@ -274,15 +301,23 @@ class SequenceCaptureUi(QObject):
         if not self._recording or not self._inflight:
             return
         self._inflight = False
-        self._stopping = True
-        self.status.setText('Chuỗi: lỗi chụp ' + code)
-        self._finish_capture()
+        if self._stopping:
+            self._finish_capture()
+            return
+        # An isolated keyframe capture failure must not truncate a sweep.
+        # CameraState.FAILED/CLOSED is still handled as a terminal state below.
+        self._failed_attempts += 1
+        self.status.setText(
+            f'ĐANG THU · lỗi chụp tạm thời ({code[:70]}), đang thử lại · '
+            f'giữ {len(self._packets)} frame; nhấn Dừng khi quét xong')
+        self._timer.start(max(1500, int(self.interval.currentData())))
 
     @Slot()
     def _stop(self) -> None:
         if not self._recording:
             return
         self._stopping = True
+        self._stop_reason = 'operator'
         self._timer.stop()
         self.stop_button.setEnabled(False)
         if self._inflight:
@@ -303,13 +338,18 @@ class SequenceCaptureUi(QObject):
             self._update_controls()
             return
         count = len(self._packets)
-        job = _SequenceProcessThread(self._packets, self._output, self)
+        job = _SequenceProcessThread(
+            self._packets, self._output, self,
+            captured_total=self._captured_total,
+            failed_attempts=self._failed_attempts,
+            interval_ms=int(self.interval.currentData()),
+            stop_reason=self._stop_reason)
         self._job = job
         self._packets.clear()
         job.success.connect(self._on_success)
         job.failure.connect(self._on_failure)
         job.finished.connect(self._on_finished)
-        self.status.setText(f'Chuỗi: đang tính pose {count} frame (FT-05.8 + B-01)…')
+        self.status.setText(f'Đã dừng · xử lý {count} frame đại diện từ {self._captured_total} frame đã chụp…')
         self._update_controls()
         job.start()
         self.processing_started.emit(count)
@@ -345,6 +385,7 @@ class SequenceCaptureUi(QObject):
         if self._recording and state in (CameraState.STOPPING, CameraState.CLOSED,
                                           CameraState.FAILED, CameraState.IDLE):
             self._stopping = True
+            self._stop_reason = 'camera_stream_ended'
             self._inflight = False  # failed camera may never emit captured
             self._finish_capture()
         self._update_controls()
@@ -353,6 +394,7 @@ class SequenceCaptureUi(QObject):
     def _mode_changed(self, *_args) -> None:
         if self._recording:
             self._stopping = True
+            self._stop_reason = 'operator_changed_mode'
             if not self._inflight:
                 self._finish_capture()
         self._update_controls()

@@ -201,7 +201,8 @@ def test_checksum_tamper_blocks_before_output(tmp_path,monkeypatch):
 
 def test_untrusted_raw_never_opened(tmp_path,monkeypatch):
     source=create_fixture(tmp_path,monkeypatch)
-    import scantopath.domain.raw_rgbd as raw_meta
+    # Fixture replaces sys.modules; package attributes can point to an old module.
+    raw_meta = sys.modules['scantopath.domain.raw_rgbd']
     counter=[]
     old=raw_meta.RawRgbdCaptureMetadataV2.model_validate_json
     def capture(data):

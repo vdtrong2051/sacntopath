@@ -52,7 +52,7 @@ def validated_trajectory(record: dict) -> tuple[list[dict], list[dict]]:
         raise MultiviewError('FT10_FT09_TRAJECTORY_REQUIRED')
     rows = record.get('frames')
     n = record.get('source_frame_count')
-    if type(n) is not int or not 2 <= n <= 20 or not isinstance(rows, list) or len(rows) != n:
+    if type(n) is not int or not 2 <= n <= 96 or not isinstance(rows, list) or len(rows) != n:
         raise MultiviewError('FT10_SEQUENCE_COUNT_INVALID')
     accepted, skipped = [], []
     identities = set()

@@ -121,8 +121,8 @@ def track_sequence(
     Reference world transforms are saved only for accepted keyframes. ChArUco
     seed, isolation, ICP, board/ICP consistency are all B-01's existing gates.
     """
-    if not isinstance(packets, list) or not 2 <= len(packets) <= 20:
-        raise ValueError('B02_SEQUENCE_LENGTH_INVALID: expected 2..20 frames')
+    if not isinstance(packets, list) or not 2 <= len(packets) <= 96:
+        raise ValueError('B02_SEQUENCE_LENGTH_INVALID: expected 2..96 frames')
     if not (isfinite(min_depth_m) and isfinite(max_depth_m)
             and 0 < min_depth_m < max_depth_m < 50):
         raise ValueError('B02_DEPTH_RANGE_INVALID')

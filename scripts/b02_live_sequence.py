@@ -33,7 +33,7 @@ def parser() -> argparse.ArgumentParser:
                    help='Reuse two verified B01 new-frame artifacts, NO camera')
     p.add_argument('--input-sequence-artifact', type=Path,
                    help='Re-evaluate checksum-verified FT-08.17 B02 RAW sequence with FT-09 recovery, no camera')
-    p.add_argument('--frames', type=int, default=8, help='New camera samples, 2..20; default 8')
+    p.add_argument('--frames', type=int, default=8, help='New camera samples, 2..96; default 8')
     p.add_argument('--interval-ms', type=int, default=350, help='Delay between capture calls, 150..2000')
     p.add_argument('--out', type=Path, help='Parent output outside Git working tree')
     p.add_argument('--min-depth-m', type=float, default=.30)
@@ -160,7 +160,7 @@ def verify_artifact(root: Path) -> dict:
     if record.get('schema') != 'scantopath.ft08.17.sampled_pose_sequence.v1':
         raise ValueError('B02_RECORD_SCHEMA_INVALID')
     n = record.get('source_frame_count')
-    if type(n) is not int or n < 2 or n > 20 or len(files) != 3 * n + 1:
+    if type(n) is not int or n < 2 or n > 96 or len(files) != 3 * n + 1:
         raise ValueError('B02_ARTIFACT_COUNT_INVALID')
     return {'verified_files': len(files), 'accepted_poses': record['accepted_poses'],
             'source_frame_count': n, 'status': record['status']}
@@ -220,7 +220,7 @@ def main(argv=None) -> int:
     if args.out is None:
         emit('INPUT_MISSING', required='--out <external_directory>')
         return 2
-    if not 2 <= args.frames <= 20 or not 150 <= args.interval_ms <= 2000:
+    if not 2 <= args.frames <= 96 or not 150 <= args.interval_ms <= 2000:
         raise ValueError('B02_FRAMES_OR_CADENCE_OUT_OF_RANGE')
     if not 0 < args.min_depth_m < args.max_depth_m < 50:
         raise ValueError('B02_DEPTH_RANGE_INVALID')
