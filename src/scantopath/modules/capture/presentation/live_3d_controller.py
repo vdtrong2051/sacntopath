@@ -6,6 +6,7 @@ from pathlib import Path
 from PySide6.QtCore import QObject, QThread, QTimer, Slot, Signal
 from PySide6.QtWidgets import QFileDialog
 
+from scantopath.modules.reconstruction.presentation.sequence_capture_ui import SequenceCaptureUi
 from scantopath.modules.capture.application.live_snapshot import (
     SnapshotError, freeze_geometry, bounds_xyz_mm, save_snapshot,
 )
@@ -48,6 +49,7 @@ class Live3DController(QObject):
         self._view = view
         self._live = view.capture_live
         self._panel = self._live.panel.cloud_view
+        self._sequence_ui = SequenceCaptureUi(self._panel, self._live.camera, self)
         self._worker_factory = worker_factory
         self._worker: Live3DRenderWorker | None = None  # Lazy until actual STREAMING.
         self._closing = False
@@ -81,12 +83,13 @@ class Live3DController(QObject):
     def safe_to_dispose(self) -> bool:
         renderer_done = self._worker is None or self._worker.stopped
         save_done = self._save_thread is None or not self._save_thread.isRunning()
-        return renderer_done and save_done
+        return renderer_done and save_done and self._sequence_ui.safe_to_dispose
 
     def begin_shutdown(self) -> bool:
         if not self._closing:
             self._closing = True
             self._timer.stop()
+            self._sequence_ui.begin_shutdown()
             self._latest_bundle = self._frozen = None
             if self._worker is not None:
                 self._worker.request_stop()
