@@ -31,6 +31,10 @@ class ReconstructionPanel(QFrame):
     history_requested = Signal(str)
     c1_requested = Signal()
     reference_requested = Signal()
+    c2_requested = Signal()
+    c2_open_requested = Signal()
+    c2_source_requested = Signal()
+    c2_view_requested = Signal(str)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -98,6 +102,35 @@ class ReconstructionPanel(QFrame):
         c1_actions.addWidget(self.c1_status, 1)
         root.addLayout(c1_actions)
 
+        c2_actions = QHBoxLayout()
+        self.c2_button = QPushButton('C2 · Tạo mesh & đường dẫn', self)
+        self.c2_button.setObjectName('c2RunSurfacePath')
+        self.c2_button.setToolTip('FT-16–18: mesh chỉ dùng mặt có hỗ trợ dữ liệu đo; đường dẫn tham chiếu XYZ + normal.')
+        self.c2_button.clicked.connect(self.c2_requested.emit)
+        self.c2_source = QPushButton('Mở cloud C1…', self)
+        self.c2_source.setObjectName('c2OpenSourceC1')
+        self.c2_source.clicked.connect(self.c2_source_requested.emit)
+        self.c2_open = QPushButton('Mở kết quả C2…', self)
+        self.c2_open.setObjectName('c2OpenResult')
+        self.c2_open.clicked.connect(self.c2_open_requested.emit)
+        self.c2_mesh = QPushButton('Mesh', self)
+        self.c2_mesh.setObjectName('c2ViewMesh')
+        self.c2_mesh.clicked.connect(lambda: self.c2_view_requested.emit('mesh'))
+        self.c2_zigzag = QPushButton('Zigzag', self)
+        self.c2_zigzag.setObjectName('c2ViewZigzag')
+        self.c2_zigzag.clicked.connect(lambda: self.c2_view_requested.emit('zigzag'))
+        self.c2_contour = QPushButton('Contour', self)
+        self.c2_contour.setObjectName('c2ViewContour')
+        self.c2_contour.clicked.connect(lambda: self.c2_view_requested.emit('contour'))
+        for button in (self.c2_button, self.c2_source, self.c2_open, self.c2_mesh, self.c2_zigzag, self.c2_contour):
+            c2_actions.addWidget(button)
+        c2_actions.addStretch(1)
+        root.addLayout(c2_actions)
+        self.c2_status = QLabel('C2: cần cloud C1; đường dẫn chỉ là hình học, chưa điều khiển robot.', self)
+        self.c2_status.setObjectName('c2SurfacePathStatus')
+        self.c2_status.setWordWrap(True)
+        root.addWidget(self.c2_status)
+
         pose_label = QLabel('POSE VÀ CHẤT LƯỢNG TRACKING', self)
         pose_label.setObjectName('ft11SectionTitle')
         root.addWidget(pose_label)
@@ -146,6 +179,18 @@ class ReconstructionPanel(QFrame):
         self.reopen_button.setEnabled(not busy)
         self.c1_button.setEnabled(ready and not busy)
         self.metric_button.setEnabled(ready and not busy)
+        self.c2_button.setEnabled(getattr(self, '_has_c1', False) and not busy)
+        self.c2_open.setEnabled(not busy)
+        self.c2_source.setEnabled(not busy)
+        for button in (self.c2_mesh, self.c2_zigzag, self.c2_contour):
+            button.setEnabled(getattr(self, '_has_c2', False) and not busy)
+
+    def set_c2_available(self, has_c1: bool, has_c2: bool):
+        self._has_c1 = bool(has_c1)
+        self._has_c2 = bool(has_c2)
+        self.c2_button.setEnabled(self._has_c1)
+        for button in (self.c2_mesh, self.c2_zigzag, self.c2_contour):
+            button.setEnabled(self._has_c2)
 
     def _pose_changed(self):
         item = self.pose_table.currentItem()
@@ -221,6 +266,8 @@ class ReconstructionWorkflowController(QObject):
         self._sequence: Path | None = None
         self._cloud: Path | None = None
         self._c1: Path | None = None
+        self._c2: Path | None = None
+        self._c2_display = 'mesh'
         self._reference: Path | None = None
         self._bundle: Path | None = None
         self._debug = False
@@ -264,6 +311,10 @@ class ReconstructionWorkflowController(QObject):
         self.panel.history_requested.connect(self._verify_bundle)
         self.panel.c1_requested.connect(self._start_c1)
         self.panel.reference_requested.connect(self._enter_metric_reference)
+        self.panel.c2_requested.connect(self._start_c2)
+        self.panel.c2_open_requested.connect(self._choose_c2)
+        self.panel.c2_source_requested.connect(self._choose_c1)
+        self.panel.c2_view_requested.connect(self._view_c2)
         self.panel.pose_selected.connect(self._show_pose)
         self.view.live_3d.sequence_completed.connect(self._sequence_complete)
         self.view.live_3d.sequence_processing_started.connect(self._tracking_started)
@@ -297,12 +348,12 @@ class ReconstructionWorkflowController(QObject):
         # Project selection remains authoritative; show external cloud provenance
         # above the tree instead of silently pretending it belongs to SQLite.
         active = workspace in (WorkspaceId.INSPECT3D, WorkspaceId.PROCESSING)
-        available = self._cloud is not None or self._bundle is not None or self._c1 is not None
+        available = self._cloud is not None or self._bundle is not None or self._c1 is not None or self._c2 is not None
         self.explorer_context.setVisible(bool(active and available))
         self.view.explorer_dock.setWindowTitle(
             'Dữ liệu dự án · Phiên 3D' if active and available else 'Cây dự án')
         if active and available:
-            source = self._bundle or self._c1 or self._cloud
+            source = self._c2 or self._bundle or self._c1 or self._cloud
             self.explorer_context.setText(
                 'PHIÊN TÁI TẠO ĐANG MỞ\n' + source.name +
                 '\nCloud bên ngoài · không thuộc kho SQLite đang chọn')
@@ -343,7 +394,9 @@ class ReconstructionWorkflowController(QObject):
             self._status('Chuỗi không hợp lệ: thiếu tracking_sequence.json')
             return
         self._sequence = source
-        self._cloud = self._bundle = self._c1 = self._reference = None
+        self._cloud = self._bundle = self._c1 = self._c2 = self._reference = None
+        self.panel.set_c2_available(False, False)
+        self.panel.c2_status.setText('C2: đang chờ cloud C1 từ phiên quét mới.')
         self.panel.c1_status.setText('C1: sẽ chạy sau khi tích lũy FT-10.')
         self._tracking = {}
         self._debug = False
@@ -402,10 +455,49 @@ class ReconstructionWorkflowController(QObject):
         self._status('Đã nhập kích thước chuẩn · chạy lại C1 để kiểm tra gate 10 mm.')
         self._start_c1()
 
+    def _choose_c1(self):
+        if self._job is not None:
+            return
+        folder = QFileDialog.getExistingDirectory(
+            self.panel, 'Chọn cloud C1 đã lưu để dựng mesh/path', str(self._last_output/'C1_Results'))
+        if not folder:
+            return
+        self._start('c1_verify', 'c1_trusted_cloud.py', ['--verify', folder])
+        self._status('C2: đang xác minh C1 SHA-256 trước khi dựng mesh…')
+
+    def _choose_c2(self):
+        if self._job is not None:
+            return
+        folder = QFileDialog.getExistingDirectory(
+            self.panel, 'Chọn artifact C2 đã lưu', str(self._last_output/'C2_Results'))
+        if not folder:
+            return
+        self._start('c2_verify', 'c2_surface_to_path.py', ['--verify', folder])
+        self._status('C2: đang xác minh SHA-256 và đường dẫn đã lưu…')
+
+    def _start_c2(self):
+        if self._closing or self._job is not None or self._c1 is None:
+            return
+        self._c2 = None
+        self.panel.set_c2_available(True, False)
+        self.panel.c2_status.setText('C2: đang dựng mesh, sinh Zigzag và Contour…')
+        self._start('c2', 'c2_surface_to_path.py', [
+            '--c1', str(self._c1), '--out', str(self._last_output/'C2_Results')])
+        self._status('C2: FT-16 Mesh → FT-17 Zigzag → FT-18 Contour & Export…')
+
+    def _view_c2(self, kind):
+        if self._c2 is None or kind not in ('mesh', 'zigzag', 'contour'):
+            return
+        self._c2_display = kind
+        self._debug = False
+        self._view_current()
+
     def _start_c1(self):
         if self._closing or self._job is not None or self._sequence is None or self._cloud is None:
             return
-        self._c1 = None
+        self._c1 = self._c2 = None
+        self.panel.set_c2_available(False, False)
+        self.panel.c2_status.setText('C2: chờ cloud C1 sau khi chạy lại.')
         self.panel.c1_status.setText('C1: đang phân tích cloud và pose…')
         args = ['--sequence', str(self._sequence), '--cloud', str(self._cloud),
                 '--out', str(self._last_output/'C1_Results')]
@@ -473,7 +565,8 @@ class ReconstructionWorkflowController(QObject):
             if isinstance(obj, dict):
                 if (obj.get('FT10_STATUS') in ('ACCEPTED', 'BLOCKED') or
                     obj.get('FT11_STATUS') in ('VERIFIED', 'EXPORTED', 'BLOCKED') or
-                    obj.get('C1_STATUS') in ('READY', 'BLOCKED')):
+                    obj.get('C1_STATUS') in ('READY', 'VERIFIED', 'BLOCKED') or
+                    obj.get('C2_STATUS') in ('READY', 'VERIFIED', 'BLOCKED')):
                     self._message = obj
                 elif obj.get('FT10_STATUS') == 'VIEW_ACCUMULATED':
                     self.panel.points.setText('Voxel: ' + str(obj.get('merged_voxels', '—')))
@@ -507,7 +600,8 @@ class ReconstructionWorkflowController(QObject):
         good = code == 0 and exit_status == QProcess.NormalExit
         if (not good or message.get('FT10_STATUS') == 'BLOCKED'
                 or message.get('FT11_STATUS') == 'BLOCKED'
-                or message.get('C1_STATUS') == 'BLOCKED'):
+                or message.get('C1_STATUS') == 'BLOCKED'
+                or message.get('C2_STATUS') == 'BLOCKED'):
             self.panel.set_ready(self._cloud is not None or self._bundle is not None, False)
             if kind == 'c1':
                 self.panel.c1_status.setText('C1 từ chối: ' + str(message.get('code','PROCESS_FAILED')))
@@ -528,7 +622,8 @@ class ReconstructionWorkflowController(QObject):
                 self._start_c1()  # C1 follows FT10 automatically, but FT10 remains viewable on failure.
             elif kind in ('verify', 'export') and message.get('FT11_STATUS') in ('VERIFIED', 'EXPORTED'):
                 self._bundle = Path(message['artifact_dir'])
-                self._c1 = self._reference = None
+                self._c1 = self._c2 = self._reference = None
+                self.panel.set_c2_available(False, False)
                 self.panel.c1_status.setText('C1: không có RAW để xử lý lại phiên portable này.')
                 self._cloud = None
                 self._sequence = None
@@ -545,6 +640,7 @@ class ReconstructionWorkflowController(QObject):
                 self._view_current()
             elif kind == 'c1' and message.get('C1_STATUS') == 'READY':
                 self._c1 = Path(message['artifact_dir'])
+                self.panel.set_c2_available(True, False)
                 result = message.get('metric_gate', 'NOT_TESTED')
                 self.panel.c1_status.setText('C1: ' + result.replace('_',' ') +
                                               ' · pose chỉ đạt kiểm tra hình học')
@@ -552,6 +648,27 @@ class ReconstructionWorkflowController(QObject):
                 self._status('C1 hoàn thành · cloud vật thể và normal đã lưu · Metric: ' + result)
                 self.panel.set_ready(True, False)
                 self._debug = False
+                self._view_current()
+                self._start_c2()  # C2 follows C1 automatically; C1 remains independently usable.
+            elif kind == 'c1_verify' and message.get('C1_STATUS') == 'VERIFIED':
+                self._c1 = Path(message['artifact_dir'])
+                self._c2 = None
+                self._tracking = {}
+                self.panel.clear_tracking()
+                self.panel.points.setText('Điểm XYZ: ' + str(message['points']))
+                self.panel.set_c2_available(True, False)
+                self._status('Đã xác minh cloud C1; bắt đầu dựng C2 từ artifact đã lưu.')
+                self._start_c2()
+            elif kind in ('c2', 'c2_verify') and message.get('C2_STATUS') in ('READY', 'VERIFIED'):
+                self._c2 = Path(message['artifact_dir'])
+                self._c2_display = 'mesh'
+                self.panel.set_c2_available(self._c1 is not None, True)
+                self.panel.c2_status.setText(
+                    f'C2: {message["faces"]} tam giác · Zigzag {message["zigzag_points"]} điểm · '
+                    f'Contour {message["contour_points"]} điểm · Mặt dưới chưa kiểm chứng')
+                self.panel.set_ready(True, False)
+                self._status('C2 hoàn thành · Mesh và đường dẫn XYZ + normal đã lưu · Chưa chứng nhận metric')
+                self.sync_workspace_context(self.view.active_workspace)
                 self._view_current()
             else:
                 self._status('Kết quả tiến trình không đúng giao thức FT-11: ' + kind)
@@ -561,6 +678,11 @@ class ReconstructionWorkflowController(QObject):
             self._status('Không thể đọc kết quả: ' + type(exc).__name__)
 
     def _main_ply(self):
+        if self._c2 is not None and not self._debug:
+            name = {'mesh': 'surface_mesh.ply',
+                    'zigzag': 'zigzag_preview.ply',
+                    'contour': 'contour_preview.ply'}[self._c2_display]
+            return self._c2/name
         if self._c1 is not None and not self._debug:
             return self._c1/'trusted_object_cloud.ply'
         if self._bundle is not None:
@@ -585,13 +707,15 @@ class ReconstructionWorkflowController(QObject):
         if hasattr(viewer, 'set_reconstruction_context'):
             points = self.panel.points.text().replace('Điểm XYZ: ', '')
             viewer.set_reconstruction_context((
-                ('Loại kết quả', 'C1 cloud vật thể · FT-12/15' if self._c1 and not self._debug else 'Cloud tích lũy đa góc · FT-10'),
+                ('Loại kết quả', 'C2 Mesh / Path tham chiếu · FT-16–18' if self._c2 and not self._debug else ('C1 cloud vật thể · FT-12/15' if self._c1 and not self._debug else 'Cloud tích lũy đa góc · FT-10')),
                 ('Số frame', self.panel.frames.text().replace('Frame: ', '')),
                 ('Pose hợp lệ', self.panel.poses.text().replace('Pose: ', '')),
                 ('Số điểm', points),
                 ('Nguồn hình học', 'FT-05.8 ChArUco + FT-09 pose + C1 SOR/PCA' if self._c1 and not self._debug else 'Điểm đo RGB-D · voxel 4 mm mặc định'),
                 ('Độ tin cậy', 'Pose ước lượng · kích thước chưa kiểm chứng'),
                 ('C1 · metric', self.panel.c1_status.text()),
+                ('C2 · đường dẫn', self.panel.c2_status.text()),
+                ('C2 · độ phủ mặt đáy', 'CHƯA KIỂM CHỨNG'),
             ))
         label = ('Xem cloud C1' if self._debug and self._c1 is not None else
                  'Xem cloud tổng hợp' if self._debug else 'Màu theo góc')
